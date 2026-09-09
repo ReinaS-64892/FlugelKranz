@@ -1,0 +1,3 @@
+[submodule "src/MonadoXrApi/monado"]
+	path = src/MonadoXrApi/monado
+	url = https://gitlab.freedesktop.org/monado/monado.git
