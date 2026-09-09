@@ -1,30 +1,74 @@
-﻿using System.CommandLine;
+using System.CommandLine;
+using Avalonia;
+using MonadoXrApi;
 
-var root = new RootCommand("FlugelKranz");
+namespace FlugelKranz;
 
-/*
-Flugel ... 翼、有翼属 などを意味して
-Kranz ... 冠、輪 などを意味して
-
-モチーフは Botania の Flügel Tiara が元となる。
-その Flügel Tiara ティアラは、装飾を付与しないと装飾がないのも相まり、よくにているような気もするし、その名前で使っても文脈的に衝突しないとは思うが、一応避けた。
-*/
-
-var libMonadoPathOption = new Option<string>("LibMonadoPath", "lib")
+internal static class Program
 {
-    Description = "Connect path to libmonado.so (libmonado_wivrn.so) (default : /usr/lib/wivrn/libmonado_wivrn.so)"
-};
+    private const string DefaultMonadoLibraryPath = "/usr/lib/wivrn/libmonado_wivrn.so";
+    public static string MonadoLibraryPath { get; private set; } = DefaultMonadoLibraryPath;
 
-root.Options.Add(libMonadoPathOption);
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        var libraryOption = new Option<string>("--lib-monado", "LibMonadoPath", "lib")
+        {
+            Description = "libmonado.so / libmonado_wivrn.so のパス",
+            HelpName = "PATH",
+            Arity = ArgumentArity.ExactlyOne,
+            DefaultValueFactory = _ => DefaultMonadoLibraryPath
+        };
+        libraryOption.Validators.Add(result =>
+        {
+            var path = result.GetValueOrDefault<string>();
+            if (string.IsNullOrWhiteSpace(path) || path.StartsWith('-'))
+                result.AddError("--lib-monado にはライブラリのパスを指定してください。'-' で始まるファイル名には './' を付けてください。");
+        });
+        var diagnoseOption = new Option<bool>("--diagnose")
+        {
+            Description = "UI を開かず接続・入力を確認（空間の書き込みなし）"
+        };
+        var root = new RootCommand("FlugelKranz — Space Drag / Space Turn。Linux Wayland セッションで起動してください。");
+        root.Options.Add(libraryOption);
+        root.Options.Add(diagnoseOption);
+        root.SetAction(result =>
+        {
+            MonadoLibraryPath = result.GetValue(libraryOption)!;
+            return Run(result.GetValue(diagnoseOption));
+        });
 
-root.SetAction(async (arg, cancellationToken) =>
-{
-    var libMonadoPath = arg.GetValue(libMonadoPathOption) ?? "/usr/lib/wivrn/libmonado_wivrn.so";
-    if (File.Exists(libMonadoPath) is false) { throw new Exception("libmonado*.so not found!"); }
+        // Keep Avalonia startup on the entry thread by invoking the action synchronously.
+        return root.Parse(args).Invoke();
+    }
 
-    // to Main(libMonadoPath);
+    private static int Run(bool diagnose)
+    {
+        try
+        {
+            if (diagnose)
+            {
+                using var runtime = new MonadoFlightRuntime(MonadoLibraryPath);
+                for (int i = 0; i < 200; i++)
+                {
+                    var frame = runtime.ReadPhysical();
+                    if (frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
+                    { Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。"); return 0; }
+                    Thread.Sleep(10);
+                }
+                Console.Error.WriteLine("接続できましたが、HMD・両手の有効な入力を確認できませんでした。");
+                return 1;
+            }
+            if (!OperatingSystem.IsLinux() || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+                throw new InvalidOperationException("Linux の Wayland セッションが必要です（WAYLAND_DISPLAY が未設定）。");
+            return BuildAvaloniaApp().StartWithClassicDesktopLifetime([]);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+    }
 
-});
-
-
-return await root.Parse(args).InvokeAsync();
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseWayland().LogToTrace();
+}

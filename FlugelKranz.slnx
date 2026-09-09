@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/FlugelKranz.Core/FlugelKranz.Core.csproj" />
     <Project Path="src/MonadoXrApi/MonadoXrApi.csproj" />
     <Project Path="src/FlugelKranz/FlugelKranz.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FlugelKranz.Tests/FlugelKranz.Tests.csproj" />
   </Folder>
 </Solution>
