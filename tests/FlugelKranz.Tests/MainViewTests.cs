@@ -39,6 +39,7 @@ public class MainViewTests
         Assert.Equal(0.01, vm.DragSmoothSeconds);
         Assert.Equal(0.05, vm.TurnSmoothSeconds);
         Assert.Equal(1, vm.VectorRotationMultiplier);
+        Assert.Equal(0.2, vm.BrakeRampSeconds);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -52,7 +53,7 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(16, sliders.Length);
+            Assert.Equal(17, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -107,12 +108,14 @@ public class MainViewTests
                 first.StepMode = true;
                 first.DragCutoffCentimetresPerSecond = 12.5;
                 first.TurnAccelerationMultiplier = 1.25;
+                first.BrakeRampSeconds = 0.75;
             }
 
             await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
             Assert.True(second.StepMode);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
+            Assert.Equal(0.75, second.BrakeRampSeconds);
         }
         finally
         {

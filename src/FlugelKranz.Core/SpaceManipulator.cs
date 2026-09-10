@@ -9,7 +9,6 @@ public readonly record struct InputFrame(RigidPose Head, bool HeadTracked, HandS
 public sealed class SpaceManipulator
 {
     private const float MaximumStepSeconds = 0.1f;
-    private const float GripBrakeRampSeconds = 0.2f;
     private bool leftArmed, rightArmed;
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
@@ -128,7 +127,8 @@ public sealed class SpaceManipulator
                 ref dragBrakeElapsed,
                 ref dragBrakeFactor,
                 dt,
-                settings.BrakeStrength);
+                settings.BrakeStrength,
+                settings.BrakeRampSeconds);
             dragInertiaStep = linearInertia * dt;
             ApplyDeceleration(
                 ref linearInertia,
@@ -143,7 +143,8 @@ public sealed class SpaceManipulator
                 ref turnBrakeElapsed,
                 ref turnBrakeFactor,
                 dt,
-                settings.BrakeStrength);
+                settings.BrakeStrength,
+                settings.BrakeRampSeconds);
             turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
             ApplyDeceleration(
                 ref angularInertia,
@@ -270,13 +271,24 @@ public sealed class SpaceManipulator
         ref float elapsed,
         ref float previousFactor,
         float deltaSeconds,
-        float strength)
+        float strength,
+        float rampSeconds)
     {
         if (deltaSeconds <= 0 || velocity.LengthSquared() <= 0 || strength <= 0)
             return;
 
-        elapsed = MathF.Min(GripBrakeRampSeconds, elapsed + deltaSeconds);
-        float progress = elapsed / GripBrakeRampSeconds;
+        if (rampSeconds <= 0)
+        {
+            float immediateFactor = MathF.Min(previousFactor, MathF.Max(0, 1 - strength));
+            if (previousFactor > 0)
+                velocity *= immediateFactor / previousFactor;
+            previousFactor = immediateFactor;
+            elapsed = 0;
+            return;
+        }
+
+        elapsed = MathF.Min(rampSeconds, elapsed + deltaSeconds);
+        float progress = elapsed / rampSeconds;
         float easedProgress = progress * progress * (3 - 2 * progress);
         float targetFactor = 1 - strength * easedProgress;
         targetFactor = MathF.Min(previousFactor, MathF.Max(0, targetFactor));

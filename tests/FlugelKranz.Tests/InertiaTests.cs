@@ -38,6 +38,7 @@ public class InertiaTests
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
         Assert.Equal(1, settings.BrakeStrength);
+        Assert.Equal(0.2f, settings.BrakeRampSeconds);
         Assert.True(settings.DirectionCorrectionEnabled);
         Assert.Equal(1, settings.DragCorrectionMaxSeconds);
         Assert.Equal(1, settings.DragCorrectionStrength);
@@ -243,6 +244,19 @@ public class InertiaTests
         var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
         Near(new(expectedX, 0, 0), regripped.Position);
+    }
+
+    [Fact]
+    public void ZeroBrakeRampRetainsImmediateBrakeBehavior()
+    {
+        var settings = Unfiltered with { BrakeStrength = 1, BrakeRampSeconds = 0 };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+
+        Near(new(-2, 0, 0), regripped.Position);
     }
 
     [Fact]

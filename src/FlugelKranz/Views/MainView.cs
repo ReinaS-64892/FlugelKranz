@@ -149,6 +149,9 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Row("値", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeStrength),
                 ResetButton(model, x => x.ResetBrakeCommand)),
+            Row(model, x => x.BrakeRampLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.BrakeRampSeconds),
+                ResetButton(model, x => x.ResetBrakeRampCommand)),
             Divider(),
             Header("方向補正"),
             Row("有効", new CheckBox().IsChecked(model, x => x.DirectionCorrectionEnabled),
