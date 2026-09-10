@@ -85,9 +85,13 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             new TextBlock().Text("操作状態").FontWeight(FontWeight.SemiBold),
             new TextBlock().Text(model, x => x.LeftStatus),
             new TextBlock().Text(model, x => x.RightStatus),
+            Divider(),
+            Header("基本モード"),
             Row("ステップモード", new CheckBox().IsChecked(model, x => x.StepMode),
                 new Button().Content("初期値").Command(model, x => x.ResetStepModeCommand)),
-            Row("慣性カットオフ", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),
+            Divider(),
+            Header("慣性カットオフ"),
+            Row("有効", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),
                 new Button().Content("初期値").Command(model, x => x.ResetInertiaCutoffEnabledCommand)),
             Row(model, x => x.DragCutoffLabel, new Slider().Minimum(0).Maximum(50).TickFrequency(0.5)
                     .Value(model, x => x.DragCutoffCentimetresPerSecond),
@@ -95,19 +99,27 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Row(model, x => x.TurnCutoffLabel, new Slider().Minimum(0).Maximum(180).TickFrequency(1)
                     .Value(model, x => x.TurnCutoffDegreesPerSecond),
                 new Button().Content("初期値").Command(model, x => x.ResetTurnCutoffCommand)),
+            Divider(),
+            Header("慣性加速倍率"),
             Row(model, x => x.DragAccelerationLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.05)
                     .Value(model, x => x.DragAccelerationMultiplier),
                 new Button().Content("初期値").Command(model, x => x.ResetDragAccelerationCommand)),
             Row(model, x => x.TurnAccelerationLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.05)
                     .Value(model, x => x.TurnAccelerationMultiplier),
                 new Button().Content("初期値").Command(model, x => x.ResetTurnAccelerationCommand)),
-            Row("ベクトル回転倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+            Divider(),
+            Header("ベクトル回転倍率"),
+            Row("倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.VectorRotationMultiplier),
                 new Button().Content("初期値").Command(model, x => x.ResetVectorRotationCommand)),
+            Divider(),
+            Header("慣性減速"),
             Row(model, x => x.InertiaDecelerationLabel, new Slider().Minimum(0).Maximum(10).TickFrequency(0.01)
                     .Value(model, x => x.InertiaDecelerationPerSecond),
                 new Button().Content("初期値").Command(model, x => x.ResetDecelerationCommand)),
-            Row("減速免除", new CheckBox().IsChecked(model, x => x.DecelerationExemptionEnabled),
+            Divider(),
+            Header("慣性減速免除"),
+            Row("有効", new CheckBox().IsChecked(model, x => x.DecelerationExemptionEnabled),
                 new Button().Content("初期値").Command(model, x => x.ResetExemptionEnabledCommand)),
             Row(model, x => x.DragDecelerationExemptionDurationLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DragDecelerationExemptionDurationRatio),
@@ -118,16 +130,22 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Row(model, x => x.DecelerationExemptionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DecelerationExemptionStrength),
                 new Button().Content("初期値").Command(model, x => x.ResetExemptionStrengthCommand)),
+            Divider(),
+            Header("ドラグスムーズ"),
             Row(model, x => x.DragSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DragSmoothSeconds),
                 new Button().Content("初期値").Command(model, x => x.ResetDragSmoothCommand)),
             Row(model, x => x.TurnSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.TurnSmoothSeconds),
                 new Button().Content("初期値").Command(model, x => x.ResetTurnSmoothCommand)),
-            Row("ドラグブレーキ値", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+            Divider(),
+            Header("ドラグブレーキ値"),
+            Row("値", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeStrength),
                 new Button().Content("初期値").Command(model, x => x.ResetBrakeCommand)),
-            Row("方向補正", new CheckBox().IsChecked(model, x => x.DirectionCorrectionEnabled),
+            Divider(),
+            Header("方向補正"),
+            Row("有効", new CheckBox().IsChecked(model, x => x.DirectionCorrectionEnabled),
                 new Button().Content("初期値").Command(model, x => x.ResetDirectionCorrectionEnabledCommand)),
             Row(model, x => x.DragCorrectionTimeLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.1)
                     .Value(model, x => x.DragCorrectionMaxSeconds),
@@ -149,6 +167,11 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
     private static Grid Row(string label, Control editor, Button reset) =>
         Row(new TextBlock().Text(label), editor, reset);
 
+    private static Separator Divider() => new() { Margin = new Thickness(0, 8) };
+
+    private static TextBlock Header(string text) =>
+        new TextBlock().Text(text).FontWeight(FontWeight.SemiBold).FontSize(16);
+
     private static Grid Row(MainViewModel model, Expression<Func<MainViewModel, string>> label, Control editor, Button reset) =>
         Row(new TextBlock().Text(model, label), editor, reset);
 
@@ -159,6 +182,9 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             ColumnDefinitions = new ColumnDefinitions("2*, 3*, Auto"),
             ColumnSpacing = 8
         };
+        label.VerticalAlignment = VerticalAlignment.Center;
+        editor.VerticalAlignment = VerticalAlignment.Center;
+        reset.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(label, 0);
         Grid.SetColumn(editor, 1);
         Grid.SetColumn(reset, 2);
