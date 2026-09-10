@@ -8,6 +8,7 @@ public sealed class MonadoFlightRuntime : IFlightRuntime
     private readonly OpenXrInput input;
     public RigidPose OriginalOffset => monado.OriginalOffset;
     public RigidPose CurrentOffset => monado.CurrentOffset;
+    public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => monado.TrackingOrigins;
 
     public MonadoFlightRuntime(string libraryPath)
     {

@@ -49,6 +49,8 @@ internal static class Program
             if (diagnose)
             {
                 using var runtime = new MonadoFlightRuntime(MonadoLibraryPath);
+                foreach (var origin in runtime.TrackingOrigins)
+                    Console.WriteLine($"原点 {origin.Index}: 接続時={origin.Original} 現在={origin.Current}");
                 for (int i = 0; i < 200; i++)
                 {
                     var frame = runtime.ReadPhysical();

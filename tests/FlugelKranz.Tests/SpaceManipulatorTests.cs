@@ -176,6 +176,24 @@ public class SpaceManipulatorTests
     }
 
     [Fact]
+    public void MixedOriginsRecoverTheHmdPhysicalFrameForManipulation()
+    {
+        var stage = new RigidPose(Quaternion.CreateFromYawPitchRoll(-0.1f, 0.3f, 0.2f), new(2, 1, -3));
+        var headOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.2f, -0.1f, 0.4f), new(1, 2, 3));
+        var handOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(-0.5f, 0.3f, 0.1f), new(-2, 1, 4));
+        var delta = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 0.6f, -0.2f), new(3, -1, 2));
+        var currentHead = delta * headOrigin;
+        var currentHand = delta * handOrigin;
+        var handInOwnOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.1f, 0.2f, 0.3f), new(-0.3f, 1.2f, -0.4f));
+        var reportedInStage = stage.Inverse() * currentHand * handInOwnOrigin;
+
+        var recoveredInHeadOrigin = headOrigin.Inverse() * handOrigin * currentHand.Inverse() * stage * reportedInStage;
+
+        Assert.True(recoveredInHeadOrigin.NearlyEquals(headOrigin.Inverse() * handOrigin * handInOwnOrigin));
+        Assert.True((currentHead * recoveredInHeadOrigin).NearlyEquals(currentHand * handInOwnOrigin));
+    }
+
+    [Fact]
     public void QuaternionSignDoesNotChangePoseEquality()
     {
         var q = Quaternion.CreateFromYawPitchRoll(1, 2, 3);

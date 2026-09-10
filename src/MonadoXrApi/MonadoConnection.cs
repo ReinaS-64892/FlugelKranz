@@ -4,6 +4,8 @@ using FlugelKranz.Core;
 
 namespace MonadoXrApi;
 
+public readonly record struct TrackingOriginOffset(uint Index, RigidPose Original, RigidPose Current);
+
 /// <summary>Minimal libmonado 1.4+ ABI, checked against the read-only monado.h.</summary>
 public sealed class MonadoConnection : IDisposable
 {
@@ -37,6 +39,10 @@ public sealed class MonadoConnection : IDisposable
     public RigidPose OriginalOffset => origins[headOrigin].Original;
     public RigidPose CurrentOffset => origins[headOrigin].Current;
     public RigidPose StageToRoot { get; }
+    public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => origins
+        .OrderBy(pair => pair.Key)
+        .Select(pair => new TrackingOriginOffset(pair.Key, pair.Value.Original, pair.Value.Current))
+        .ToArray();
 
     private sealed class Origin(RigidPose offset)
     {
@@ -157,8 +163,14 @@ public sealed class MonadoConnection : IDisposable
 
     private RigidPose ToPhysical(RigidPose stagePose, uint origin)
     {
-        var stageToPhysical = origins[origin].Current.Inverse() * StageToRoot;
-        return stageToPhysical * stagePose;
+        // First remove the current flight offset, then express every device in
+        // the HMD's original physical frame. The second transform preserves the
+        // calibration between independent tracking systems such as Lighthouse
+        // and Quest instead of mixing their local coordinate systems.
+        var state = origins[origin];
+        var originToHead = OriginalOffset.Inverse() * state.Original;
+        var stageToOrigin = state.Current.Inverse() * StageToRoot;
+        return originToHead * stageToOrigin * stagePose;
     }
 
     private RigidPose ReadOrigin(uint origin)
