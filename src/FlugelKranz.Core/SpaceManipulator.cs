@@ -277,7 +277,10 @@ public sealed class SpaceManipulator
         }
 
         if (settings.DirectionCorrectionEnabled && dragHistory.IsStraightPositionPath(settings.DragCorrectionMaxSeconds))
-            dragVelocity = Vector3.Lerp(dragVelocity, dragHistory.AverageLinearVelocity, settings.DragCorrectionStrength);
+            dragVelocity = CorrectDirection(
+                dragVelocity,
+                dragHistory.AverageLinearVelocity,
+                settings.DragCorrectionStrength);
 
         if (settings.InertiaCutoffEnabled && dragVelocity.Length() < settings.DragCutoffMetresPerSecond)
             linearInertia = Vector3.Zero;
@@ -303,7 +306,10 @@ public sealed class SpaceManipulator
         }
 
         if (settings.DirectionCorrectionEnabled && turnHistory.IsStraightRotationPath(settings.TurnCorrectionMaxSeconds))
-            turnVelocity = Vector3.Lerp(turnVelocity, turnHistory.AverageAngularVelocity, settings.TurnCorrectionStrength);
+            turnVelocity = CorrectDirection(
+                turnVelocity,
+                turnHistory.AverageAngularVelocity,
+                settings.TurnCorrectionStrength);
 
         if (settings.InertiaCutoffEnabled && turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond)
             angularInertia = Vector3.Zero;
@@ -317,6 +323,24 @@ public sealed class SpaceManipulator
             settings);
 
         turnHistory.Clear();
+    }
+
+    private static Vector3 CorrectDirection(
+        Vector3 releaseVelocity,
+        Vector3 averageVelocity,
+        float strength)
+    {
+        float speed = releaseVelocity.Length();
+        if (speed <= 0 || averageVelocity.LengthSquared() <= 0 || strength <= 0)
+            return releaseVelocity;
+
+        var direction = Vector3.Lerp(
+            releaseVelocity / speed,
+            Vector3.Normalize(averageVelocity),
+            strength);
+        return direction.LengthSquared() <= 0.0000000001f
+            ? releaseVelocity
+            : Vector3.Normalize(direction) * speed;
     }
 
     private static void ApplyDeceleration(

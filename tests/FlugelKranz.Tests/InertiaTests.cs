@@ -298,7 +298,7 @@ public class InertiaTests
     }
 
     [Fact]
-    public void StraightShortDragUsesWholeGestureDirection()
+    public void StraightShortDragUsesWholeGestureDirectionWithoutChangingReleaseSpeed()
     {
         var settings = Unfiltered with
         {
@@ -312,7 +312,27 @@ public class InertiaTests
 
         var released = engine.Update(Frame(new Vector3(1, -0.1f, 0)), 0.1f, settings);
 
-        Near(new(-1.5f, 0.15f, 0), released.Position);
+        var releaseVelocity = new Vector3(-5, 1, 0);
+        var correctedVelocity = Vector3.Normalize(new Vector3(-5, 0.5f, 0)) * releaseVelocity.Length();
+        Near(new Vector3(-1, 0.1f, 0) + correctedVelocity * 0.1f, released.Position);
+    }
+
+    [Fact]
+    public void StraightDragCorrectionDoesNotReplaceReleaseSpeedWithGestureAverage()
+    {
+        var settings = Unfiltered with
+        {
+            DirectionCorrectionEnabled = true,
+            DragCorrectionMaxSeconds = 1,
+            DragCorrectionStrength = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 0.1f, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1.1f, leftGrip: 1), 0.1f, settings);
+
+        var released = engine.Update(Frame(leftX: 1.1f), 0.1f, settings);
+
+        Near(new(-2.1f, 0, 0), released.Position);
     }
 
     [Fact]
@@ -465,7 +485,7 @@ public class InertiaTests
     }
 
     [Fact]
-    public void StraightShortTurnUsesWholeGestureAngularVelocity()
+    public void StraightShortTurnUsesWholeGestureDirectionWithoutChangingReleaseSpeed()
     {
         var settings = Unfiltered with
         {
@@ -483,7 +503,7 @@ public class InertiaTests
 
         var released = engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
 
-        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -0.45f), released.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -0.5f), released.Orientation);
     }
 
     private static SpaceManipulator BeginDrag(FlightMotionSettings settings)
