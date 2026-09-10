@@ -88,77 +88,77 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Divider(),
             Header("基本モード"),
             Row("ステップモード", new CheckBox().IsChecked(model, x => x.StepMode),
-                new Button().Content("初期値").Command(model, x => x.ResetStepModeCommand)),
+                ResetButton(model, x => x.ResetStepModeCommand)),
             Divider(),
             Header("慣性カットオフ"),
             Row("有効", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),
-                new Button().Content("初期値").Command(model, x => x.ResetInertiaCutoffEnabledCommand)),
+                ResetButton(model, x => x.ResetInertiaCutoffEnabledCommand)),
             Row(model, x => x.DragCutoffLabel, new Slider().Minimum(0).Maximum(50).TickFrequency(0.5)
                     .Value(model, x => x.DragCutoffCentimetresPerSecond),
-                new Button().Content("初期値").Command(model, x => x.ResetDragCutoffCommand)),
+                ResetButton(model, x => x.ResetDragCutoffCommand)),
             Row(model, x => x.TurnCutoffLabel, new Slider().Minimum(0).Maximum(180).TickFrequency(1)
                     .Value(model, x => x.TurnCutoffDegreesPerSecond),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnCutoffCommand)),
+                ResetButton(model, x => x.ResetTurnCutoffCommand)),
             Divider(),
             Header("慣性加速倍率"),
             Row(model, x => x.DragAccelerationLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.05)
                     .Value(model, x => x.DragAccelerationMultiplier),
-                new Button().Content("初期値").Command(model, x => x.ResetDragAccelerationCommand)),
+                ResetButton(model, x => x.ResetDragAccelerationCommand)),
             Row(model, x => x.TurnAccelerationLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.05)
                     .Value(model, x => x.TurnAccelerationMultiplier),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnAccelerationCommand)),
+                ResetButton(model, x => x.ResetTurnAccelerationCommand)),
             Divider(),
             Header("ベクトル回転倍率"),
             Row("倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.VectorRotationMultiplier),
-                new Button().Content("初期値").Command(model, x => x.ResetVectorRotationCommand)),
+                ResetButton(model, x => x.ResetVectorRotationCommand)),
             Divider(),
             Header("慣性減速"),
             Row(model, x => x.InertiaDecelerationLabel, new Slider().Minimum(0).Maximum(10).TickFrequency(0.01)
                     .Value(model, x => x.InertiaDecelerationPerSecond),
-                new Button().Content("初期値").Command(model, x => x.ResetDecelerationCommand)),
+                ResetButton(model, x => x.ResetDecelerationCommand)),
             Divider(),
             Header("慣性減速免除"),
             Row("有効", new CheckBox().IsChecked(model, x => x.DecelerationExemptionEnabled),
-                new Button().Content("初期値").Command(model, x => x.ResetExemptionEnabledCommand)),
+                ResetButton(model, x => x.ResetExemptionEnabledCommand)),
             Row(model, x => x.DragDecelerationExemptionDurationLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DragDecelerationExemptionDurationRatio),
-                new Button().Content("初期値").Command(model, x => x.ResetDragExemptionCommand)),
+                ResetButton(model, x => x.ResetDragExemptionCommand)),
             Row(model, x => x.TurnDecelerationExemptionDurationLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.TurnDecelerationExemptionDurationRatio),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnExemptionCommand)),
+                ResetButton(model, x => x.ResetTurnExemptionCommand)),
             Row(model, x => x.DecelerationExemptionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DecelerationExemptionStrength),
-                new Button().Content("初期値").Command(model, x => x.ResetExemptionStrengthCommand)),
+                ResetButton(model, x => x.ResetExemptionStrengthCommand)),
             Divider(),
             Header("ドラグスムーズ"),
             Row(model, x => x.DragSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DragSmoothSeconds),
-                new Button().Content("初期値").Command(model, x => x.ResetDragSmoothCommand)),
+                ResetButton(model, x => x.ResetDragSmoothCommand)),
             Row(model, x => x.TurnSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.TurnSmoothSeconds),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnSmoothCommand)),
+                ResetButton(model, x => x.ResetTurnSmoothCommand)),
             Divider(),
             Header("ドラグブレーキ値"),
             Row("値", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeStrength),
-                new Button().Content("初期値").Command(model, x => x.ResetBrakeCommand)),
+                ResetButton(model, x => x.ResetBrakeCommand)),
             Divider(),
             Header("方向補正"),
             Row("有効", new CheckBox().IsChecked(model, x => x.DirectionCorrectionEnabled),
-                new Button().Content("初期値").Command(model, x => x.ResetDirectionCorrectionEnabledCommand)),
+                ResetButton(model, x => x.ResetDirectionCorrectionEnabledCommand)),
             Row(model, x => x.DragCorrectionTimeLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.1)
                     .Value(model, x => x.DragCorrectionMaxSeconds),
-                new Button().Content("初期値").Command(model, x => x.ResetDragCorrectionTimeCommand)),
+                ResetButton(model, x => x.ResetDragCorrectionTimeCommand)),
             Row(model, x => x.DragCorrectionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.DragCorrectionStrength),
-                new Button().Content("初期値").Command(model, x => x.ResetDragCorrectionStrengthCommand)),
+                ResetButton(model, x => x.ResetDragCorrectionStrengthCommand)),
             Row(model, x => x.TurnCorrectionTimeLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.1)
                     .Value(model, x => x.TurnCorrectionMaxSeconds),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnCorrectionTimeCommand)),
+                ResetButton(model, x => x.ResetTurnCorrectionTimeCommand)),
             Row(model, x => x.TurnCorrectionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.TurnCorrectionStrength),
-                new Button().Content("初期値").Command(model, x => x.ResetTurnCorrectionStrengthCommand)),
+                ResetButton(model, x => x.ResetTurnCorrectionStrengthCommand)),
             new Button().Content("接続時の位置・姿勢に戻す")
                 .IsEnabled(model, x => x.IsConnected)
                 .Command(model, x => x.ResetCommand)
@@ -168,6 +168,30 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
         Row(new TextBlock().Text(label), editor, reset);
 
     private static Separator Divider() => new() { Margin = new Thickness(0, 8) };
+
+    private static Button ResetButton(
+        MainViewModel model,
+        Expression<Func<MainViewModel, System.Windows.Input.ICommand>> command) =>
+        CreateResetButton(model, command);
+
+    private static Button CreateResetButton(
+        MainViewModel model,
+        Expression<Func<MainViewModel, System.Windows.Input.ICommand>> command)
+    {
+        var button = new Button
+        {
+            Content = "↻",
+            FontSize = 20,
+            Width = 36,
+            Height = 36,
+            MinWidth = 36,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        ToolTip.SetTip(button, "初期値に戻す");
+        return button.Command(model, command);
+    }
 
     private static TextBlock Header(string text) =>
         new TextBlock().Text(text).FontWeight(FontWeight.SemiBold).FontSize(16);
@@ -185,6 +209,8 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
         label.VerticalAlignment = VerticalAlignment.Center;
         editor.VerticalAlignment = VerticalAlignment.Center;
         reset.VerticalAlignment = VerticalAlignment.Center;
+        if (label is TextBlock textBlock)
+            textBlock.TextWrapping = TextWrapping.NoWrap;
         Grid.SetColumn(label, 0);
         Grid.SetColumn(editor, 1);
         Grid.SetColumn(reset, 2);
