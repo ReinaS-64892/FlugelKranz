@@ -13,13 +13,14 @@ public sealed record FlightMotionSettings
     public bool StepMode { get; init; }
     public bool InertiaCutoffEnabled { get; init; } = true;
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
-    public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 2;
+    public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;
     public float TurnAccelerationMultiplier { get; init; } = 0.5f;
     public float VectorRotationMultiplier { get; init; } = 1;
     public float InertiaDecelerationPerSecond { get; init; } = 2;
     public bool DecelerationExemptionEnabled { get; init; } = true;
-    public float DecelerationExemptionDurationRatio { get; init; } = 0.7f;
+    public float DragDecelerationExemptionDurationRatio { get; init; } = 0.7f;
+    public float TurnDecelerationExemptionDurationRatio { get; init; } = 0.05f;
     public float DecelerationExemptionStrength { get; init; } = 0.9f;
     public float DragSmoothSeconds { get; init; } = 0.01f;
     public float TurnSmoothSeconds { get; init; } = 0.05f;
@@ -38,7 +39,8 @@ public sealed record FlightMotionSettings
         TurnAccelerationMultiplier = Math.Clamp(TurnAccelerationMultiplier, 0, 5),
         VectorRotationMultiplier = Math.Clamp(VectorRotationMultiplier, 0, 1),
         InertiaDecelerationPerSecond = Math.Clamp(InertiaDecelerationPerSecond, 0, 10),
-        DecelerationExemptionDurationRatio = Math.Clamp(DecelerationExemptionDurationRatio, 0, 1),
+        DragDecelerationExemptionDurationRatio = Math.Clamp(DragDecelerationExemptionDurationRatio, 0, 1),
+        TurnDecelerationExemptionDurationRatio = Math.Clamp(TurnDecelerationExemptionDurationRatio, 0, 1),
         DecelerationExemptionStrength = Math.Clamp(DecelerationExemptionStrength, 0, 1),
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),

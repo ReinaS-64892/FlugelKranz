@@ -26,13 +26,14 @@ public class InertiaTests
         Assert.False(settings.StepMode);
         Assert.True(settings.InertiaCutoffEnabled);
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
-        Assert.Equal(MathF.PI / 2, settings.TurnCutoffRadiansPerSecond);
+        Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(0.5f, settings.TurnAccelerationMultiplier);
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
-        Assert.Equal(0.7f, settings.DecelerationExemptionDurationRatio);
+        Assert.Equal(0.7f, settings.DragDecelerationExemptionDurationRatio);
+        Assert.Equal(0.05f, settings.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9f, settings.DecelerationExemptionStrength);
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
@@ -142,7 +143,7 @@ public class InertiaTests
         {
             InertiaDecelerationPerSecond = 1,
             DecelerationExemptionEnabled = true,
-            DecelerationExemptionDurationRatio = 0.2f,
+            DragDecelerationExemptionDurationRatio = 0.2f,
             DecelerationExemptionStrength = 1
         };
         var engine = BeginDrag(settings);
@@ -152,6 +153,27 @@ public class InertiaTests
         var continued = engine.Update(Frame(leftX: 1), 0.1f, settings);
 
         Near(new(-3, 0, 0), continued.Position);
+    }
+
+    [Fact]
+    public void TurnDecelerationExemptionUsesTurnDuration()
+    {
+        var settings = Unfiltered with
+        {
+            InertiaDecelerationPerSecond = 1,
+            DecelerationExemptionEnabled = true,
+            DragDecelerationExemptionDurationRatio = 0,
+            TurnDecelerationExemptionDurationRatio = 1,
+            DecelerationExemptionStrength = 1
+        };
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
+        var engine = BeginTurn(settings);
+        engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
+        engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
+
+        var continued = engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
+
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.6f), continued.Orientation);
     }
 
     [Fact]
@@ -261,7 +283,7 @@ public class InertiaTests
             BrakeStrength = 0.5f,
             InertiaDecelerationPerSecond = 1,
             DecelerationExemptionEnabled = true,
-            DecelerationExemptionDurationRatio = 1,
+            DragDecelerationExemptionDurationRatio = 1,
             DecelerationExemptionStrength = 1
         };
         var engine = BeginDrag(settings);

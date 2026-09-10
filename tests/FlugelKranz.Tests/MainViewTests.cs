@@ -32,10 +32,11 @@ public class MainViewTests
     {
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so");
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
-        Assert.Equal(90, vm.TurnCutoffDegreesPerSecond);
+        Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
         Assert.Equal(2, vm.InertiaDecelerationPerSecond);
-        Assert.Equal(0.7, vm.DecelerationExemptionDurationRatio);
+        Assert.Equal(0.7, vm.DragDecelerationExemptionDurationRatio);
+        Assert.Equal(0.05, vm.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9, vm.DecelerationExemptionStrength);
         Assert.Equal(0.01, vm.DragSmoothSeconds);
         Assert.Equal(0.05, vm.TurnSmoothSeconds);
@@ -51,7 +52,7 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(15, sliders.Length);
+            Assert.Equal(16, sliders.Length);
             var stepMode = Assert.Single(
                 window.GetVisualDescendants().OfType<CheckBox>(),
                 box => Equals(box.Content, "ステップモード（慣性なし）"));

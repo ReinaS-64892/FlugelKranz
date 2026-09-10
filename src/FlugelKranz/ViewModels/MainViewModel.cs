@@ -24,7 +24,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double dragCutoffCentimetresPerSecond = 40;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnCutoffLabel))]
-    private double turnCutoffDegreesPerSecond = 90;
+    private double turnCutoffDegreesPerSecond = 45;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragAccelerationLabel))]
     private double dragAccelerationMultiplier = 1;
@@ -39,8 +39,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double inertiaDecelerationPerSecond = 2;
     [ObservableProperty] private bool decelerationExemptionEnabled = true;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DecelerationExemptionDurationLabel))]
-    private double decelerationExemptionDurationRatio = 0.7;
+    [NotifyPropertyChangedFor(nameof(DragDecelerationExemptionDurationLabel))]
+    private double dragDecelerationExemptionDurationRatio = 0.7;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnDecelerationExemptionDurationLabel))]
+    private double turnDecelerationExemptionDurationRatio = 0.05;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecelerationExemptionStrengthLabel))]
     private double decelerationExemptionStrength = 0.9;
@@ -73,7 +76,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string TurnAccelerationLabel => $"Turn: {TurnAccelerationMultiplier:0.00} 倍";
     public string VectorRotationLabel => $"{VectorRotationMultiplier:0.00}";
     public string InertiaDecelerationLabel => $"{InertiaDecelerationPerSecond:0.00} /秒";
-    public string DecelerationExemptionDurationLabel => $"免除時間: {DecelerationExemptionDurationRatio:0.00}";
+    public string DragDecelerationExemptionDurationLabel =>
+        $"Drag 免除時間: {DragDecelerationExemptionDurationRatio:0.00}";
+    public string TurnDecelerationExemptionDurationLabel =>
+        $"Turn 免除時間: {TurnDecelerationExemptionDurationRatio:0.00}";
     public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
     public string DragSmoothLabel => $"Drag: {DragSmoothSeconds:0.00} 秒";
     public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
@@ -129,7 +135,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         VectorRotationMultiplier = (float)VectorRotationMultiplier,
         InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
         DecelerationExemptionEnabled = DecelerationExemptionEnabled,
-        DecelerationExemptionDurationRatio = (float)DecelerationExemptionDurationRatio,
+        DragDecelerationExemptionDurationRatio = (float)DragDecelerationExemptionDurationRatio,
+        TurnDecelerationExemptionDurationRatio = (float)TurnDecelerationExemptionDurationRatio,
         DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
         DragSmoothSeconds = (float)DragSmoothSeconds,
         TurnSmoothSeconds = (float)TurnSmoothSeconds,

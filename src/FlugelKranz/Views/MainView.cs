@@ -61,9 +61,12 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                             .Value(model, x => x.InertiaDecelerationPerSecond),
                         new CheckBox().Content("慣性減速免除を有効にする")
                             .IsChecked(model, x => x.DecelerationExemptionEnabled),
-                        new TextBlock().Text(model, x => x.DecelerationExemptionDurationLabel),
+                        new TextBlock().Text(model, x => x.DragDecelerationExemptionDurationLabel),
                         new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
-                            .Value(model, x => x.DecelerationExemptionDurationRatio),
+                            .Value(model, x => x.DragDecelerationExemptionDurationRatio),
+                        new TextBlock().Text(model, x => x.TurnDecelerationExemptionDurationLabel),
+                        new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                            .Value(model, x => x.TurnDecelerationExemptionDurationRatio),
                         new TextBlock().Text(model, x => x.DecelerationExemptionStrengthLabel),
                         new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                             .Value(model, x => x.DecelerationExemptionStrength),

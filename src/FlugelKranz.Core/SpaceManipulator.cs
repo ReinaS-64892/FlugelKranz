@@ -287,6 +287,7 @@ public sealed class SpaceManipulator
         linearExemptionSeconds = ExemptionDuration(
             linearInertia.Length(),
             0.001f,
+            settings.DragDecelerationExemptionDurationRatio,
             settings);
 
         dragHistory.Clear();
@@ -312,6 +313,7 @@ public sealed class SpaceManipulator
         angularExemptionSeconds = ExemptionDuration(
             angularInertia.Length(),
             MathF.PI / 1800,
+            settings.TurnDecelerationExemptionDurationRatio,
             settings);
 
         turnHistory.Clear();
@@ -336,17 +338,21 @@ public sealed class SpaceManipulator
             velocity = Vector3.Zero;
     }
 
-    private static float ExemptionDuration(float speed, float terminalSpeed, FlightMotionSettings settings)
+    private static float ExemptionDuration(
+        float speed,
+        float terminalSpeed,
+        float durationRatio,
+        FlightMotionSettings settings)
     {
         if (!settings.DecelerationExemptionEnabled ||
-            settings.DecelerationExemptionDurationRatio <= 0 ||
+            durationRatio <= 0 ||
             settings.InertiaDecelerationPerSecond <= 0 ||
             speed <= terminalSpeed)
             return 0;
 
         float positiveTerminalSpeed = MathF.Max(terminalSpeed, 0.00001f);
         float expectedSeconds = MathF.Log(speed / positiveTerminalSpeed) / settings.InertiaDecelerationPerSecond;
-        return expectedSeconds * settings.DecelerationExemptionDurationRatio;
+        return expectedSeconds * durationRatio;
     }
 
     private void CancelDrag()
