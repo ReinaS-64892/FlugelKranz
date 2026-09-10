@@ -136,9 +136,13 @@ public class MainViewTests
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
         Assert.Equal(0, vm.SettingsPanelWidth);
 
+        vm.SetSettingsPanelTargetWidth(1000 * 0.8);
         await vm.ToggleSettingsCommand.ExecuteAsync(null);
         Assert.True(vm.IsSettingsOpen);
-        Assert.Equal(430, vm.SettingsPanelWidth);
+        Assert.Equal(800, vm.SettingsPanelWidth);
+
+        vm.SetSettingsPanelTargetWidth(600);
+        Assert.Equal(600, vm.SettingsPanelWidth);
 
         await vm.ToggleSettingsCommand.ExecuteAsync(null);
         Assert.False(vm.IsSettingsOpen);

@@ -11,6 +11,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly FlightController controller;
     private readonly SettingsStore settingsStore;
     private CancellationTokenSource? settingsAnimation;
+    private double settingsPanelTargetWidth = 430;
     private bool closing;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
@@ -193,7 +194,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         settingsAnimation = new CancellationTokenSource();
         var cancellationToken = settingsAnimation.Token;
         double start = SettingsPanelWidth;
-        double target = IsSettingsOpen ? 430 : 0;
+        double target = IsSettingsOpen ? settingsPanelTargetWidth : 0;
 
         try
         {
@@ -202,12 +203,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 await Task.Delay(16, cancellationToken);
                 double progress = step / 12d;
                 progress = 1 - Math.Pow(1 - progress, 3);
-                SettingsPanelWidth = start + (target - start) * progress;
+                double currentTarget = IsSettingsOpen ? settingsPanelTargetWidth : 0;
+                SettingsPanelWidth = start + (currentTarget - start) * progress;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    public void SetSettingsPanelTargetWidth(double width)
+    {
+        settingsPanelTargetWidth = Math.Max(0, width);
+        if (IsSettingsOpen)
+            SettingsPanelWidth = settingsPanelTargetWidth;
     }
 
     [RelayCommand]

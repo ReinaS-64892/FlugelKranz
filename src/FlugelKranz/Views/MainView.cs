@@ -62,6 +62,11 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
         Grid.SetColumn(panel, 1);
         root.Children.Add(main);
         root.Children.Add(panel);
+        root.SizeChanged += (_, args) =>
+        {
+            double width = args.NewSize.Width;
+            model.SetSettingsPanelTargetWidth(width <= 720 ? width : width * 0.8);
+        };
         model.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(model.SettingsPanelWidth))
@@ -72,7 +77,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
     }
 
     private static Control SettingsPanel(MainViewModel model) =>
-        new StackPanel().Spacing(10).MinWidth(380).Children(
+        new StackPanel().Spacing(10).Children(
             new DockPanel().Children(
                 new TextBlock().Text("設定").FontSize(24).FontWeight(FontWeight.SemiBold)
                     .VerticalAlignment(VerticalAlignment.Center),

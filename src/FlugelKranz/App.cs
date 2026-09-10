@@ -75,7 +75,7 @@ public class App : Application
             var vm = new MainViewModel(Program.MonadoLibraryPath);
             var window = new Window
             {
-                Title = "FlugelKranz", Width = 540, Height = 600, MinWidth = 420, MinHeight = 520,
+                Title = "FlugelKranz", Width = 1100, Height = 650, MinWidth = 420, MinHeight = 520,
                 Content = new MainView(vm)
             };
             bool canClose = false, closing = false;
