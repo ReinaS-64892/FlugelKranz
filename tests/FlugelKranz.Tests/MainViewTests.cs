@@ -48,6 +48,8 @@ public class MainViewTests
         {
             var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
             var toggle = Assert.Single(buttons, b => Equals(b.Content, "ON"));
+            Assert.True(toggle.Bounds.Width > 0);
+            Assert.True(toggle.Bounds.Height > 0);
             var reset = Assert.Single(buttons, b => Equals(b.Content, "接続時の位置・姿勢に戻す"));
             Assert.False(reset.IsEnabled);
             Assert.Same(vm.ToggleCommand, toggle.Command);

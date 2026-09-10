@@ -18,7 +18,11 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             ClipToBounds = true,
             ColumnDefinitions = new ColumnDefinitions("*, 0")
         };
-        var main = new Border().Padding(28)
+        var main = new Border
+        {
+            Background = Brushes.White,
+            Padding = new Thickness(28)
+        }
             .Child(new StackPanel().Orientation(Orientation.Horizontal).Spacing(16)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .VerticalAlignment(VerticalAlignment.Center).Children(
@@ -27,6 +31,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         Width = 300,
                         Height = 220,
                         FontSize = 52,
+                        Background = new SolidColorBrush(Color.Parse("#D7E7FF")),
+                        Foreground = Brushes.Black,
+                        BorderBrush = new SolidColorBrush(Color.Parse("#4A6A95")),
+                        BorderThickness = new Thickness(2),
                         CornerRadius = new CornerRadius(48),
                         Padding = new Thickness(0),
                         HorizontalContentAlignment = HorizontalAlignment.Center,
@@ -39,6 +47,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         Width = 64,
                         Height = 64,
                         FontSize = 28,
+                        Background = new SolidColorBrush(Color.Parse("#E6E6E6")),
+                        Foreground = Brushes.Black,
+                        BorderBrush = new SolidColorBrush(Color.Parse("#555555")),
+                        BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(32),
                         Padding = new Thickness(0),
                         HorizontalContentAlignment = HorizontalAlignment.Center,
