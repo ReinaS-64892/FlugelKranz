@@ -5,7 +5,7 @@ using Evergine.Bindings.OpenXR;
 using FlugelKranz.Core;
 using static Evergine.Bindings.OpenXR.OpenXRNative;
 
-namespace MonadoXrApi;
+namespace FlugelKranz.OpenXR;
 
 /// <summary>A non-rendering OpenXR input client; never requests primary/focused status from libmonado.</summary>
 public sealed unsafe class OpenXrInput : IDisposable

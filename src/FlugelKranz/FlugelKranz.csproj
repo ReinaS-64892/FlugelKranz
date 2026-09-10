@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MonadoXrApi\MonadoXrApi.csproj" />
+    <ProjectReference Include="..\FlugelKranz.OpenXR\FlugelKranz.OpenXR.csproj" />
   </ItemGroup>
 
   <ItemGroup>

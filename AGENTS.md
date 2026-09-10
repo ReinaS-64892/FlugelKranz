@@ -12,9 +12,10 @@ FlugelKranz は、Reina_Sakiria が実現した VRChat 上の「自由飛行」�
 
 ## プロジェクト構成
 
-- `FlugelKranz.slnx` は、`src/` 配下の3つの C# プロジェクトと `tests/` 配下のテストをまとめます。
+- `FlugelKranz.slnx` は、`src/` 配下の4つの C# プロジェクトと `tests/` 配下のテストをまとめます。
 - `src/FlugelKranz/` は Avalonia のネイティブ Wayland アプリです。`Views/` の UI は Avalonia.Markup.Declarative で C# に記述し、`ViewModels/` には CommunityToolkit.Mvvm を使用します。
-- `src/MonadoXrApi/` は libmonado の相互運用と、NuGet の Evergine.Bindings.OpenXR による入力取得を担当します。手書きの最小 ABI を使用し、既存の `generated/` はコンパイル対象外です。
+- `src/MonadoXrApi/` は libmonado の汎用相互運用ライブラリです。`LibMonadoLibrary` がネイティブライブラリのロードと ABI バージョン確認を担い、`MonadoRoot` が公開 libmonado API を型付きでラップします。このプロジェクトは `FlugelKranz.Core` を参照せず、FlugelKranz 固有の座標・入力・操作方針、および OpenXR 実装を含めません。
+- `src/FlugelKranz.OpenXR/` は Evergine.Bindings.OpenXR による入力取得と、OpenXR 姿勢を FlugelKranz の物理座標系へ変換する実装を担当します。`FlugelKranz.Core` と `MonadoXrApi` を参照し、両者を結び付ける FlugelKranz 固有のランタイム実装を置きます。
 - `src/MonadoXrApi/monado/` は、ネイティブコードとテストを含む上流の Git サブモジュールです。以下の読み取り専用規則に従ってください。
 - `src/FlugelKranz.Core/` は座標変換・グリップ操作・実行制御を担当し、UI やネイティブ API に依存しません。
 - `tests/FlugelKranz.Tests/` には xUnit v3 と Avalonia.Headless.XUnit によるテストがあります。
@@ -35,13 +36,13 @@ Monado 本体を本当に改造しなければ実現できない要件が判明�
 - `dotnet run --project src/FlugelKranz -- --help` — CLI の使い方を表示します。
 - `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。オン時に既定の `/usr/lib/wivrn/libmonado_wivrn.so` へ接続します。`--lib-monado PATH` で変更できます。
 
-既存のバインディング生成スクリプトを利用する場合は、`src/MonadoXrApi/` で `bash do-clang-sharp.sh` を実行します。事前に `ClangSharpPInvokeGenerator` を導入し、スクリプト内の Clang インクルードパス `/usr/lib/clang/22/include` が環境に合うか確認してください。
-
 ## コーディング規約
 
 起動時の引数解析・ヘルプ表示・引数エラー処理・実行処理への振り分けには `System.CommandLine` を使用してください。Avalonia の起動はエントリースレッド上で行います。
 
 インデントはスペース4個とし、型・メンバーには PascalCase、引数・ローカル変数には camelCase を使用してください。ファイルスコープ名前空間を使用し、UI・ViewModel・空間操作・ネイティブ接続の責務を分離してください。Null 許容参照型と暗黙的な using は有効です。unsafe コードは相互運用に必要な範囲に限定し、生成されたバインディングは直接編集せず再生成してください。
+
+`MonadoXrApi` に OpenXR・Avalonia・`FlugelKranz.Core` への依存を追加してはいけません。libmonado のロードは `LibMonadoLibrary` に閉じ込め、API 呼び出しは `MonadoRoot` などのラッパーを経由します。FlugelKranz 固有の座標変換・飛行制御・libmonado と OpenXR の協調処理は `FlugelKranz.Core` または `FlugelKranz.OpenXR` に実装してください。使用されない生成済み ABI バインディングは保持しません。
 
 C# 用のフォーマッターやリンターの設定は登録されていません。スペルチェック用の辞書は `cspell.json` にあります。
 

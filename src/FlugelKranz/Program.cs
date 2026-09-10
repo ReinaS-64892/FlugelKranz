@@ -1,6 +1,6 @@
 using System.CommandLine;
 using Avalonia;
-using MonadoXrApi;
+using FlugelKranz.OpenXR;
 
 namespace FlugelKranz;
 

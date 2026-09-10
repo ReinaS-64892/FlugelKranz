@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/FlugelKranz.Core/FlugelKranz.Core.csproj" />
     <Project Path="src/MonadoXrApi/MonadoXrApi.csproj" />
+    <Project Path="src/FlugelKranz.OpenXR/FlugelKranz.OpenXR.csproj" />
     <Project Path="src/FlugelKranz/FlugelKranz.csproj" />
   </Folder>
   <Folder Name="/tests/">

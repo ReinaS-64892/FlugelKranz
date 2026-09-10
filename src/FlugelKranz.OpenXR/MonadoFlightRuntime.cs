@@ -1,10 +1,11 @@
 using FlugelKranz.Core;
+using MonadoXrApi;
 
-namespace MonadoXrApi;
+namespace FlugelKranz.OpenXR;
 
 public sealed class MonadoFlightRuntime : IFlightRuntime
 {
-    private readonly MonadoConnection monado;
+    private readonly MonadoFlightConnection monado;
     private readonly OpenXrInput input;
     public RigidPose OriginalOffset => monado.OriginalOffset;
     public RigidPose CurrentOffset => monado.CurrentOffset;

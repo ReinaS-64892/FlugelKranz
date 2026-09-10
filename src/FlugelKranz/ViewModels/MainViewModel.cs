@@ -2,7 +2,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FlugelKranz.Core;
-using MonadoXrApi;
+using FlugelKranz.OpenXR;
 
 namespace FlugelKranz.ViewModels;
 

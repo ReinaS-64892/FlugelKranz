@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FlugelKranz.Core/FlugelKranz.Core.csproj" />
+    <ProjectReference Include="../MonadoXrApi/MonadoXrApi.csproj" />
+    <PackageReference Include="Evergine.Bindings.OpenXR" Version="2026.9.1.18" />
+  </ItemGroup>
+</Project>
