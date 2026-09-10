@@ -159,6 +159,23 @@ public class SpaceManipulatorTests
     }
 
     [Fact]
+    public void CommonRootDeltaPreservesMixedTrackingOriginAlignment()
+    {
+        var headOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.2f, -0.1f, 0.4f), new(1, 2, 3));
+        var leftOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(-0.5f, 0.3f, 0.1f), new(-2, 1, 4));
+        var rightOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 0.2f, -0.3f), new(3, -1, 2));
+        var newHeadOrigin = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.7f, -0.2f, 0.6f), new(5, 6, 7));
+
+        var delta = newHeadOrigin * headOrigin.Inverse();
+        var leftAfter = delta * leftOrigin;
+        var rightAfter = delta * rightOrigin;
+
+        Assert.True(newHeadOrigin.NearlyEquals(delta * headOrigin));
+        Assert.True((delta * (leftOrigin * Left)).NearlyEquals(leftAfter * Left));
+        Assert.True((delta * (rightOrigin * Right)).NearlyEquals(rightAfter * Right));
+    }
+
+    [Fact]
     public void QuaternionSignDoesNotChangePoseEquality()
     {
         var q = Quaternion.CreateFromYawPitchRoll(1, 2, 3);

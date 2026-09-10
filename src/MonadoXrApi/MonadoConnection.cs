@@ -32,10 +32,17 @@ public sealed class MonadoConnection : IDisposable
     private readonly Destroy destroy;
     private readonly GetPose getOrigin, getReference;
     private readonly SetPose setOrigin;
-    private readonly uint origin;
-    public RigidPose OriginalOffset { get; }
-    public RigidPose CurrentOffset { get; private set; }
+    private readonly Dictionary<uint, Origin> origins = [];
+    private uint headOrigin, leftOrigin, rightOrigin;
+    public RigidPose OriginalOffset => origins[headOrigin].Original;
+    public RigidPose CurrentOffset => origins[headOrigin].Current;
     public RigidPose StageToRoot { get; }
+
+    private sealed class Origin(RigidPose offset)
+    {
+        public RigidPose Original { get; } = offset;
+        public RigidPose Current { get; set; } = offset;
+    }
 
     public MonadoConnection(string libraryPath)
     {
@@ -52,18 +59,19 @@ public sealed class MonadoConnection : IDisposable
             Check(Load<Create>("mnd_root_create")(out root), "Monado / WiVRn への接続");
             var role = Load<Role>("mnd_root_get_device_from_role");
             var property = Load<Property>("mnd_root_get_device_info_u32");
-            uint? sharedOrigin = null;
             foreach (var name in new[] { "head", "left", "right" })
             {
                 Check(role(root, name, out int device), $"{name} デバイスの取得");
                 if (device < 0) throw new InvalidOperationException($"{name} デバイスが接続されていません。");
                 Check(property(root, (uint)device, 2, out uint trackingOrigin), "トラッキング原点の取得");
-                if (sharedOrigin.HasValue && sharedOrigin != trackingOrigin)
-                    throw new NotSupportedException("HMD と両コントローラーが同じトラッキング原点に属する構成が必要です。");
-                sharedOrigin = trackingOrigin;
+                if (!origins.ContainsKey(trackingOrigin)) origins.Add(trackingOrigin, new Origin(ReadOrigin(trackingOrigin)));
+                switch (name)
+                {
+                    case "head": headOrigin = trackingOrigin; break;
+                    case "left": leftOrigin = trackingOrigin; break;
+                    case "right": rightOrigin = trackingOrigin; break;
+                }
             }
-            origin = sharedOrigin!.Value;
-            OriginalOffset = CurrentOffset = ReadOrigin();
             // Static STAGE provides the known root-to-reference transform needed to remove feedback.
             // A driver-owned, moving stage cannot be assumed to be a fixed reference frame.
             StageToRoot = ReadStage();
@@ -94,37 +102,66 @@ public sealed class MonadoConnection : IDisposable
 
     public void VerifyUnchanged()
     {
-        if (!ReadOrigin().NearlyEquals(CurrentOffset))
-            throw new InvalidOperationException("他のツールが空間オフセットを変更したため停止しました。再度オンにして接続し直してください。");
+        foreach (var (origin, state) in origins)
+            if (!ReadOrigin(origin).NearlyEquals(state.Current))
+                throw new InvalidOperationException("他のツールがトラッキング原点オフセットを変更したため停止しました。再度オンにして接続し直してください。");
         if (!ReadStage().NearlyEquals(StageToRoot))
             throw new InvalidOperationException("基準空間が変更されたため停止しました。再度オンにして接続し直してください。");
     }
 
     public InputFrame ToPhysical(InputFrame stageFrame)
     {
-        var stageToPhysical = CurrentOffset.Inverse() * StageToRoot;
-        return new(stageToPhysical * stageFrame.Head, stageFrame.HeadTracked,
-            stageFrame.Left with { Pose = stageToPhysical * stageFrame.Left.Pose },
-            stageFrame.Right with { Pose = stageToPhysical * stageFrame.Right.Pose });
+        return new(ToPhysical(stageFrame.Head, headOrigin), stageFrame.HeadTracked,
+            stageFrame.Left with { Pose = ToPhysical(stageFrame.Left.Pose, leftOrigin) },
+            stageFrame.Right with { Pose = ToPhysical(stageFrame.Right.Pose, rightOrigin) });
     }
 
     public void Apply(RigidPose offset)
     {
         if (!offset.IsValid) throw new ArgumentException("空間変換が不正です。", nameof(offset));
-        var native = new NativePose(offset);
-        Check(setOrigin(root, origin, in native), "空間オフセットの適用");
-        CurrentOffset = offset;
+        // Keep separately calibrated tracking origins aligned by applying the same
+        // root-space delta to each one. Offset remains the HMD origin for the
+        // manipulator's established coordinate system.
+        var delta = offset * OriginalOffset.Inverse();
+        var targets = origins.ToDictionary(pair => pair.Key, pair => delta * pair.Value.Original);
+        var applied = new List<uint>();
+        try
+        {
+            foreach (var (origin, target) in targets)
+            {
+                var native = new NativePose(target);
+                Check(setOrigin(root, origin, in native), "空間オフセットの適用");
+                applied.Add(origin);
+            }
+        }
+        catch
+        {
+            foreach (var origin in applied)
+            {
+                var native = new NativePose(origins[origin].Current);
+                setOrigin(root, origin, in native);
+            }
+            throw;
+        }
+        foreach (var (origin, target) in targets) origins[origin].Current = target;
     }
 
     public void Restore()
     {
         // Never overwrite a concurrent tool's newer offset.
-        if (!ReadOrigin().NearlyEquals(CurrentOffset))
-            throw new InvalidOperationException("外部で変更された空間オフセットは復元しませんでした。");
+        foreach (var (origin, state) in origins)
+            if (!ReadOrigin(origin).NearlyEquals(state.Current))
+                throw new InvalidOperationException("外部で変更されたトラッキング原点オフセットは復元しませんでした。");
         if (!CurrentOffset.NearlyEquals(OriginalOffset)) Apply(OriginalOffset);
     }
 
-    private RigidPose ReadOrigin()
+    private RigidPose ToPhysical(RigidPose stagePose, uint origin)
+    {
+        var stageToPhysical = origins[origin].Current.Inverse() * StageToRoot;
+        return stageToPhysical * stagePose;
+    }
+
+    private RigidPose ReadOrigin(uint origin)
     {
         Check(getOrigin(root, origin, out var pose), "トラッキング原点の読み取り");
         return Validate(pose);
