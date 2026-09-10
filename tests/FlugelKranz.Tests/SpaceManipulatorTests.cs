@@ -93,15 +93,20 @@ public class SpaceManipulatorTests
     }
 
     [Fact]
-    public void TrackingLossRequiresReleaseBeforeRearming()
+    public void HeadTrackingLossPausesAndResumesHeldGrips()
     {
         var engine = Armed();
         engine.Update(Frame(1, 1));
         var offset = engine.Offset;
         Assert.Equal(offset, engine.Update(Frame(1, 1) with { HeadTracked = false }));
-        engine.Update(Frame(1, 1));
-        Assert.False(engine.IsDragging);
-        Assert.False(engine.IsTurning);
+        Assert.True(engine.IsDragging);
+        Assert.True(engine.IsTurning);
+
+        var movedLeft = Left with { Position = Left.Position + Vector3.UnitX };
+        var resumed = engine.Update(Frame(1, 1) with { Left = new(movedLeft, 1, true) });
+        Assert.NotEqual(offset, resumed);
+        Assert.True(engine.IsDragging);
+        Assert.True(engine.IsTurning);
     }
 
     [Fact]

@@ -15,7 +15,7 @@ public sealed record FlightMotionSettings
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 2;
     public float DragAccelerationMultiplier { get; init; } = 1;
-    public float TurnAccelerationMultiplier { get; init; } = 1;
+    public float TurnAccelerationMultiplier { get; init; } = 0.5f;
     public float VectorRotationMultiplier { get; init; } = 1;
     public float InertiaDecelerationPerSecond { get; init; } = 2;
     public bool DecelerationExemptionEnabled { get; init; } = true;

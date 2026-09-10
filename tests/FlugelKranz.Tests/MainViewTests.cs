@@ -33,6 +33,7 @@ public class MainViewTests
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so");
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(90, vm.TurnCutoffDegreesPerSecond);
+        Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
         Assert.Equal(2, vm.InertiaDecelerationPerSecond);
         Assert.Equal(0.7, vm.DecelerationExemptionDurationRatio);
         Assert.Equal(0.9, vm.DecelerationExemptionStrength);

@@ -30,7 +30,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double dragAccelerationMultiplier = 1;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnAccelerationLabel))]
-    private double turnAccelerationMultiplier = 1;
+    private double turnAccelerationMultiplier = 0.5;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VectorRotationLabel))]
     private double vectorRotationMultiplier = 1;

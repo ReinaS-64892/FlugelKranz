@@ -52,12 +52,10 @@ public sealed class SpaceManipulator
         settings = settings.Normalized();
         float sampleSeconds = float.IsFinite(elapsedSeconds) ? MathF.Max(0, elapsedSeconds) : 0;
         float dt = Math.Min(sampleSeconds, MaximumStepSeconds);
-        time += sampleSeconds;
         if (!frame.HeadTracked || !frame.Head.IsValid)
-        {
-            Release();
             return Offset;
-        }
+
+        time += sampleSeconds;
 
         bool wasDragging = IsDragging;
         bool wasTurning = IsTurning;
@@ -66,13 +64,16 @@ public sealed class SpaceManipulator
         bool beganDrag = IsDragging && !wasDragging;
         bool beganTurn = IsTurning && !wasTurning;
 
-        if (beganDrag || beganTurn)
+        float retained = 1 - settings.BrakeStrength;
+        if (beganDrag)
         {
-            float retained = 1 - settings.BrakeStrength;
             linearInertia *= retained;
+            linearExemptionSeconds = 0;
+        }
+        if (beganTurn)
+        {
             angularInertia *= retained;
-            linearExemptionSeconds *= retained;
-            angularExemptionSeconds *= retained;
+            angularExemptionSeconds = 0;
         }
 
         if (beganDrag)

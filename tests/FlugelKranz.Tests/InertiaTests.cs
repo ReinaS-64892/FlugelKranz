@@ -13,6 +13,7 @@ public class InertiaTests
         InertiaCutoffEnabled = false,
         DirectionCorrectionEnabled = false,
         InertiaDecelerationPerSecond = 0,
+        TurnAccelerationMultiplier = 1,
         DragSmoothSeconds = 0,
         TurnSmoothSeconds = 0
     };
@@ -27,7 +28,7 @@ public class InertiaTests
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 2, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
-        Assert.Equal(1, settings.TurnAccelerationMultiplier);
+        Assert.Equal(0.5f, settings.TurnAccelerationMultiplier);
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
@@ -154,7 +155,7 @@ public class InertiaTests
     }
 
     [Fact]
-    public void TrackingLossCancelsInertiaInsteadOfLaunching()
+    public void HandTrackingLossCancelsInertiaInsteadOfLaunching()
     {
         var engine = BeginDrag(Unfiltered);
         engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, Unfiltered);
@@ -166,6 +167,21 @@ public class InertiaTests
         Near(new(-1, 0, 0), atLoss.Position);
         Assert.Equal(atLoss, afterLoss);
         Assert.False(engine.HasLinearInertia);
+    }
+
+    [Fact]
+    public void HeadTrackingLossPausesAndResumesInertia()
+    {
+        var engine = BeginDrag(Unfiltered);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, Unfiltered);
+        var moving = engine.Update(Frame(leftX: 1), 0.1f, Unfiltered);
+
+        var paused = engine.Update(Frame(leftX: 1) with { HeadTracked = false }, 0.1f, Unfiltered);
+        var resumed = engine.Update(Frame(leftX: 1), 0.1f, Unfiltered);
+
+        Assert.Equal(moving, paused);
+        Assert.NotEqual(paused, resumed);
+        Assert.True(engine.HasLinearInertia);
     }
 
     [Fact]
@@ -206,6 +222,57 @@ public class InertiaTests
         var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
         Near(new(expectedX, 0, 0), regripped.Position);
+    }
+
+    [Fact]
+    public void TurnGripDoesNotBrakeLinearInertia()
+    {
+        var settings = Unfiltered with { BrakeStrength = 1 };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        var beganTurn = engine.Update(Frame(leftX: 1, rightGrip: 1), 0.1f, settings);
+
+        Near(new(-3, 0, 0), beganTurn.Position);
+        Assert.True(engine.HasLinearInertia);
+    }
+
+    [Fact]
+    public void DragGripDoesNotBrakeAngularInertia()
+    {
+        var settings = Unfiltered with { BrakeStrength = 1 };
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
+        var engine = BeginTurn(settings);
+        engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
+        engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
+
+        var beganDrag = engine.Update(Frame(leftGrip: 1, rightRotation: rotation), 0.1f, settings);
+
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.6f), beganDrag.Orientation);
+        Assert.True(engine.HasAngularInertia);
+    }
+
+    [Fact]
+    public void DragBrakeClearsLinearDecelerationExemption()
+    {
+        var settings = Unfiltered with
+        {
+            BrakeStrength = 0.5f,
+            InertiaDecelerationPerSecond = 1,
+            DecelerationExemptionEnabled = true,
+            DecelerationExemptionDurationRatio = 1,
+            DecelerationExemptionStrength = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var beforeBrake = engine.Update(Frame(leftX: 1), 0.1f, settings);
+        var braking = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var afterBrake = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+
+        float brakingStep = Vector3.Distance(beforeBrake.Position, braking.Position);
+        float followingStep = Vector3.Distance(braking.Position, afterBrake.Position);
+        Assert.True(followingStep < brakingStep, $"{followingStep} >= {brakingStep}");
     }
 
     [Fact]
