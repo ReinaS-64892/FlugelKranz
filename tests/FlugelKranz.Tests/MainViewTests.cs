@@ -53,6 +53,9 @@ public class MainViewTests
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
             Assert.Equal(16, sliders.Length);
+            var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
+            Assert.False(scrollViewer.AllowAutoHide);
+            Assert.Equal(12, scrollViewer.Padding.Right);
             var stepMode = window.GetVisualDescendants().OfType<CheckBox>().First();
             Assert.False(stepMode.IsChecked);
             stepMode.IsChecked = true;

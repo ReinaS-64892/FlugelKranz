@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Markup.Declarative;
 using Avalonia.Media;
@@ -53,7 +54,12 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             ClipToBounds = true
         }.Classes("settings-surface")
             .Width(model, x => x.SettingsPanelWidth)
-            .Child(new ScrollViewer().Content(SettingsPanel(model)));
+            .Child(new ScrollViewer
+            {
+                AllowAutoHide = false,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Padding = new Thickness(0, 0, 12, 0)
+            }.Content(SettingsPanel(model)));
 
         Grid.SetColumn(panel, 1);
         root.Children.Add(main);
