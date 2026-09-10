@@ -47,7 +47,7 @@ public class MainViewTests
         try
         {
             var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
-            var toggle = Assert.Single(buttons, b => Equals(b.Content, "オンにする"));
+            var toggle = Assert.Single(buttons, b => Equals(b.Content, "ON"));
             var reset = Assert.Single(buttons, b => Equals(b.Content, "接続時の位置・姿勢に戻す"));
             Assert.False(reset.IsEnabled);
             Assert.Same(vm.ToggleCommand, toggle.Command);
@@ -61,7 +61,7 @@ public class MainViewTests
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             vm.IsEnabled = true;
             vm.Status = "テスト中";
-            Assert.Equal("オフにする", toggle.Content);
+            Assert.Equal("OFF", toggle.Content);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "テスト中");
             vm.IsEnabled = false;
             vm.Status = "オフ — オンにするとランタイムへ接続します。";
@@ -89,7 +89,7 @@ public class MainViewTests
             while (vm.IsEnabled) await Task.Delay(10, timeout.Token);
             Assert.False(vm.IsConnected);
             Assert.Contains("flugelkranz-test.so", vm.Status);
-            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "オンにする"));
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "ON"));
         }
         finally { window.Close(); }
     }

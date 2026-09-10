@@ -10,28 +10,63 @@ namespace FlugelKranz.Views;
 
 public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
 {
-    protected override object Build(MainViewModel model) =>
-        new Grid().ClipToBounds(true).Children(
-            new Border().Padding(28)
-                .Child(new StackPanel().Orientation(Orientation.Horizontal).Spacing(16)
-                    .HorizontalAlignment(HorizontalAlignment.Center)
-                    .VerticalAlignment(VerticalAlignment.Center).Children(
-                        new Button().Width(300).Height(220).FontSize(52)
-                            .HorizontalContentAlignment(HorizontalAlignment.Center)
-                            .VerticalContentAlignment(VerticalAlignment.Center)
-                            .Content(model, x => x.ToggleLabel)
-                            .Command(model, x => x.ToggleCommand),
-                        new Button().Content("⚙")
-                            .HorizontalAlignment(HorizontalAlignment.Center)
-                            .Width(64).Height(64).FontSize(28)
-                            .Command(model, x => x.ToggleSettingsCommand)
-                    )),
-            new Border().Width(model, x => x.SettingsPanelWidth)
-                .HorizontalAlignment(HorizontalAlignment.Right)
-                .Background(new SolidColorBrush(Color.Parse("#18232E")))
-                .Padding(20)
-                .Child(new ScrollViewer().Content(SettingsPanel(model)))
-        );
+    protected override object Build(MainViewModel model)
+    {
+        var root = new Grid
+        {
+            Background = Brushes.White,
+            ClipToBounds = true,
+            ColumnDefinitions = new ColumnDefinitions("*, 0")
+        };
+        var main = new Border().Padding(28)
+            .Child(new StackPanel().Orientation(Orientation.Horizontal).Spacing(16)
+                .HorizontalAlignment(HorizontalAlignment.Center)
+                .VerticalAlignment(VerticalAlignment.Center).Children(
+                    new Button
+                    {
+                        Width = 300,
+                        Height = 220,
+                        FontSize = 52,
+                        CornerRadius = new CornerRadius(48),
+                        Padding = new Thickness(0),
+                        HorizontalContentAlignment = HorizontalAlignment.Center,
+                        VerticalContentAlignment = VerticalAlignment.Center
+                    }
+                        .Content(model, x => x.ToggleLabel)
+                        .Command(model, x => x.ToggleCommand),
+                    new Button
+                    {
+                        Width = 64,
+                        Height = 64,
+                        FontSize = 28,
+                        CornerRadius = new CornerRadius(32),
+                        Padding = new Thickness(0),
+                        HorizontalContentAlignment = HorizontalAlignment.Center,
+                        VerticalContentAlignment = VerticalAlignment.Center
+                    }
+                        .Content("⚙")
+                        .Command(model, x => x.ToggleSettingsCommand)
+                ));
+        var panel = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#F2F2F2")),
+            Padding = new Thickness(20),
+            ClipToBounds = true
+        }
+            .Width(model, x => x.SettingsPanelWidth)
+            .Child(new ScrollViewer().Content(SettingsPanel(model)));
+
+        Grid.SetColumn(panel, 1);
+        root.Children.Add(main);
+        root.Children.Add(panel);
+        model.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(model.SettingsPanelWidth))
+                root.ColumnDefinitions[1].Width = new GridLength(model.SettingsPanelWidth);
+        };
+        root.ColumnDefinitions[1].Width = new GridLength(model.SettingsPanelWidth);
+        return root;
+    }
 
     private static Control SettingsPanel(MainViewModel model) =>
         new StackPanel().Spacing(10).MinWidth(380).Children(
