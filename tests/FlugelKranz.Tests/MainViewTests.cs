@@ -30,7 +30,8 @@ public class MainViewTests
     [AvaloniaFact]
     public async Task StartsOffAndCompiledBindingsUpdateButtonAndStatus()
     {
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so");
+        string settingsPath = TemporarySettingsPath();
+        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
@@ -80,7 +81,7 @@ public class MainViewTests
     [AvaloniaFact]
     public async Task MissingRuntimeReturnsToggleToOffAndDisplaysError()
     {
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so");
+        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -94,4 +95,44 @@ public class MainViewTests
         }
         finally { window.Close(); }
     }
+
+    [Fact]
+    public async Task SavesSettingsAndRestoresThemOnNextLaunch()
+    {
+        string settingsPath = TemporarySettingsPath();
+        try
+        {
+            await using (var first = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
+            {
+                first.StepMode = true;
+                first.DragCutoffCentimetresPerSecond = 12.5;
+                first.TurnAccelerationMultiplier = 1.25;
+            }
+
+            await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
+            Assert.True(second.StepMode);
+            Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
+            Assert.Equal(1.25, second.TurnAccelerationMultiplier);
+        }
+        finally
+        {
+            File.Delete(settingsPath);
+        }
+    }
+
+    [Fact]
+    public async Task IndividualResetCommandRestoresOnlyItsSetting()
+    {
+        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
+        vm.DragCutoffCentimetresPerSecond = 12;
+        vm.TurnCutoffDegreesPerSecond = 123;
+
+        vm.ResetDragCutoffCommand.Execute(null);
+
+        Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
+        Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
+    }
+
+    private static string TemporarySettingsPath() =>
+        Path.Combine(Path.GetTempPath(), $"flugelkranz-test-{Guid.NewGuid():N}.json");
 }

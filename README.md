@@ -47,6 +47,8 @@ UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linu
 - **ドラブレーキ値**は新しくグリップした瞬間に対応する慣性を消す割合です。左手の Drag は線速度だけ、右手の Turn は角速度だけに作用します。`0.0` は維持、`1.0` は全停止です。発動時は対応する慣性減速免除を解除します。
 - **方向補正**は短時間かつ直線的な操作だけを対象に、解放速度の大きさを保ったまま方向を軌跡全体へ近づけます。Drag・Turn ごとに最大時間と反映強度を設定できます。
 
+設定値は変更時に JSON へ保存され、次回起動時に復元されます。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` で設定ディレクトリを変更でき、`FLUGELKRANZ_CONFIG` を指定すると保存先ファイルを直接指定できます。UI の各設定には初期値へ戻すボタンがあります。
+
 ## 対応条件と制約
 
 - libmonado API **1.4 以降の 1.x**。公開 API のみを使用し、Monado サブモジュールは変更しません。
