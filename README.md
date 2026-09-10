@@ -12,7 +12,7 @@ dotnet build FlugelKranz.slnx
 dotnet run --project src/FlugelKranz
 ```
 
-libmonado の既定パスは `/usr/lib/wivrn/libmonado_wivrn.so` です。異なる場合は指定してください。
+libmonado は `XR_RUNTIME_JSON` または XDG の OpenXR runtime manifest（`~/.config/openxr/1/active_runtime.json` など）にある `MND_libmonado_path` から自動検出します。検出できない場合の既定パスは `/usr/lib/wivrn/libmonado_wivrn.so` です。`--lib-monado PATH` で明示指定できます。
 
 起動時の引数処理は `System.CommandLine` を使用します。`--help` でオプションを確認できます。
 

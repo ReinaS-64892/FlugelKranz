@@ -34,7 +34,7 @@ Monado 本体を本当に改造しなければ実現できない要件が判明�
 - `dotnet build FlugelKranz.slnx` — ソリューション全体をビルドします。
 - `dotnet test FlugelKranz.slnx` — 座標変換・実行制御・UI の自動テストを実行します。
 - `dotnet run --project src/FlugelKranz -- --help` — CLI の使い方を表示します。
-- `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。オン時に既定の `/usr/lib/wivrn/libmonado_wivrn.so` へ接続します。`--lib-monado PATH` で変更できます。
+- `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。libmonado は `XR_RUNTIME_JSON` または XDG の OpenXR runtime manifest から `MND_libmonado_path` を探索し、見つからない場合は `/usr/lib/wivrn/libmonado_wivrn.so` を使用します。`--lib-monado PATH` で明示指定できます。
 
 ## コーディング規約
 

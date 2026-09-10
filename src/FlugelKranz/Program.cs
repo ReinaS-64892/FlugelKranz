@@ -6,8 +6,7 @@ namespace FlugelKranz;
 
 internal static class Program
 {
-    private const string DefaultMonadoLibraryPath = "/usr/lib/wivrn/libmonado_wivrn.so";
-    public static string MonadoLibraryPath { get; private set; } = DefaultMonadoLibraryPath;
+    public static string MonadoLibraryPath { get; private set; } = MonadoRuntimeLocator.Resolve();
 
     [STAThread]
     public static int Main(string[] args)
@@ -17,7 +16,7 @@ internal static class Program
             Description = "libmonado.so / libmonado_wivrn.so のパス",
             HelpName = "PATH",
             Arity = ArgumentArity.ExactlyOne,
-            DefaultValueFactory = _ => DefaultMonadoLibraryPath
+            DefaultValueFactory = _ => MonadoRuntimeLocator.Resolve()
         };
         libraryOption.Validators.Add(result =>
         {
