@@ -10,10 +10,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly FlightController controller;
     private readonly SettingsStore settingsStore;
+    private CancellationTokenSource? settingsAnimation;
     private bool closing;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
     private bool isEnabled;
+    [ObservableProperty] private bool isSettingsOpen;
+    [ObservableProperty] private double settingsPanelWidth;
     [ObservableProperty] private bool isConnected;
     [ObservableProperty] private string status = "オフ — オンにするとランタイムへ接続します。";
     [ObservableProperty] private string leftStatus = "左手グリップを握って移動";
@@ -179,6 +182,35 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
+    private async Task ToggleSettings()
+    {
+        if (closing)
+            return;
+
+        IsSettingsOpen = !IsSettingsOpen;
+        settingsAnimation?.Cancel();
+        settingsAnimation?.Dispose();
+        settingsAnimation = new CancellationTokenSource();
+        var cancellationToken = settingsAnimation.Token;
+        double start = SettingsPanelWidth;
+        double target = IsSettingsOpen ? 430 : 0;
+
+        try
+        {
+            for (int step = 1; step <= 12; step++)
+            {
+                await Task.Delay(16, cancellationToken);
+                double progress = step / 12d;
+                progress = 1 - Math.Pow(1 - progress, 3);
+                SettingsPanelWidth = start + (target - start) * progress;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    [RelayCommand]
     private void Reset()
     {
         if (closing) return;
@@ -223,6 +255,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         closing = true;
+        settingsAnimation?.Cancel();
+        settingsAnimation?.Dispose();
         settingsStore.Save(CreateMotionSettings());
         IsEnabled = false;
         Status = "接続時の位置・姿勢に戻しています…";

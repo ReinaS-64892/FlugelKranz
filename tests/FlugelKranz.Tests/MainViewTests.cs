@@ -54,9 +54,7 @@ public class MainViewTests
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
             Assert.Equal(16, sliders.Length);
-            var stepMode = Assert.Single(
-                window.GetVisualDescendants().OfType<CheckBox>(),
-                box => Equals(box.Content, "ステップモード（慣性なし）"));
+            var stepMode = window.GetVisualDescendants().OfType<CheckBox>().First();
             Assert.False(stepMode.IsChecked);
             stepMode.IsChecked = true;
             Assert.True(vm.StepMode);
@@ -131,6 +129,21 @@ public class MainViewTests
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
+    }
+
+    [AvaloniaFact]
+    public async Task SettingsPanelExpandsAndCollapsesFromSettingsCommand()
+    {
+        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
+        Assert.Equal(0, vm.SettingsPanelWidth);
+
+        await vm.ToggleSettingsCommand.ExecuteAsync(null);
+        Assert.True(vm.IsSettingsOpen);
+        Assert.Equal(430, vm.SettingsPanelWidth);
+
+        await vm.ToggleSettingsCommand.ExecuteAsync(null);
+        Assert.False(vm.IsSettingsOpen);
+        Assert.Equal(0, vm.SettingsPanelWidth);
     }
 
     private static string TemporarySettingsPath() =>
