@@ -17,11 +17,70 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private string status = "オフ — オンにするとランタイムへ接続します。";
     [ObservableProperty] private string leftStatus = "左手グリップを握って移動";
     [ObservableProperty] private string rightStatus = "右手グリップを握って全軸回転";
+    [ObservableProperty] private bool stepMode;
+    [ObservableProperty] private bool inertiaCutoffEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
+    private double dragCutoffCentimetresPerSecond = 5;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnCutoffLabel))]
+    private double turnCutoffDegreesPerSecond = 5;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DragAccelerationLabel))]
+    private double dragAccelerationMultiplier = 1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnAccelerationLabel))]
+    private double turnAccelerationMultiplier = 1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InertiaDecelerationLabel))]
+    private double inertiaDecelerationPerSecond = 0.01;
+    [ObservableProperty] private bool decelerationExemptionEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DecelerationExemptionDurationLabel))]
+    private double decelerationExemptionDurationRatio = 0.2;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DecelerationExemptionStrengthLabel))]
+    private double decelerationExemptionStrength = 0.5;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SmoothLabel))]
+    private double smoothSeconds = 0.05;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BrakeLabel))]
+    private double brakeStrength = 1;
+    [ObservableProperty] private bool directionCorrectionEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DragCorrectionTimeLabel))]
+    private double dragCorrectionMaxSeconds = 1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DragCorrectionStrengthLabel))]
+    private double dragCorrectionStrength = 1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnCorrectionTimeLabel))]
+    private double turnCorrectionMaxSeconds = 0.5;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnCorrectionStrengthLabel))]
+    private double turnCorrectionStrength = 1;
     public string ToggleLabel => IsEnabled ? "オフにする" : "オンにする";
+    public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
+    public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
+    public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
+    public string TurnAccelerationLabel => $"Turn: {TurnAccelerationMultiplier:0.00} 倍";
+    public string InertiaDecelerationLabel => $"{InertiaDecelerationPerSecond:0.00} /秒";
+    public string DecelerationExemptionDurationLabel => $"免除時間: {DecelerationExemptionDurationRatio:0.00}";
+    public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
+    public string SmoothLabel => $"{SmoothSeconds:0.00} 秒";
+    public string BrakeLabel => $"{BrakeStrength:0.00}";
+    public string DragCorrectionTimeLabel => $"Drag 最大時間: {DragCorrectionMaxSeconds:0.0} 秒";
+    public string DragCorrectionStrengthLabel => $"Drag 強度: {DragCorrectionStrength:0.00}";
+    public string TurnCorrectionTimeLabel => $"Turn 最大時間: {TurnCorrectionMaxSeconds:0.0} 秒";
+    public string TurnCorrectionStrengthLabel => $"Turn 強度: {TurnCorrectionStrength:0.00}";
 
     public MainViewModel(string libraryPath)
     {
-        controller = new(() => new MonadoFlightRuntime(libraryPath), new UiProgress(Update));
+        controller = new(
+            () => new MonadoFlightRuntime(libraryPath),
+            new UiProgress(Update),
+            CreateMotionSettings);
     }
 
     [RelayCommand]
@@ -50,6 +109,27 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         LeftStatus = state.Dragging ? "Space Drag — 操作中" : "左手グリップを握って移動";
         RightStatus = state.Turning ? "Space Turn — 操作中" : "右手グリップを握って全軸回転";
     }
+
+    private FlightMotionSettings CreateMotionSettings() => new()
+    {
+        StepMode = StepMode,
+        InertiaCutoffEnabled = InertiaCutoffEnabled,
+        DragCutoffMetresPerSecond = (float)(DragCutoffCentimetresPerSecond / 100),
+        TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
+        DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
+        TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
+        InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
+        DecelerationExemptionEnabled = DecelerationExemptionEnabled,
+        DecelerationExemptionDurationRatio = (float)DecelerationExemptionDurationRatio,
+        DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
+        SmoothSeconds = (float)SmoothSeconds,
+        BrakeStrength = (float)BrakeStrength,
+        DirectionCorrectionEnabled = DirectionCorrectionEnabled,
+        DragCorrectionMaxSeconds = (float)DragCorrectionMaxSeconds,
+        DragCorrectionStrength = (float)DragCorrectionStrength,
+        TurnCorrectionMaxSeconds = (float)TurnCorrectionMaxSeconds,
+        TurnCorrectionStrength = (float)TurnCorrectionStrength
+    };
 
     public async ValueTask DisposeAsync()
     {

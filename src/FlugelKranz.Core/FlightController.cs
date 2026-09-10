@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace FlugelKranz.Core;
 
 public interface IFlightRuntime : IDisposable
@@ -12,7 +14,10 @@ public interface IFlightRuntime : IDisposable
 public sealed record FlightStatus(bool Enabled, bool Connected, string Message, bool Dragging = false, bool Turning = false);
 
 /// <summary>Owns the runtime on one worker. Off retains the offset; reset and normal shutdown restore it.</summary>
-public sealed class FlightController(Func<IFlightRuntime> createRuntime, IProgress<FlightStatus> progress) : IAsyncDisposable
+public sealed class FlightController(
+    Func<IFlightRuntime> createRuntime,
+    IProgress<FlightStatus> progress,
+    Func<FlightMotionSettings>? getSettings = null) : IAsyncDisposable
 {
     private readonly object gate = new();
     private readonly CancellationTokenSource shutdown = new();
@@ -51,11 +56,16 @@ public sealed class FlightController(Func<IFlightRuntime> createRuntime, IProgre
             lock (gate) progress.Report(new(enabled, false, "ランタイムに接続しています…"));
             runtime = createRuntime();
             var manipulator = new SpaceManipulator(runtime.CurrentOffset);
+            long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
             int tick = 0;
             while (!shutdown.IsCancellationRequested)
             {
                 var frame = runtime.ReadPhysical();
+                long timestamp = Stopwatch.GetTimestamp();
+                float elapsedSeconds = (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
+                previousTimestamp = timestamp;
+                var settings = getSettings?.Invoke() ?? FlightMotionSettings.Default;
                 lock (gate)
                 {
                     if (observedVersion != releaseVersion)
@@ -71,7 +81,7 @@ public sealed class FlightController(Func<IFlightRuntime> createRuntime, IProgre
                     }
                     if (enabled)
                     {
-                        var offset = manipulator.Update(frame);
+                        var offset = manipulator.Update(frame, elapsedSeconds, settings);
                         // Use exact equality here: a tolerance would accumulate un-applied substeps as feedback.
                         if (offset != runtime.CurrentOffset) runtime.Apply(offset);
                     }

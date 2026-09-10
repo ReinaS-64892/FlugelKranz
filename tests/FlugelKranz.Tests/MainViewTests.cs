@@ -41,6 +41,15 @@ public class MainViewTests
             Assert.False(reset.IsEnabled);
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
+            var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
+            Assert.Equal(13, sliders.Length);
+            var stepMode = Assert.Single(
+                window.GetVisualDescendants().OfType<CheckBox>(),
+                box => Equals(box.Content, "ステップモード（慣性なし）"));
+            Assert.False(stepMode.IsChecked);
+            stepMode.IsChecked = true;
+            Assert.True(vm.StepMode);
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "0.01 /秒");
             vm.IsEnabled = true;
             vm.Status = "テスト中";
             Assert.Equal("オフにする", toggle.Content);
