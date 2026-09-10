@@ -32,7 +32,7 @@ public class InertiaTests
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
-        Assert.Equal(0.7f, settings.DragDecelerationExemptionDurationRatio);
+        Assert.Equal(0.2f, settings.DragDecelerationExemptionDurationRatio);
         Assert.Equal(0.05f, settings.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9f, settings.DecelerationExemptionStrength);
         Assert.Equal(0.01f, settings.DragSmoothSeconds);

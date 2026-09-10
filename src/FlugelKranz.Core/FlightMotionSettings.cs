@@ -19,7 +19,7 @@ public sealed record FlightMotionSettings
     public float VectorRotationMultiplier { get; init; } = 1;
     public float InertiaDecelerationPerSecond { get; init; } = 2;
     public bool DecelerationExemptionEnabled { get; init; } = true;
-    public float DragDecelerationExemptionDurationRatio { get; init; } = 0.7f;
+    public float DragDecelerationExemptionDurationRatio { get; init; } = 0.2f;
     public float TurnDecelerationExemptionDurationRatio { get; init; } = 0.05f;
     public float DecelerationExemptionStrength { get; init; } = 0.9f;
     public float DragSmoothSeconds { get; init; } = 0.01f;

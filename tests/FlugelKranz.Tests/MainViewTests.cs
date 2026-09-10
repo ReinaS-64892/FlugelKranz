@@ -35,7 +35,7 @@ public class MainViewTests
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
         Assert.Equal(2, vm.InertiaDecelerationPerSecond);
-        Assert.Equal(0.7, vm.DragDecelerationExemptionDurationRatio);
+        Assert.Equal(0.2, vm.DragDecelerationExemptionDurationRatio);
         Assert.Equal(0.05, vm.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9, vm.DecelerationExemptionStrength);
         Assert.Equal(0.01, vm.DragSmoothSeconds);

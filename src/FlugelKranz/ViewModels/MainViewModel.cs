@@ -40,7 +40,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool decelerationExemptionEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragDecelerationExemptionDurationLabel))]
-    private double dragDecelerationExemptionDurationRatio = 0.7;
+    private double dragDecelerationExemptionDurationRatio = 0.2;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnDecelerationExemptionDurationLabel))]
     private double turnDecelerationExemptionDurationRatio = 0.05;
