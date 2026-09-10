@@ -57,6 +57,8 @@ C# 用のフォーマッターやリンターの設定は登録されていま�
 
 コミットの作成・修正には `git commit`、`git commit --amend`、`git rebase` など通常の Git コマンドを使用してください。`.git` 内のファイルを直接編集したり、`git commit-tree` / `git update-ref` で履歴を組み立てたりしないでください。
 
-AI / LLM がコミットを作成する場合は、常に Git の Author（作成者）に AI であることが分かる名前と専用メールアドレスを明示してください。OpenAI Codex は Author・Committer の両方に `OpenAI Codex <codex@openai.com>` を使用してください。サンプルやプレースホルダーのメールアドレス（`example.invalid` など）は使用禁止です。例：`git -c user.name='OpenAI Codex' -c user.email='codex@openai.com' commit --author='OpenAI Codex <codex@openai.com>' -m 'docs: コミット規則を更新'`。この例は Author と Committer の両方をそのコマンド限りで設定します。人間のユーザーの名前・メールアドレスを作成者として流用せず、`Co-authored-by` の追記だけで代用しないでください。
+AI エージェントは、コミット時に `-c commit.gpgSign=false` を明示して GPG 署名を無効にしてください。この環境では対話式の PIN 入力を行えないためです。署名失敗を理由にコミットを保留せず、通常の Git コマンドでローカルコミットを作成してください。
+
+AI / LLM がコミットを作成する場合は、常に Git の Author（作成者）に AI であることが分かる名前と専用メールアドレスを明示してください。OpenAI Codex は Author・Committer の両方に `OpenAI Codex <codex@openai.com>` を使用してください。サンプルやプレースホルダーのメールアドレス（`example.invalid` など）は使用禁止です。例：`git -c user.name='OpenAI Codex' -c user.email='codex@openai.com' -c commit.gpgSign=false commit --author='OpenAI Codex <codex@openai.com>' -m 'docs: コミット規則を更新'`。この例は Author と Committer の両方をそのコマンド限りで設定します。人間のユーザーの名前・メールアドレスを作成者として流用せず、`Co-authored-by` の追記だけで代用しないでください。
 
 プルリクエストには目的、影響するプロジェクト、検証コマンドと結果、必要なネイティブライブラリを記載します。関連 Issue があればリンクし、サブモジュールの参照コミットを変更した場合は明記してください。
