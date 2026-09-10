@@ -18,6 +18,31 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             ClipToBounds = true,
             ColumnDefinitions = new ColumnDefinitions("*, 0")
         };
+        var toggle = new Button
+        {
+            Width = 300,
+            Height = 220,
+            FontSize = 52,
+            CornerRadius = new CornerRadius(48),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        }
+            .Content(model, x => x.ToggleLabel)
+            .Command(model, x => x.ToggleCommand);
+        toggle.Classes.Add("flight-toggle");
+        void UpdateToggleClass()
+        {
+            if (model.IsEnabled)
+                toggle.Classes.Add("flight-toggle-enabled");
+            else
+                toggle.Classes.Remove("flight-toggle-enabled");
+        }
+        model.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(model.IsEnabled))
+                UpdateToggleClass();
+        };
+        UpdateToggleClass();
         var main = new Border
         {
             Padding = new Thickness(28)
@@ -25,17 +50,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             .Child(new StackPanel().Orientation(Orientation.Horizontal).Spacing(16)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .VerticalAlignment(VerticalAlignment.Center).Children(
-                    new Button
-                    {
-                        Width = 300,
-                        Height = 220,
-                        FontSize = 52,
-                        CornerRadius = new CornerRadius(48),
-                        HorizontalContentAlignment = HorizontalAlignment.Center,
-                        VerticalContentAlignment = VerticalAlignment.Center
-                    }
-                        .Content(model, x => x.ToggleLabel)
-                        .Command(model, x => x.ToggleCommand),
+                    toggle,
                     new Button
                     {
                         Width = 64,

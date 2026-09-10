@@ -19,12 +19,16 @@ public class App : Application
         resources.ThemeDictionaries[ThemeVariant.Light] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA")),
+            ["FlugelKranzEnabledButtonBrush"] = new SolidColorBrush(Color.Parse("#2E7D32")),
+            ["FlugelKranzEnabledButtonForegroundBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF"))
         };
         resources.ThemeDictionaries[ThemeVariant.Dark] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#10151C")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E")),
+            ["FlugelKranzEnabledButtonBrush"] = new SolidColorBrush(Color.Parse("#66BB6A")),
+            ["FlugelKranzEnabledButtonForegroundBrush"] = new SolidColorBrush(Color.Parse("#102013"))
         };
         Resources = resources;
         Styles.Add(new Style(x => x.OfType<Panel>().Class("app-surface"))
@@ -38,6 +42,14 @@ public class App : Application
         Styles.Add(new Style(x => x.OfType<Border>().Class("settings-surface"))
         {
             Setters = { new Setter(Border.BackgroundProperty, new DynamicResourceExtension("FlugelKranzPanelBrush")) }
+        });
+        Styles.Add(new Style(x => x.OfType<Button>().Class("flight-toggle").Class("flight-toggle-enabled"))
+        {
+            Setters =
+            {
+                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("FlugelKranzEnabledButtonBrush")),
+                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("FlugelKranzEnabledButtonForegroundBrush"))
+            }
         });
         RequestedThemeVariant = ThemeVariant.Light;
     }

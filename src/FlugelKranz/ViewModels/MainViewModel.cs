@@ -77,7 +77,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnCorrectionStrengthLabel))]
     private double turnCorrectionStrength = 1;
-    public string ToggleLabel => IsEnabled ? "OFF" : "ON";
+    public string ToggleLabel => IsEnabled ? "ON" : "OFF";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";

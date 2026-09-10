@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using FlugelKranz.ViewModels;
 using FlugelKranz.Views;
@@ -45,7 +46,7 @@ public class MainViewTests
         try
         {
             var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
-            var toggle = Assert.Single(buttons, b => Equals(b.Content, "ON"));
+            var toggle = Assert.Single(buttons, b => Equals(b.Content, "OFF"));
             Assert.True(toggle.Bounds.Width > 0);
             Assert.True(toggle.Bounds.Height > 0);
             var reset = Assert.Single(buttons, b => Equals(b.Content, "接続時の位置・姿勢に戻す"));
@@ -64,7 +65,10 @@ public class MainViewTests
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             vm.IsEnabled = true;
             vm.Status = "テスト中";
-            Assert.Equal("OFF", toggle.Content);
+            Assert.Equal("ON", toggle.Content);
+            Assert.Contains("flight-toggle-enabled", toggle.Classes);
+            var enabledBrush = Assert.IsType<SolidColorBrush>(toggle.Background);
+            Assert.Equal(Color.Parse("#2E7D32"), enabledBrush.Color);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "テスト中");
             vm.IsEnabled = false;
             vm.Status = "オフ — オンにするとランタイムへ接続します。";
@@ -92,7 +96,7 @@ public class MainViewTests
             while (vm.IsEnabled) await Task.Delay(10, timeout.Token);
             Assert.False(vm.IsConnected);
             Assert.Contains("flugelkranz-test.so", vm.Status);
-            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "ON"));
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "OFF"));
         }
         finally { window.Close(); }
     }
