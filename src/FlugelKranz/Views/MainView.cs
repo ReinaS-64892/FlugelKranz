@@ -29,12 +29,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         Width = 300,
                         Height = 220,
                         FontSize = 52,
-                        BorderThickness = new Thickness(2),
                         CornerRadius = new CornerRadius(48),
-                        Padding = new Thickness(0),
                         HorizontalContentAlignment = HorizontalAlignment.Center,
                         VerticalContentAlignment = VerticalAlignment.Center
-                    }.Classes("primary-action")
+                    }
                         .Content(model, x => x.ToggleLabel)
                         .Command(model, x => x.ToggleCommand),
                     new Button
@@ -42,12 +40,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         Width = 64,
                         Height = 64,
                         FontSize = 28,
-                        BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(32),
-                        Padding = new Thickness(0),
                         HorizontalContentAlignment = HorizontalAlignment.Center,
                         VerticalContentAlignment = VerticalAlignment.Center
-                    }.Classes("settings-action")
+                    }
                         .Content("⚙")
                         .Command(model, x => x.ToggleSettingsCommand)
                 ));

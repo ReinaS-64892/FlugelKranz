@@ -19,20 +19,12 @@ public class App : Application
         resources.ThemeDictionaries[ThemeVariant.Light] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA")),
-            ["FlugelKranzPrimaryBrush"] = new SolidColorBrush(Color.Parse("#D7E7FF")),
-            ["FlugelKranzSecondaryBrush"] = new SolidColorBrush(Color.Parse("#E6E6E6")),
-            ["FlugelKranzForegroundBrush"] = new SolidColorBrush(Color.Parse("#17202A")),
-            ["FlugelKranzBorderBrush"] = new SolidColorBrush(Color.Parse("#4A6A95"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA"))
         };
         resources.ThemeDictionaries[ThemeVariant.Dark] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#10151C")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E")),
-            ["FlugelKranzPrimaryBrush"] = new SolidColorBrush(Color.Parse("#29486B")),
-            ["FlugelKranzSecondaryBrush"] = new SolidColorBrush(Color.Parse("#2B3440")),
-            ["FlugelKranzForegroundBrush"] = new SolidColorBrush(Color.Parse("#F3F6FA")),
-            ["FlugelKranzBorderBrush"] = new SolidColorBrush(Color.Parse("#8FB9EE"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E"))
         };
         Resources = resources;
         Styles.Add(new Style(x => x.OfType<Panel>().Class("app-surface"))
@@ -46,24 +38,6 @@ public class App : Application
         Styles.Add(new Style(x => x.OfType<Border>().Class("settings-surface"))
         {
             Setters = { new Setter(Border.BackgroundProperty, new DynamicResourceExtension("FlugelKranzPanelBrush")) }
-        });
-        Styles.Add(new Style(x => x.OfType<Button>().Class("primary-action"))
-        {
-            Setters =
-            {
-                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("FlugelKranzPrimaryBrush")),
-                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("FlugelKranzForegroundBrush")),
-                new Setter(Button.BorderBrushProperty, new DynamicResourceExtension("FlugelKranzBorderBrush"))
-            }
-        });
-        Styles.Add(new Style(x => x.OfType<Button>().Class("settings-action"))
-        {
-            Setters =
-            {
-                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("FlugelKranzSecondaryBrush")),
-                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("FlugelKranzForegroundBrush")),
-                new Setter(Button.BorderBrushProperty, new DynamicResourceExtension("FlugelKranzBorderBrush"))
-            }
         });
         RequestedThemeVariant = ThemeVariant.Light;
     }
