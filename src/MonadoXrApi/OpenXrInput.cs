@@ -191,8 +191,12 @@ public sealed unsafe class OpenXrInput : IDisposable
     {
         var location = new XrSpaceLocation { type = XrStructureType.XR_TYPE_SPACE_LOCATION };
         Check(xrLocateSpace(space, stage, time, &location), "位置・姿勢の取得");
-        // Require both valid and actively tracked position/orientation (bits 0..3).
-        if ((location.locationFlags & 15UL) != 15UL) return (RigidPose.Identity, false);
+        // OpenXR distinguishes a valid pose from an actively tracked pose. A runtime can
+        // provide a valid last-known position without POSITION_TRACKED (as Monado's
+        // simulated HMD does); keep using that pose while it remains valid.
+        const ulong requiredValidFlags = 5UL;
+        if ((location.locationFlags & requiredValidFlags) != requiredValidFlags)
+            return (RigidPose.Identity, false);
         var p = location.pose;
         var pose = new RigidPose(new Quaternion(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w),
             new Vector3(p.position.x, p.position.y, p.position.z));
