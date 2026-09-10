@@ -230,10 +230,10 @@ public class InertiaTests
     }
 
     [Theory]
-    [InlineData(1, -2)]
-    [InlineData(0.5f, -2.5f)]
+    [InlineData(1, -2.5f)]
+    [InlineData(0.5f, -2.75f)]
     [InlineData(0, -3)]
-    public void RegripBrakeRemovesConfiguredShareOfInertia(float brake, float expectedX)
+    public void RegripBrakeRampsConfiguredShareOfInertia(float brake, float expectedX)
     {
         var settings = Unfiltered with { BrakeStrength = brake };
         var engine = BeginDrag(settings);
@@ -467,10 +467,10 @@ public class InertiaTests
     }
 
     [Theory]
-    [InlineData(1, -0.4f)]
-    [InlineData(0.5f, -0.5f)]
+    [InlineData(1, -0.5f)]
+    [InlineData(0.5f, -0.55f)]
     [InlineData(0, -0.6f)]
-    public void RegripBrakeRemovesConfiguredShareOfAngularInertia(float brake, float expectedAngle)
+    public void RegripBrakeRampsConfiguredShareOfAngularInertia(float brake, float expectedAngle)
     {
         var settings = Unfiltered with { BrakeStrength = brake };
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);

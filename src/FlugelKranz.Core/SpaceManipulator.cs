@@ -9,11 +9,14 @@ public readonly record struct InputFrame(RigidPose Head, bool HeadTracked, HandS
 public sealed class SpaceManipulator
 {
     private const float MaximumStepSeconds = 0.1f;
+    private const float GripBrakeRampSeconds = 0.2f;
     private bool leftArmed, rightArmed;
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
     private Vector3 previousDragControllerPosition, currentDragDelta, smoothedDragDelta;
     private Vector3 dragGesturePosition;
+    private float dragBrakeElapsed, turnBrakeElapsed;
+    private float dragBrakeFactor = 1, turnBrakeFactor = 1;
     private Quaternion turnAnchor;
     private Vector3 angularInertia, turnVelocity;
     private RigidPose previousTurnTarget;
@@ -35,6 +38,8 @@ public sealed class SpaceManipulator
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = Quaternion.Identity;
         previousDragControllerPosition = currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        dragBrakeElapsed = turnBrakeElapsed = 0;
+        dragBrakeFactor = turnBrakeFactor = 1;
         linearExemptionSeconds = angularExemptionSeconds = 0;
         dragHistory.Clear();
         turnHistory.Clear();
@@ -69,16 +74,17 @@ public sealed class SpaceManipulator
         bool beganDrag = IsDragging && !wasDragging;
         bool beganTurn = IsTurning && !wasTurning;
 
-        float retained = 1 - settings.BrakeStrength;
         if (beganDrag)
         {
-            linearInertia *= retained;
             linearExemptionSeconds = 0;
+            dragBrakeElapsed = 0;
+            dragBrakeFactor = 1;
         }
         if (beganTurn)
         {
-            angularInertia *= retained;
             angularExemptionSeconds = 0;
+            turnBrakeElapsed = 0;
+            turnBrakeFactor = 1;
         }
 
         if (beganDrag)
@@ -117,6 +123,12 @@ public sealed class SpaceManipulator
         if (IsDragging)
         {
             currentDragDelta = Vector3.Zero;
+            ApplyGripBrake(
+                ref linearInertia,
+                ref dragBrakeElapsed,
+                ref dragBrakeFactor,
+                dt,
+                settings.BrakeStrength);
             dragInertiaStep = linearInertia * dt;
             ApplyDeceleration(
                 ref linearInertia,
@@ -126,6 +138,12 @@ public sealed class SpaceManipulator
         }
         if (IsTurning)
         {
+            ApplyGripBrake(
+                ref angularInertia,
+                ref turnBrakeElapsed,
+                ref turnBrakeFactor,
+                dt,
+                settings.BrakeStrength);
             turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
             ApplyDeceleration(
                 ref angularInertia,
@@ -246,6 +264,28 @@ public sealed class SpaceManipulator
         smoothSeconds <= 0 || elapsedSeconds <= 0
             ? 1
             : 1 - MathF.Exp(-elapsedSeconds / smoothSeconds);
+
+    private static void ApplyGripBrake(
+        ref Vector3 velocity,
+        ref float elapsed,
+        ref float previousFactor,
+        float deltaSeconds,
+        float strength)
+    {
+        if (deltaSeconds <= 0 || velocity.LengthSquared() <= 0 || strength <= 0)
+            return;
+
+        elapsed = MathF.Min(GripBrakeRampSeconds, elapsed + deltaSeconds);
+        float progress = elapsed / GripBrakeRampSeconds;
+        float easedProgress = progress * progress * (3 - 2 * progress);
+        float targetFactor = 1 - strength * easedProgress;
+        targetFactor = MathF.Min(previousFactor, MathF.Max(0, targetFactor));
+
+        if (previousFactor > 0)
+            velocity *= targetFactor / previousFactor;
+
+        previousFactor = targetFactor;
+    }
 
     private void RotateLinearInertia(Quaternion from, Quaternion to, float multiplier)
     {
@@ -456,6 +496,8 @@ public sealed class SpaceManipulator
     {
         linearInertia = dragVelocity = Vector3.Zero;
         currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        dragBrakeElapsed = 0;
+        dragBrakeFactor = 1;
         linearExemptionSeconds = 0;
         dragHistory.Clear();
     }
@@ -463,6 +505,8 @@ public sealed class SpaceManipulator
     private void CancelTurn()
     {
         angularInertia = turnVelocity = Vector3.Zero;
+        turnBrakeElapsed = 0;
+        turnBrakeFactor = 1;
         angularExemptionSeconds = 0;
         turnHistory.Clear();
     }
