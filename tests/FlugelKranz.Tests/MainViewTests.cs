@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Controls.Presenters;
 using Avalonia.Media.Imaging;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using FlugelKranz.ViewModels;
 using FlugelKranz.Views;
@@ -67,8 +69,39 @@ public class MainViewTests
             vm.Status = "テスト中";
             Assert.Equal("ON", toggle.Content);
             Assert.Contains("flight-toggle-enabled", toggle.Classes);
-            var enabledBrush = Assert.IsType<SolidColorBrush>(toggle.Background);
-            Assert.Equal(Color.Parse("#2E7D32"), enabledBrush.Color);
+            Assert.True(Application.Current!.TryGetResource(
+                "CheckBoxCheckBackgroundFillChecked",
+                ThemeVariant.Light,
+                out var checkboxBrush));
+            Assert.Same(checkboxBrush, toggle.Background);
+            var enabledBrush = Assert.IsAssignableFrom<ISolidColorBrush>(toggle.Background);
+            Assert.NotEqual(Colors.Transparent, enabledBrush.Color);
+            Assert.True(Application.Current.TryGetResource(
+                "CheckBoxCheckGlyphForegroundChecked",
+                ThemeVariant.Light,
+                out var checkboxForeground));
+            Assert.Same(checkboxForeground, toggle.Foreground);
+            var toggleCenter = toggle.TranslatePoint(
+                new Point(toggle.Bounds.Width / 2, toggle.Bounds.Height / 2),
+                window);
+            Assert.True(toggleCenter.HasValue);
+            window.MouseMove(toggleCenter.Value);
+            Assert.True(toggle.IsPointerOver);
+            Assert.True(Application.Current.TryGetResource(
+                "CheckBoxCheckBackgroundFillCheckedPointerOver",
+                ThemeVariant.Light,
+                out var checkboxHoverBrush));
+            Assert.Same(checkboxHoverBrush, toggle.Background);
+            Assert.True(Application.Current.TryGetResource(
+                "CheckBoxCheckGlyphForegroundCheckedPointerOver",
+                ThemeVariant.Light,
+                out var checkboxHoverForeground));
+            Assert.Same(checkboxHoverForeground, toggle.Foreground);
+            var presenter = Assert.Single(
+                toggle.GetVisualDescendants().OfType<ContentPresenter>(),
+                p => p.Name == "PART_ContentPresenter");
+            Assert.Same(checkboxHoverBrush, presenter.Background);
+            Assert.Same(checkboxHoverForeground, presenter.Foreground);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "テスト中");
             vm.IsEnabled = false;
             vm.Status = "オフ — オンにするとランタイムへ接続します。";

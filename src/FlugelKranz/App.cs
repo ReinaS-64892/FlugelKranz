@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Presenters;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -19,16 +20,12 @@ public class App : Application
         resources.ThemeDictionaries[ThemeVariant.Light] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA")),
-            ["FlugelKranzEnabledButtonBrush"] = new SolidColorBrush(Color.Parse("#2E7D32")),
-            ["FlugelKranzEnabledButtonForegroundBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#F4F6FA"))
         };
         resources.ThemeDictionaries[ThemeVariant.Dark] = new ResourceDictionary
         {
             ["FlugelKranzSurfaceBrush"] = new SolidColorBrush(Color.Parse("#10151C")),
-            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E")),
-            ["FlugelKranzEnabledButtonBrush"] = new SolidColorBrush(Color.Parse("#66BB6A")),
-            ["FlugelKranzEnabledButtonForegroundBrush"] = new SolidColorBrush(Color.Parse("#102013"))
+            ["FlugelKranzPanelBrush"] = new SolidColorBrush(Color.Parse("#18232E"))
         };
         Resources = resources;
         Styles.Add(new Style(x => x.OfType<Panel>().Class("app-surface"))
@@ -47,8 +44,33 @@ public class App : Application
         {
             Setters =
             {
-                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("FlugelKranzEnabledButtonBrush")),
-                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("FlugelKranzEnabledButtonForegroundBrush"))
+                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("CheckBoxCheckBackgroundFillChecked")),
+                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("CheckBoxCheckGlyphForegroundChecked"))
+            }
+        });
+        Styles.Add(new Style(x => x.OfType<Button>()
+            .Class("flight-toggle")
+            .Class("flight-toggle-enabled")
+            .Class(":pointerover"))
+        {
+            Setters =
+            {
+                new Setter(Button.BackgroundProperty, new DynamicResourceExtension("CheckBoxCheckBackgroundFillCheckedPointerOver")),
+                new Setter(Button.ForegroundProperty, new DynamicResourceExtension("CheckBoxCheckGlyphForegroundCheckedPointerOver"))
+            }
+        });
+        Styles.Add(new Style(x => x.OfType<Button>()
+            .Class("flight-toggle")
+            .Class("flight-toggle-enabled")
+            .Class(":pointerover")
+            .Template()
+            .OfType<ContentPresenter>()
+            .Name("PART_ContentPresenter"))
+        {
+            Setters =
+            {
+                new Setter(ContentPresenter.BackgroundProperty, new DynamicResourceExtension("CheckBoxCheckBackgroundFillCheckedPointerOver")),
+                new Setter(ContentPresenter.ForegroundProperty, new DynamicResourceExtension("CheckBoxCheckGlyphForegroundCheckedPointerOver"))
             }
         });
         RequestedThemeVariant = ThemeVariant.Light;
