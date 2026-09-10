@@ -13,6 +13,7 @@ public sealed class SpaceManipulator
     private Vector3 dragAnchor, linearInertia, dragVelocity;
     private Quaternion turnAnchor;
     private Vector3 angularInertia, turnVelocity;
+    private RigidPose previousDragTarget, previousTurnTarget;
     private float linearExemptionSeconds, angularExemptionSeconds;
     private double time;
     private readonly MotionHistory dragHistory = new();
@@ -75,16 +76,9 @@ public sealed class SpaceManipulator
         }
 
         if (beganDrag)
-        {
             dragAnchor = Offset.Transform(frame.Left.Pose.Position);
-            dragHistory.Begin(time, Offset);
-        }
-
         if (beganTurn)
-        {
             turnAnchor = Quaternion.Normalize(Offset.Orientation * frame.Right.Pose.Orientation);
-            turnHistory.Begin(time, Offset);
-        }
 
         if (wasDragging && !IsDragging)
         {
@@ -107,7 +101,7 @@ public sealed class SpaceManipulator
             linearExemptionSeconds = angularExemptionSeconds = 0;
         }
 
-        var before = Offset;
+        var orientationBefore = Offset.Orientation;
         AdvanceFreeInertia(frame.Head.Position, dt, !IsDragging, !IsTurning, settings);
         if (IsDragging)
         {
@@ -116,7 +110,6 @@ public sealed class SpaceManipulator
                 ref linearInertia,
                 ref linearExemptionSeconds,
                 dt,
-                settings.DragCutoffMetresPerSecond,
                 settings);
         }
         if (IsTurning)
@@ -126,57 +119,111 @@ public sealed class SpaceManipulator
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
-                settings.TurnCutoffRadiansPerSecond,
                 settings);
         }
 
-        var target = GrabTarget(frame);
-        float alpha = settings.SmoothSeconds <= 0 || dt <= 0
-            ? 1
-            : 1 - MathF.Exp(-dt / settings.SmoothSeconds);
+        var target = GrabTarget(frame, IsDragging, IsTurning);
+        if (beganDrag || beganTurn)
+        {
+            if (beganDrag)
+            {
+                dragVelocity = Vector3.Zero;
+                previousDragTarget = target;
+                dragHistory.Begin(time, target);
+            }
+            if (beganTurn)
+            {
+                turnVelocity = Vector3.Zero;
+                previousTurnTarget = target;
+                turnHistory.Begin(time, target);
+            }
+        }
+        UpdateRawVelocities(target, IsDragging && !beganDrag, IsTurning && !beganTurn, sampleSeconds);
+        ApplySmoothedTarget(frame, target, IsDragging, IsTurning, dt, settings);
+        RotateLinearInertia(orientationBefore, Offset.Orientation, settings.VectorRotationMultiplier);
+        return Offset;
+    }
+
+    private void ApplySmoothedTarget(
+        InputFrame frame,
+        RigidPose target,
+        bool dragging,
+        bool turning,
+        float elapsedSeconds,
+        FlightMotionSettings settings)
+    {
+        float turnAlpha = SmoothingAlpha(settings.TurnSmoothSeconds, elapsedSeconds);
+        float dragAlpha = SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds);
         var smoothedRotation = Quaternion.Normalize(
-            Quaternion.Slerp(Offset.Orientation, target.Orientation, alpha));
+            Quaternion.Slerp(Offset.Orientation, target.Orientation, turnAlpha));
         var smoothedPosition = Offset.Position;
-        if (IsDragging)
+        if (dragging)
         {
             var dragTarget = dragAnchor - Vector3.Transform(frame.Left.Pose.Position, smoothedRotation);
-            smoothedPosition = Vector3.Lerp(Offset.Position, dragTarget, alpha);
+            smoothedPosition = Vector3.Lerp(Offset.Position, dragTarget, dragAlpha);
         }
-        else if (IsTurning)
+        else if (turning)
         {
             var headInRoot = Offset.Transform(frame.Head.Position);
             smoothedPosition = headInRoot - Vector3.Transform(frame.Head.Position, smoothedRotation);
         }
 
         Offset = new(smoothedRotation, smoothedPosition);
-
-        if (sampleSeconds > 0)
-        {
-            if (IsDragging)
-                dragVelocity = (Offset.Position - before.Position) / sampleSeconds;
-            if (IsTurning)
-                turnVelocity = RotationVelocity(before.Orientation, Offset.Orientation, sampleSeconds);
-        }
-
-        if (IsDragging)
-            dragHistory.Add(time, Offset);
-        if (IsTurning)
-            turnHistory.Add(time, Offset);
-
-        return Offset;
     }
 
-    private RigidPose GrabTarget(InputFrame frame)
+    private void UpdateRawVelocities(
+        RigidPose target,
+        bool dragging,
+        bool turning,
+        float sampleSeconds)
+    {
+        if (dragging && sampleSeconds > 0)
+        {
+            dragVelocity = (target.Position - previousDragTarget.Position) / sampleSeconds;
+            previousDragTarget = target;
+            dragHistory.Add(time, target);
+        }
+
+        if (turning && sampleSeconds > 0)
+        {
+            turnVelocity = RotationVelocity(
+                previousTurnTarget.Orientation,
+                target.Orientation,
+                sampleSeconds);
+            previousTurnTarget = target;
+            turnHistory.Add(time, target);
+        }
+    }
+
+    private static float SmoothingAlpha(float smoothSeconds, float elapsedSeconds) =>
+        smoothSeconds <= 0 || elapsedSeconds <= 0
+            ? 1
+            : 1 - MathF.Exp(-elapsedSeconds / smoothSeconds);
+
+    private void RotateLinearInertia(Quaternion from, Quaternion to, float multiplier)
+    {
+        if (linearInertia.LengthSquared() <= 0 || multiplier <= 0)
+            return;
+
+        var delta = Quaternion.Normalize(to * Quaternion.Conjugate(from));
+        if (delta.W < 0)
+            delta = -delta;
+
+        var applied = Quaternion.Normalize(Quaternion.Slerp(Quaternion.Identity, delta, multiplier));
+        linearInertia = Vector3.Transform(linearInertia, applied);
+    }
+
+    private RigidPose GrabTarget(InputFrame frame, bool dragging, bool turning)
     {
         var rotation = Offset.Orientation;
         var translation = Offset.Position;
-        if (IsTurning)
+        if (turning)
         {
             rotation = Quaternion.Normalize(turnAnchor * Quaternion.Conjugate(frame.Right.Pose.Orientation));
             translation = Offset.Transform(frame.Head.Position) - Vector3.Transform(frame.Head.Position, rotation);
         }
 
-        if (IsDragging)
+        if (dragging)
             translation = dragAnchor - Vector3.Transform(frame.Left.Pose.Position, rotation);
 
         return new(rotation, translation);
@@ -210,14 +257,12 @@ public sealed class SpaceManipulator
                 ref linearInertia,
                 ref linearExemptionSeconds,
                 dt,
-                settings.DragCutoffMetresPerSecond,
                 settings);
         if (turn)
             ApplyDeceleration(
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
-                settings.TurnCutoffRadiansPerSecond,
                 settings);
     }
 
@@ -240,7 +285,7 @@ public sealed class SpaceManipulator
 
         linearExemptionSeconds = ExemptionDuration(
             linearInertia.Length(),
-            settings.InertiaCutoffEnabled ? settings.DragCutoffMetresPerSecond : 0.001f,
+            0.001f,
             settings);
 
         dragHistory.Clear();
@@ -265,7 +310,7 @@ public sealed class SpaceManipulator
 
         angularExemptionSeconds = ExemptionDuration(
             angularInertia.Length(),
-            settings.InertiaCutoffEnabled ? settings.TurnCutoffRadiansPerSecond : MathF.PI / 1800,
+            MathF.PI / 1800,
             settings);
 
         turnHistory.Clear();
@@ -275,7 +320,6 @@ public sealed class SpaceManipulator
         ref Vector3 velocity,
         ref float exemptionSeconds,
         float elapsedSeconds,
-        float terminalSpeed,
         FlightMotionSettings settings)
     {
         if (velocity.LengthSquared() <= 0 || elapsedSeconds <= 0)
@@ -287,8 +331,7 @@ public sealed class SpaceManipulator
         float exponent = settings.InertiaDecelerationPerSecond *
             (regularSeconds + exemptedSeconds * (1 - settings.DecelerationExemptionStrength));
         velocity *= MathF.Exp(-exponent);
-        if ((settings.InertiaCutoffEnabled && velocity.Length() < terminalSpeed) ||
-            velocity.LengthSquared() < 0.0000000001f)
+        if (velocity.LengthSquared() < 0.0000000001f)
             velocity = Vector3.Zero;
     }
 

@@ -51,6 +51,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         new TextBlock().Text(model, x => x.TurnAccelerationLabel),
                         new Slider().Minimum(0).Maximum(5).TickFrequency(0.05)
                             .Value(model, x => x.TurnAccelerationMultiplier),
+                        new TextBlock().Text("ベクトル回転倍率").FontWeight(FontWeight.SemiBold),
+                        new TextBlock().Text(model, x => x.VectorRotationLabel),
+                        new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                            .Value(model, x => x.VectorRotationMultiplier),
                         new TextBlock().Text("慣性減速").FontWeight(FontWeight.SemiBold),
                         new TextBlock().Text(model, x => x.InertiaDecelerationLabel),
                         new Slider().Minimum(0).Maximum(10).TickFrequency(0.01)
@@ -64,9 +68,12 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                         new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                             .Value(model, x => x.DecelerationExemptionStrength),
                         new TextBlock().Text("ドラグスムーズ").FontWeight(FontWeight.SemiBold),
-                        new TextBlock().Text(model, x => x.SmoothLabel),
+                        new TextBlock().Text(model, x => x.DragSmoothLabel),
                         new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
-                            .Value(model, x => x.SmoothSeconds),
+                            .Value(model, x => x.DragSmoothSeconds),
+                        new TextBlock().Text(model, x => x.TurnSmoothLabel),
+                        new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                            .Value(model, x => x.TurnSmoothSeconds),
                         new TextBlock().Text("ドラブレーキ値").FontWeight(FontWeight.SemiBold),
                         new TextBlock().Text(model, x => x.BrakeLabel),
                         new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)

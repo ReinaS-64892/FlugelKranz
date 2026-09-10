@@ -31,6 +31,14 @@ public class MainViewTests
     public async Task StartsOffAndCompiledBindingsUpdateButtonAndStatus()
     {
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so");
+        Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
+        Assert.Equal(90, vm.TurnCutoffDegreesPerSecond);
+        Assert.Equal(2, vm.InertiaDecelerationPerSecond);
+        Assert.Equal(0.7, vm.DecelerationExemptionDurationRatio);
+        Assert.Equal(0.9, vm.DecelerationExemptionStrength);
+        Assert.Equal(0.01, vm.DragSmoothSeconds);
+        Assert.Equal(0.05, vm.TurnSmoothSeconds);
+        Assert.Equal(1, vm.VectorRotationMultiplier);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -42,14 +50,14 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(13, sliders.Length);
+            Assert.Equal(15, sliders.Length);
             var stepMode = Assert.Single(
                 window.GetVisualDescendants().OfType<CheckBox>(),
                 box => Equals(box.Content, "ステップモード（慣性なし）"));
             Assert.False(stepMode.IsChecked);
             stepMode.IsChecked = true;
             Assert.True(vm.StepMode);
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "0.01 /秒");
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             vm.IsEnabled = true;
             vm.Status = "テスト中";
             Assert.Equal("オフにする", toggle.Content);

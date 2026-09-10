@@ -13,7 +13,8 @@ public class InertiaTests
         InertiaCutoffEnabled = false,
         DirectionCorrectionEnabled = false,
         InertiaDecelerationPerSecond = 0,
-        SmoothSeconds = 0
+        DragSmoothSeconds = 0,
+        TurnSmoothSeconds = 0
     };
 
     [Fact]
@@ -23,15 +24,17 @@ public class InertiaTests
 
         Assert.False(settings.StepMode);
         Assert.True(settings.InertiaCutoffEnabled);
-        Assert.Equal(0.05f, settings.DragCutoffMetresPerSecond);
-        Assert.Equal(MathF.PI / 36, settings.TurnCutoffRadiansPerSecond);
+        Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
+        Assert.Equal(MathF.PI / 2, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(1, settings.TurnAccelerationMultiplier);
-        Assert.Equal(0.01f, settings.InertiaDecelerationPerSecond);
+        Assert.Equal(1, settings.VectorRotationMultiplier);
+        Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
-        Assert.Equal(0.2f, settings.DecelerationExemptionDurationRatio);
-        Assert.Equal(0.5f, settings.DecelerationExemptionStrength);
-        Assert.Equal(0.05f, settings.SmoothSeconds);
+        Assert.Equal(0.7f, settings.DecelerationExemptionDurationRatio);
+        Assert.Equal(0.9f, settings.DecelerationExemptionStrength);
+        Assert.Equal(0.01f, settings.DragSmoothSeconds);
+        Assert.Equal(0.05f, settings.TurnSmoothSeconds);
         Assert.Equal(1, settings.BrakeStrength);
         Assert.True(settings.DirectionCorrectionEnabled);
         Assert.Equal(1, settings.DragCorrectionMaxSeconds);
@@ -112,7 +115,7 @@ public class InertiaTests
     }
 
     [Fact]
-    public void DecelerationStopsWhenVelocityCrossesEnabledCutoff()
+    public void DecelerationDoesNotApplyCutoffAfterInertiaStarts()
     {
         var settings = Unfiltered with
         {
@@ -125,10 +128,10 @@ public class InertiaTests
         engine.Update(Frame(leftX: 0.006f, leftGrip: 1), 0.1f, settings);
 
         var released = engine.Update(Frame(leftX: 0.006f), 0.1f, settings);
-        var stopped = engine.Update(Frame(leftX: 0.006f), 0.1f, settings);
+        var continued = engine.Update(Frame(leftX: 0.006f), 0.1f, settings);
 
-        Assert.Equal(released, stopped);
-        Assert.False(engine.HasLinearInertia);
+        Assert.NotEqual(released, continued);
+        Assert.True(engine.HasLinearInertia);
     }
 
     [Fact]
@@ -168,13 +171,25 @@ public class InertiaTests
     [Fact]
     public void SmoothUsesElapsedTime()
     {
-        var settings = Unfiltered with { SmoothSeconds = 0.05f };
+        var settings = Unfiltered with { DragSmoothSeconds = 0.05f };
         var engine = BeginDrag(settings);
 
         var moved = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.05f, settings);
 
         float expected = -(1 - MathF.Exp(-1));
         Near(new(expected, 0, 0), moved.Position);
+    }
+
+    [Fact]
+    public void DragInertiaUsesUnsmoothedControllerMotion()
+    {
+        var settings = Unfiltered with { DragSmoothSeconds = 1 };
+        var engine = BeginDrag(settings);
+        var moved = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+
+        var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        Near(moved.Position + new Vector3(-1, 0, 0), released.Position);
     }
 
     [Theory]
@@ -280,7 +295,7 @@ public class InertiaTests
     [Fact]
     public void TurnSmoothUsesElapsedTime()
     {
-        var settings = Unfiltered with { SmoothSeconds = 0.05f };
+        var settings = Unfiltered with { TurnSmoothSeconds = 0.05f };
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1);
         var engine = BeginTurn(settings);
 
@@ -289,6 +304,58 @@ public class InertiaTests
         float expectedAngle = -(1 - MathF.Exp(-1));
         Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, expectedAngle), moved.Orientation);
         Near(Head.Position, moved.Transform(Head.Position));
+    }
+
+    [Fact]
+    public void TurnInertiaUsesUnsmoothedControllerMotion()
+    {
+        var settings = Unfiltered with { TurnSmoothSeconds = 1 };
+        var controllerRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.2f);
+        var engine = BeginTurn(settings);
+        var moved = engine.Update(
+            Frame(rightGrip: 1, rightRotation: controllerRotation),
+            0.1f,
+            settings);
+
+        var released = engine.Update(Frame(rightRotation: controllerRotation), 0.1f, settings);
+
+        var expected = Integrate(moved.Orientation, new(0, 0, -2), 0.1f);
+        Near(expected, released.Orientation);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0.5f)]
+    [InlineData(1)]
+    public void TurnRotatesLinearInertiaByConfiguredMultiplier(float multiplier)
+    {
+        var settings = Unfiltered with
+        {
+            BrakeStrength = 0,
+            VectorRotationMultiplier = multiplier
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1, rightGrip: 1), 0.1f, settings);
+        var beforeTurn = engine.Offset.Transform(Head.Position);
+
+        var controllerRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.1f);
+        engine.Update(
+            Frame(leftX: 1, rightGrip: 1, rightRotation: controllerRotation),
+            0.1f,
+            settings);
+        var afterTurn = engine.Offset.Transform(Head.Position);
+        engine.Update(
+            Frame(leftX: 1, rightGrip: 1, rightRotation: controllerRotation),
+            0.1f,
+            settings);
+        var afterFollowingStep = engine.Offset.Transform(Head.Position);
+
+        var firstStep = afterTurn - beforeTurn;
+        var secondStep = afterFollowingStep - afterTurn;
+        var expectedRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.1f * multiplier);
+        Near(Vector3.Transform(firstStep, expectedRotation), secondStep);
     }
 
     [Theory]
@@ -368,4 +435,11 @@ public class InertiaTests
 
     private static void Near(Quaternion expected, Quaternion actual) =>
         Assert.True(1 - MathF.Abs(Quaternion.Dot(expected, actual)) < 0.0001f, $"{expected} != {actual}");
+
+    private static Quaternion Integrate(Quaternion rotation, Vector3 velocity, float elapsedSeconds)
+    {
+        float speed = velocity.Length();
+        return Quaternion.Normalize(
+            Quaternion.CreateFromAxisAngle(velocity / speed, speed * elapsedSeconds) * rotation);
+    }
 }

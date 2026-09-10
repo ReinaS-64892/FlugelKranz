@@ -21,10 +21,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool inertiaCutoffEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
-    private double dragCutoffCentimetresPerSecond = 5;
+    private double dragCutoffCentimetresPerSecond = 40;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnCutoffLabel))]
-    private double turnCutoffDegreesPerSecond = 5;
+    private double turnCutoffDegreesPerSecond = 90;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragAccelerationLabel))]
     private double dragAccelerationMultiplier = 1;
@@ -32,18 +32,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(TurnAccelerationLabel))]
     private double turnAccelerationMultiplier = 1;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VectorRotationLabel))]
+    private double vectorRotationMultiplier = 1;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InertiaDecelerationLabel))]
-    private double inertiaDecelerationPerSecond = 0.01;
+    private double inertiaDecelerationPerSecond = 2;
     [ObservableProperty] private bool decelerationExemptionEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecelerationExemptionDurationLabel))]
-    private double decelerationExemptionDurationRatio = 0.2;
+    private double decelerationExemptionDurationRatio = 0.7;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecelerationExemptionStrengthLabel))]
-    private double decelerationExemptionStrength = 0.5;
+    private double decelerationExemptionStrength = 0.9;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SmoothLabel))]
-    private double smoothSeconds = 0.05;
+    [NotifyPropertyChangedFor(nameof(DragSmoothLabel))]
+    private double dragSmoothSeconds = 0.01;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnSmoothLabel))]
+    private double turnSmoothSeconds = 0.05;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeLabel))]
     private double brakeStrength = 1;
@@ -65,10 +71,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
     public string TurnAccelerationLabel => $"Turn: {TurnAccelerationMultiplier:0.00} 倍";
+    public string VectorRotationLabel => $"{VectorRotationMultiplier:0.00}";
     public string InertiaDecelerationLabel => $"{InertiaDecelerationPerSecond:0.00} /秒";
     public string DecelerationExemptionDurationLabel => $"免除時間: {DecelerationExemptionDurationRatio:0.00}";
     public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
-    public string SmoothLabel => $"{SmoothSeconds:0.00} 秒";
+    public string DragSmoothLabel => $"Drag: {DragSmoothSeconds:0.00} 秒";
+    public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
     public string BrakeLabel => $"{BrakeStrength:0.00}";
     public string DragCorrectionTimeLabel => $"Drag 最大時間: {DragCorrectionMaxSeconds:0.0} 秒";
     public string DragCorrectionStrengthLabel => $"Drag 強度: {DragCorrectionStrength:0.00}";
@@ -118,11 +126,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
         DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
         TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
+        VectorRotationMultiplier = (float)VectorRotationMultiplier,
         InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
         DecelerationExemptionEnabled = DecelerationExemptionEnabled,
         DecelerationExemptionDurationRatio = (float)DecelerationExemptionDurationRatio,
         DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
-        SmoothSeconds = (float)SmoothSeconds,
+        DragSmoothSeconds = (float)DragSmoothSeconds,
+        TurnSmoothSeconds = (float)TurnSmoothSeconds,
         BrakeStrength = (float)BrakeStrength,
         DirectionCorrectionEnabled = DirectionCorrectionEnabled,
         DragCorrectionMaxSeconds = (float)DragCorrectionMaxSeconds,
