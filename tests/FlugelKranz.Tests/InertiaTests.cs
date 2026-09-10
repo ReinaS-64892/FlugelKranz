@@ -207,15 +207,14 @@ public class InertiaTests
     }
 
     [Fact]
-    public void SmoothUsesElapsedTime()
+    public void DragSmoothingPreservesControllerDistance()
     {
         var settings = Unfiltered with { DragSmoothSeconds = 0.05f };
         var engine = BeginDrag(settings);
 
         var moved = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.05f, settings);
 
-        float expected = -(1 - MathF.Exp(-1));
-        Near(new(expected, 0, 0), moved.Position);
+        Near(new(-1, 0, 0), moved.Position);
     }
 
     [Fact]

@@ -46,15 +46,22 @@ public class SpaceManipulatorTests
     }
 
     [Fact]
-    public void BothHandsUseLeftAnchorWhileTurning()
+    public void DragMovementIsIndependentOfTurnTranslation()
     {
+        var turnOnly = Armed();
+        turnOnly.Update(Frame(1, 1));
+        var rotation = Quaternion.CreateFromYawPitchRoll(0.4f, 0.6f, 0.8f);
+        var turnOnlyOffset = turnOnly.Update(
+            Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 1, true) });
+
         var engine = Armed();
         engine.Update(Frame(1, 1));
         var movedLeft = Left with { Position = new(-1, 1, -1) };
-        var movedRight = Right with { Orientation = Quaternion.CreateFromYawPitchRoll(0.4f, 0.6f, 0.8f) };
+        var movedRight = Right with { Orientation = rotation };
         var offset = engine.Update(new(Head, true, new(movedLeft, 1, true), new(movedRight, 1, true)));
-        Near(Left.Position, offset.Transform(movedLeft.Position));
-        Near(Quaternion.Conjugate(movedRight.Orientation), offset.Orientation);
+
+        Near(turnOnlyOffset.Orientation, offset.Orientation);
+        Near(-(movedLeft.Position - Left.Position), offset.Position - turnOnlyOffset.Position);
     }
 
     [Fact]
