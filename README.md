@@ -22,7 +22,7 @@ dotnet run --project src/FlugelKranz -- --lib-monado /path/to/libmonado.so
 
 OpenXR ローダー（`libopenxr_loader.so.1`）が同じ Monado / WiVRn サービスを使用するよう設定してください。必要に応じて `XR_RUNTIME_JSON=/path/to/runtime.json` を起動時に指定します。FlugelKranz はシステムのランタイム設定を変更しません。
 
-UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) の `UseWayland()` を明示的に選択します。XWayland への自動フォールバックはありません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm により、UI・バインディングを C# で記述しています。OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/OpenXR.NET) を使用します。
+UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) の `UseWayland()` を明示的に選択します。XWayland への自動フォールバックはありません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm により、UI・バインディングを C# で記述しています。FluentTheme の Light / Dark テーマ辞書を使用し、既定は白い Light テーマです。OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/OpenXR.NET) を使用します。
 
 ## 操作
 

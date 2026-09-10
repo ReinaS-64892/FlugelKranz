@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
-using Avalonia.Themes.Fluent;
-using Avalonia.Styling;
 using Avalonia.VisualTree;
 using FlugelKranz.ViewModels;
 using FlugelKranz.Views;
@@ -20,9 +18,8 @@ public static class TestAppBuilder
         .UseSkia().UseHarfBuzz().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }
 
-public sealed class TestApp : Application
+public sealed class TestApp : FlugelKranz.App
 {
-    public override void Initialize() { Styles.Add(new FluentTheme()); RequestedThemeVariant = ThemeVariant.Dark; }
 }
 
 public class MainViewTests
