@@ -28,19 +28,19 @@ public class InertiaTests
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
-        Assert.Equal(0.5f, settings.TurnAccelerationMultiplier);
-        Assert.Equal(1.5f, settings.ZAccelerationMultiplier);
+        Assert.Equal(0.4f, settings.TurnAccelerationMultiplier);
+        Assert.Equal(2, settings.ZAccelerationMultiplier);
         Assert.True(settings.InertiaAccelerationBoostEnabled);
-        Assert.Equal(1.5f, settings.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(4, settings.InertiaAccelerationBoostMaximumMultiplier);
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
         Assert.Equal(0.2f, settings.DragDecelerationExemptionDurationRatio);
-        Assert.Equal(0.05f, settings.TurnDecelerationExemptionDurationRatio);
+        Assert.Equal(0.15f, settings.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9f, settings.DecelerationExemptionStrength);
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
-        Assert.Equal(0.2f, settings.BrakeRampSeconds);
+        Assert.Equal(0.4f, settings.BrakeRampSeconds);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class InertiaTests
     public void InertiaAccelerationBoostMaximumMultiplierIsClampedToItsSupportedRange()
     {
         Assert.Equal(1, new FlightMotionSettings { InertiaAccelerationBoostMaximumMultiplier = 0 }.Normalized().InertiaAccelerationBoostMaximumMultiplier);
-        Assert.Equal(4, new FlightMotionSettings { InertiaAccelerationBoostMaximumMultiplier = 8 }.Normalized().InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(6, new FlightMotionSettings { InertiaAccelerationBoostMaximumMultiplier = 8 }.Normalized().InertiaAccelerationBoostMaximumMultiplier);
     }
 
     [Fact]
@@ -618,7 +618,7 @@ public class InertiaTests
     [Fact]
     public void RegripBrakeUsesFullStrengthForAngularInertia()
     {
-        var settings = Unfiltered;
+        var settings = Unfiltered with { BrakeRampSeconds = 0.2f };
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
         var engine = BeginTurn(settings);
         engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);

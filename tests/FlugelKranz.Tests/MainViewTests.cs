@@ -34,18 +34,18 @@ public class MainViewTests
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
-        Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
-        Assert.Equal(1.5, vm.ZAccelerationMultiplier);
+        Assert.Equal(0.4, vm.TurnAccelerationMultiplier);
+        Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
-        Assert.Equal(1.5, vm.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
         Assert.Equal(2, vm.InertiaDecelerationPerSecond);
         Assert.Equal(0.2, vm.DragDecelerationExemptionDurationRatio);
-        Assert.Equal(0.05, vm.TurnDecelerationExemptionDurationRatio);
+        Assert.Equal(0.15, vm.TurnDecelerationExemptionDurationRatio);
         Assert.Equal(0.9, vm.DecelerationExemptionStrength);
         Assert.Equal(0.01, vm.DragSmoothSeconds);
         Assert.Equal(0.05, vm.TurnSmoothSeconds);
         Assert.Equal(1, vm.VectorRotationMultiplier);
-        Assert.Equal(0.2, vm.BrakeRampSeconds);
+        Assert.Equal(0.4, vm.BrakeRampSeconds);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -187,9 +187,9 @@ public class MainViewTests
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
-        Assert.Equal(1.5, vm.ZAccelerationMultiplier);
+        Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
-        Assert.Equal(1.5, vm.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
     }
 
     [AvaloniaFact]

@@ -137,7 +137,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Header("慣性加速ブーストモード"),
             Row("有効", new CheckBox().IsChecked(model, x => x.InertiaAccelerationBoostEnabled),
                 ResetButton(model, x => x.ResetInertiaAccelerationBoostEnabledCommand)),
-            Row(model, x => x.InertiaAccelerationBoostMaximumLabel, new Slider().Minimum(1).Maximum(4).TickFrequency(0.05)
+            Row(model, x => x.InertiaAccelerationBoostMaximumLabel, new Slider().Minimum(1).Maximum(6).TickFrequency(0.05)
                     .Value(model, x => x.InertiaAccelerationBoostMaximumMultiplier),
                 ResetButton(model, x => x.ResetInertiaAccelerationBoostMaximumMultiplierCommand)),
             Divider(),

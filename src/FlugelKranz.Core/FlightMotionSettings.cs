@@ -15,19 +15,19 @@ public sealed record FlightMotionSettings
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;
-    public float TurnAccelerationMultiplier { get; init; } = 0.5f;
-    public float ZAccelerationMultiplier { get; init; } = 1.5f;
+    public float TurnAccelerationMultiplier { get; init; } = 0.4f;
+    public float ZAccelerationMultiplier { get; init; } = 2;
     public bool InertiaAccelerationBoostEnabled { get; init; } = true;
-    public float InertiaAccelerationBoostMaximumMultiplier { get; init; } = 1.5f;
+    public float InertiaAccelerationBoostMaximumMultiplier { get; init; } = 4;
     public float VectorRotationMultiplier { get; init; } = 1;
     public float InertiaDecelerationPerSecond { get; init; } = 2;
     public bool DecelerationExemptionEnabled { get; init; } = true;
     public float DragDecelerationExemptionDurationRatio { get; init; } = 0.2f;
-    public float TurnDecelerationExemptionDurationRatio { get; init; } = 0.05f;
+    public float TurnDecelerationExemptionDurationRatio { get; init; } = 0.15f;
     public float DecelerationExemptionStrength { get; init; } = 0.9f;
     public float DragSmoothSeconds { get; init; } = 0.01f;
     public float TurnSmoothSeconds { get; init; } = 0.05f;
-    public float BrakeRampSeconds { get; init; } = 0.2f;
+    public float BrakeRampSeconds { get; init; } = 0.4f;
 
     public FlightMotionSettings Normalized() => this with
     {
@@ -36,7 +36,7 @@ public sealed record FlightMotionSettings
         DragAccelerationMultiplier = Math.Clamp(DragAccelerationMultiplier, 0, 5),
         TurnAccelerationMultiplier = Math.Clamp(TurnAccelerationMultiplier, 0, 5),
         ZAccelerationMultiplier = Math.Clamp(ZAccelerationMultiplier, 1, 5),
-        InertiaAccelerationBoostMaximumMultiplier = Math.Clamp(InertiaAccelerationBoostMaximumMultiplier, 1, 4),
+        InertiaAccelerationBoostMaximumMultiplier = Math.Clamp(InertiaAccelerationBoostMaximumMultiplier, 1, 6),
         VectorRotationMultiplier = Math.Clamp(VectorRotationMultiplier, 0, 1),
         InertiaDecelerationPerSecond = Math.Clamp(InertiaDecelerationPerSecond, 0, 10),
         DragDecelerationExemptionDurationRatio = Math.Clamp(DragDecelerationExemptionDurationRatio, 0, 1),

@@ -35,14 +35,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double dragAccelerationMultiplier = 1;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnAccelerationLabel))]
-    private double turnAccelerationMultiplier = 0.5;
+    private double turnAccelerationMultiplier = 0.4;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ZAccelerationLabel))]
-    private double zAccelerationMultiplier = 1.5;
+    private double zAccelerationMultiplier = 2;
     [ObservableProperty] private bool inertiaAccelerationBoostEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InertiaAccelerationBoostMaximumLabel))]
-    private double inertiaAccelerationBoostMaximumMultiplier = 1.5;
+    private double inertiaAccelerationBoostMaximumMultiplier = 4;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VectorRotationLabel))]
     private double vectorRotationMultiplier = 1;
@@ -55,7 +55,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double dragDecelerationExemptionDurationRatio = 0.2;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnDecelerationExemptionDurationLabel))]
-    private double turnDecelerationExemptionDurationRatio = 0.05;
+    private double turnDecelerationExemptionDurationRatio = 0.15;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecelerationExemptionStrengthLabel))]
     private double decelerationExemptionStrength = 0.9;
@@ -67,7 +67,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double turnSmoothSeconds = 0.05;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
-    private double brakeRampSeconds = 0.2;
+    private double brakeRampSeconds = 0.4;
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
