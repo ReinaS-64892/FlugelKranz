@@ -43,6 +43,30 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                 UpdateToggleClass();
         };
         UpdateToggleClass();
+        var settingsButton = new Button
+        {
+            Width = 64,
+            Height = 64,
+            FontSize = 28,
+            CornerRadius = new CornerRadius(32),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        }
+            .Content("⚙")
+            .Command(model, x => x.ToggleSettingsCommand);
+        var resetPoseButton = new Button
+        {
+            Width = 64,
+            Height = 64,
+            FontSize = 28,
+            CornerRadius = new CornerRadius(32),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        }
+            .Content("↻")
+            .IsEnabled(model, x => x.IsConnected)
+            .Command(model, x => x.ResetCommand);
+        ToolTip.SetTip(resetPoseButton, "接続時の位置・姿勢に戻す");
         var main = new Border
         {
             Padding = new Thickness(28)
@@ -51,17 +75,14 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .VerticalAlignment(VerticalAlignment.Center).Children(
                     toggle,
-                    new Button
+                    new StackPanel
                     {
-                        Width = 64,
-                        Height = 64,
-                        FontSize = 28,
-                        CornerRadius = new CornerRadius(32),
-                        HorizontalContentAlignment = HorizontalAlignment.Center,
-                        VerticalContentAlignment = VerticalAlignment.Center
+                        Orientation = Orientation.Vertical,
+                        Spacing = 16,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
                     }
-                        .Content("⚙")
-                        .Command(model, x => x.ToggleSettingsCommand)
+                        .Children(settingsButton, resetPoseButton)
                 ));
         var panel = new Border
         {
@@ -175,10 +196,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Header("ドラグブレーキ"),
             Row(model, x => x.BrakeRampLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeRampSeconds),
-                ResetButton(model, x => x.ResetBrakeRampCommand)),
-            new Button().Content("接続時の位置・姿勢に戻す")
-                .IsEnabled(model, x => x.IsConnected)
-                .Command(model, x => x.ResetCommand)
+                ResetButton(model, x => x.ResetBrakeRampCommand))
         );
 
     private static Grid Row(string label, Control editor, Button reset) =>

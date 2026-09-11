@@ -54,10 +54,28 @@ public class MainViewTests
             var toggle = Assert.Single(buttons, b => Equals(b.Content, "OFF"));
             Assert.True(toggle.Bounds.Width > 0);
             Assert.True(toggle.Bounds.Height > 0);
-            var reset = Assert.Single(buttons, b => Equals(b.Content, "接続時の位置・姿勢に戻す"));
+            var settingsButton = Assert.Single(buttons, b => Equals(b.Content, "⚙"));
+            var reset = Assert.Single(buttons, b => ReferenceEquals(vm.ResetCommand, b.Command));
+            Assert.Equal("↻", reset.Content);
+            Assert.Equal(64, reset.Bounds.Width);
+            Assert.Equal(64, reset.Bounds.Height);
             Assert.False(reset.IsEnabled);
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
+            var toggleLayoutCenter = toggle.TranslatePoint(
+                new Point(toggle.Bounds.Width / 2, toggle.Bounds.Height / 2),
+                window);
+            var settingsLayoutCenter = settingsButton.TranslatePoint(
+                new Point(settingsButton.Bounds.Width / 2, settingsButton.Bounds.Height / 2),
+                window);
+            var resetLayoutCenter = reset.TranslatePoint(
+                new Point(reset.Bounds.Width / 2, reset.Bounds.Height / 2),
+                window);
+            Assert.True(toggleLayoutCenter.HasValue);
+            Assert.True(settingsLayoutCenter.HasValue);
+            Assert.True(resetLayoutCenter.HasValue);
+            Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
+            Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
             Assert.Equal(14, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
