@@ -129,6 +129,11 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                     .Value(model, x => x.TurnAccelerationMultiplier),
                 ResetButton(model, x => x.ResetTurnAccelerationCommand)),
             Divider(),
+            Header("Z加速"),
+            Row(model, x => x.ZAccelerationLabel, new Slider().Minimum(1).Maximum(5).TickFrequency(0.05)
+                    .Value(model, x => x.ZAccelerationMultiplier),
+                ResetButton(model, x => x.ResetZAccelerationCommand)),
+            Divider(),
             Header("ベクトル回転倍率"),
             Row("倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.VectorRotationMultiplier),

@@ -98,7 +98,7 @@ public sealed class SpaceManipulator
         if (wasDragging && !IsDragging)
         {
             if (Usable(frame.Left))
-                FinishDrag(settings);
+                FinishDrag(frame.Head, settings);
             else
                 CancelDrag();
         }
@@ -392,7 +392,7 @@ public sealed class SpaceManipulator
                 settings);
     }
 
-    private void FinishDrag(FlightMotionSettings settings)
+    private void FinishDrag(RigidPose head, FlightMotionSettings settings)
     {
         if (settings.StepMode)
         {
@@ -410,7 +410,7 @@ public sealed class SpaceManipulator
         if (settings.InertiaCutoffEnabled && dragVelocity.Length() < settings.DragCutoffMetresPerSecond)
             linearInertia = Vector3.Zero;
         else
-            linearInertia = dragVelocity * settings.DragAccelerationMultiplier;
+            linearInertia = ApplyDragAcceleration(dragVelocity, head.Orientation, settings);
 
         linearExemptionSeconds = ExemptionDuration(
             linearInertia.Length(),
@@ -419,6 +419,24 @@ public sealed class SpaceManipulator
             settings);
 
         dragHistory.Clear();
+    }
+
+    private static Vector3 ApplyDragAcceleration(
+        Vector3 velocity,
+        Quaternion playerOrientation,
+        FlightMotionSettings settings)
+    {
+        var baseVelocity = velocity * settings.DragAccelerationMultiplier;
+        if (baseVelocity.LengthSquared() <= 0 || settings.ZAccelerationMultiplier <= 1)
+            return baseVelocity;
+
+        var forward = Vector3.Normalize(Vector3.Transform(Vector3.UnitZ, playerOrientation));
+        var direction = Vector3.Normalize(velocity);
+        float alignment = MathF.Abs(Math.Clamp(Vector3.Dot(forward, direction), -1, 1));
+        float zMultiplier = 1 + (settings.ZAccelerationMultiplier - 1) * alignment;
+        var forwardVelocity = forward * Vector3.Dot(baseVelocity, forward);
+        var lateralVelocity = baseVelocity - forwardVelocity;
+        return lateralVelocity + forwardVelocity * zMultiplier;
     }
 
     private void FinishTurn(FlightMotionSettings settings)

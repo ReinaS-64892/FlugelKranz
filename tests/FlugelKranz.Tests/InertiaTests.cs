@@ -29,6 +29,7 @@ public class InertiaTests
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(0.5f, settings.TurnAccelerationMultiplier);
+        Assert.Equal(1.5f, settings.ZAccelerationMultiplier);
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
@@ -44,6 +45,13 @@ public class InertiaTests
         Assert.Equal(1, settings.DragCorrectionStrength);
         Assert.Equal(0.5f, settings.TurnCorrectionMaxSeconds);
         Assert.Equal(1, settings.TurnCorrectionStrength);
+    }
+
+    [Fact]
+    public void ZAccelerationIsClampedToItsDisabledThroughMaximumRange()
+    {
+        Assert.Equal(1, new FlightMotionSettings { ZAccelerationMultiplier = 0 }.Normalized().ZAccelerationMultiplier);
+        Assert.Equal(5, new FlightMotionSettings { ZAccelerationMultiplier = 8 }.Normalized().ZAccelerationMultiplier);
     }
 
     [Fact]
@@ -98,6 +106,43 @@ public class InertiaTests
         var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
 
         Near(new(-1.5f, 0, 0), released.Position);
+    }
+
+    [Fact]
+    public void ZAccelerationBoostsForwardAndReverseDrag()
+    {
+        var settings = Unfiltered with { ZAccelerationMultiplier = 2 };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(new Vector3(0, 0, -1), leftGrip: 1), 0.1f, settings);
+
+        var released = engine.Update(Frame(new Vector3(0, 0, -1)), 0.1f, settings);
+
+        Near(new(0, 0, 3), released.Position);
+    }
+
+    [Fact]
+    public void ZAccelerationLeavesLateralDragUnchanged()
+    {
+        var settings = Unfiltered with { ZAccelerationMultiplier = 3 };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(new Vector3(1, 0, 0), leftGrip: 1), 0.1f, settings);
+
+        var released = engine.Update(Frame(new Vector3(1, 0, 0)), 0.1f, settings);
+
+        Near(new(-2, 0, 0), released.Position);
+    }
+
+    [Fact]
+    public void ZAccelerationOnlyScalesTheForwardComponentOfDiagonalDrag()
+    {
+        var settings = Unfiltered with { ZAccelerationMultiplier = 2 };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(new Vector3(1, 0, -1), leftGrip: 1), 0.1f, settings);
+
+        var released = engine.Update(Frame(new Vector3(1, 0, -1)), 0.1f, settings);
+        float forwardSpeed = 10 * (1 + (2 - 1) * MathF.Sqrt(0.5f));
+
+        Near(new(-2, 0, 1 + forwardSpeed * 0.1f), released.Position);
     }
 
     [Fact]
