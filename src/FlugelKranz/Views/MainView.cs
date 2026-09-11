@@ -142,7 +142,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                 ResetButton(model, x => x.ResetInertiaAccelerationBoostMaximumMultiplierCommand)),
             Divider(),
             Header("ベクトル回転倍率"),
-            Row("倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+            Row(model, x => x.VectorRotationLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.VectorRotationMultiplier),
                 ResetButton(model, x => x.ResetVectorRotationCommand)),
             Divider(),

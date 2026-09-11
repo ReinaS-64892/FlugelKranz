@@ -92,7 +92,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string ZAccelerationLabel => $"Z: {ZAccelerationMultiplier:0.00} 倍";
     public string InertiaAccelerationBoostMaximumLabel =>
         $"最大加速倍率: {InertiaAccelerationBoostMaximumMultiplier:0.00} 倍";
-    public string VectorRotationLabel => $"{VectorRotationMultiplier:0.00}";
+    public string VectorRotationLabel => $"倍率: {VectorRotationMultiplier:0.00}";
     public string InertiaDecelerationLabel => $"{InertiaDecelerationPerSecond:0.00} /秒";
     public string DragDecelerationExemptionDurationLabel =>
         $"Drag 免除時間: {DragDecelerationExemptionDurationRatio:0.00}";
