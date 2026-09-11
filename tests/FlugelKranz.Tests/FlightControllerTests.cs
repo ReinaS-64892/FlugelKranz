@@ -31,6 +31,35 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task ResetWhileEnabledRestoresOffsetAndRequiresGripRearm()
+    {
+        var runtime = new FakeRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        runtime.Frame = Frame(1, 0);
+        await Wait(() => progress.Statuses.Any(s => s.Dragging));
+        runtime.Frame = Frame(1, 1);
+        await Wait(() => runtime.CurrentOffset.Position.X < -0.9f);
+
+        controller.Reset();
+        await Wait(() => runtime.Restores > 0 && runtime.CurrentOffset == RigidPose.Identity);
+
+        // The reset keeps the controller enabled but clears the active grip.
+        await WaitForFrame(runtime, Frame(1, 2));
+        Assert.Equal(RigidPose.Identity, runtime.CurrentOffset);
+
+        // Releasing and gripping again arms Drag for the next movement.
+        await WaitForFrame(runtime, Frame(0, 2));
+        await WaitForFrame(runtime, Frame(1, 2));
+        await WaitForFrame(runtime, Frame(1, 3));
+        await Wait(() => runtime.CurrentOffset.Position.X < -0.9f);
+        Assert.Contains(progress.Statuses, s => s.Connected && s.Enabled);
+    }
+
+    [Fact]
     public async Task ConnectionFailureReportsOffWithoutThrowingOnUiThread()
     {
         var progress = new Recorder();
@@ -61,6 +90,13 @@ public class FlightControllerTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (!predicate()) await Task.Delay(10, timeout.Token);
     }
+
+    private static async Task WaitForFrame(FakeRuntime runtime, InputFrame frame)
+    {
+        int reads = runtime.Reads;
+        runtime.Frame = frame;
+        await Wait(() => runtime.Reads > reads + 2);
+    }
     private sealed class Recorder : IProgress<FlightStatus>
     {
         public ConcurrentQueue<FlightStatus> Statuses { get; } = new();
@@ -72,11 +108,17 @@ public class FlightControllerTests
         private InputFrame frame = FlightControllerTests.Frame(0, 0);
         private RigidPose offset = RigidPose.Identity;
         public InputFrame Frame { get { lock (gate) return frame; } set { lock (gate) frame = value; } }
+        public int Reads => Volatile.Read(ref reads);
         public RigidPose OriginalOffset => RigidPose.Identity;
         public RigidPose CurrentOffset { get { lock (gate) return offset; } }
         public volatile bool Disposed, ThrowOnRead;
         public int Restores;
-        public InputFrame ReadPhysical() => ThrowOnRead ? throw new IOException("lost") : Frame;
+        private int reads;
+        public InputFrame ReadPhysical()
+        {
+            Interlocked.Increment(ref reads);
+            return ThrowOnRead ? throw new IOException("lost") : Frame;
+        }
         public void Apply(RigidPose value) { lock (gate) offset = value; }
         public void Restore() { Restores++; Apply(OriginalOffset); }
         public void Dispose() => Disposed = true;

@@ -213,7 +213,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private void Reset()
     {
         if (closing) return;
-        IsEnabled = false;
         controller.Reset();
     }
 

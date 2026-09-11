@@ -13,7 +13,7 @@ public interface IFlightRuntime : IDisposable
 
 public sealed record FlightStatus(bool Enabled, bool Connected, string Message, bool Dragging = false, bool Turning = false);
 
-/// <summary>Owns the runtime on one worker. Off retains the offset; reset and normal shutdown restore it.</summary>
+/// <summary>Owns the runtime on one worker. Off retains the offset; reset restores it without disabling the controller.</summary>
 public sealed class FlightController(
     Func<IFlightRuntime> createRuntime,
     IProgress<FlightStatus> progress,
@@ -41,7 +41,6 @@ public sealed class FlightController(
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            enabled = false;
             releaseVersion++;
             resetRequested = true;
         }
