@@ -66,9 +66,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(TurnSmoothLabel))]
     private double turnSmoothSeconds = 0.05;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BrakeLabel))]
-    private double brakeStrength = 1;
-    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.2;
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
@@ -88,7 +85,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
     public string DragSmoothLabel => $"Drag: {DragSmoothSeconds:0.00} 秒";
     public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
-    public string BrakeLabel => $"値: {BrakeStrength:0.00}";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
 
     public MainViewModel(string libraryPath, string? settingsPath = null)
@@ -113,7 +109,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(InertiaDecelerationPerSecond) or nameof(DecelerationExemptionEnabled) or
             nameof(DragDecelerationExemptionDurationRatio) or nameof(TurnDecelerationExemptionDurationRatio) or
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
-            nameof(BrakeStrength) or nameof(BrakeRampSeconds)))
+            nameof(BrakeRampSeconds)))
             return;
 
         settingsStore.Save(CreateMotionSettings());
@@ -139,7 +135,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DecelerationExemptionStrength = Math.Round(settings.DecelerationExemptionStrength, 6);
         DragSmoothSeconds = Math.Round(settings.DragSmoothSeconds, 6);
         TurnSmoothSeconds = Math.Round(settings.TurnSmoothSeconds, 6);
-        BrakeStrength = Math.Round(settings.BrakeStrength, 6);
         BrakeRampSeconds = Math.Round(settings.BrakeRampSeconds, 6);
     }
 
@@ -166,7 +161,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetExemptionStrength() => ResetToDefaults(s => DecelerationExemptionStrength = s.DecelerationExemptionStrength);
     [RelayCommand] private void ResetDragSmooth() => ResetToDefaults(s => DragSmoothSeconds = s.DragSmoothSeconds);
     [RelayCommand] private void ResetTurnSmooth() => ResetToDefaults(s => TurnSmoothSeconds = s.TurnSmoothSeconds);
-    [RelayCommand] private void ResetBrake() => ResetToDefaults(s => BrakeStrength = s.BrakeStrength);
     [RelayCommand] private void ResetBrakeRamp() => ResetToDefaults(s => BrakeRampSeconds = s.BrakeRampSeconds);
 
     [RelayCommand]
@@ -252,7 +246,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
         DragSmoothSeconds = (float)DragSmoothSeconds,
         TurnSmoothSeconds = (float)TurnSmoothSeconds,
-        BrakeStrength = (float)BrakeStrength,
         BrakeRampSeconds = (float)BrakeRampSeconds
     };
 

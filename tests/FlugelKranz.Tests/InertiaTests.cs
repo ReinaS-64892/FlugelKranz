@@ -40,7 +40,6 @@ public class InertiaTests
         Assert.Equal(0.9f, settings.DecelerationExemptionStrength);
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
-        Assert.Equal(1, settings.BrakeStrength);
         Assert.Equal(0.2f, settings.BrakeRampSeconds);
     }
 
@@ -279,26 +278,23 @@ public class InertiaTests
         Near(moved.Position + new Vector3(-1, 0, 0), released.Position);
     }
 
-    [Theory]
-    [InlineData(1, -2.5f)]
-    [InlineData(0.5f, -2.75f)]
-    [InlineData(0, -3)]
-    public void RegripBrakeRampsConfiguredShareOfInertia(float brake, float expectedX)
+    [Fact]
+    public void RegripBrakeUsesFullStrengthOverConfiguredRamp()
     {
-        var settings = Unfiltered with { BrakeStrength = brake };
+        var settings = Unfiltered with { BrakeRampSeconds = 0.2f };
         var engine = BeginDrag(settings);
         engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
         engine.Update(Frame(leftX: 1), 0.1f, settings);
 
         var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
-        Near(new(expectedX, 0, 0), regripped.Position);
+        Near(new(-2.5f, 0, 0), regripped.Position);
     }
 
     [Fact]
     public void ZeroBrakeRampRetainsImmediateBrakeBehavior()
     {
-        var settings = Unfiltered with { BrakeStrength = 1, BrakeRampSeconds = 0 };
+        var settings = Unfiltered with { BrakeRampSeconds = 0 };
         var engine = BeginDrag(settings);
         engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
         engine.Update(Frame(leftX: 1), 0.1f, settings);
@@ -313,7 +309,6 @@ public class InertiaTests
     {
         var settings = Unfiltered with
         {
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var engine = BeginDrag(settings);
@@ -336,7 +331,6 @@ public class InertiaTests
             InertiaAccelerationBoostMaximumMultiplier = 1.5f,
             InertiaCutoffEnabled = true,
             DragCutoffMetresPerSecond = 0.4f,
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var engine = BeginDrag(settings);
@@ -364,7 +358,6 @@ public class InertiaTests
             InertiaCutoffEnabled = true,
             DragCutoffMetresPerSecond = 0.4f,
             DragAccelerationMultiplier = 0.5f,
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var secondSettings = firstSettings with { DragAccelerationMultiplier = 1 };
@@ -391,7 +384,6 @@ public class InertiaTests
             InertiaAccelerationBoostEnabled = true,
             InertiaCutoffEnabled = true,
             DragCutoffMetresPerSecond = 0.4f,
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var engine = BeginDrag(settings);
@@ -417,7 +409,6 @@ public class InertiaTests
             InertiaAccelerationBoostEnabled = true,
             InertiaCutoffEnabled = true,
             DragCutoffMetresPerSecond = 0.4f,
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var engine = BeginDrag(settings);
@@ -445,7 +436,6 @@ public class InertiaTests
             InertiaCutoffEnabled = true,
             DragCutoffMetresPerSecond = 0.4f,
             DragAccelerationMultiplier = 0.02f,
-            BrakeStrength = 1,
             BrakeRampSeconds = 1
         };
         var fastSettings = slowSettings with { DragAccelerationMultiplier = 1 };
@@ -465,7 +455,7 @@ public class InertiaTests
     [Fact]
     public void TurnGripDoesNotBrakeLinearInertia()
     {
-        var settings = Unfiltered with { BrakeStrength = 1 };
+        var settings = Unfiltered;
         var engine = BeginDrag(settings);
         engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
         engine.Update(Frame(leftX: 1), 0.1f, settings);
@@ -479,7 +469,7 @@ public class InertiaTests
     [Fact]
     public void DragGripDoesNotBrakeAngularInertia()
     {
-        var settings = Unfiltered with { BrakeStrength = 1 };
+        var settings = Unfiltered;
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
         var engine = BeginTurn(settings);
         engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
@@ -496,7 +486,6 @@ public class InertiaTests
     {
         var settings = Unfiltered with
         {
-            BrakeStrength = 0.5f,
             InertiaDecelerationPerSecond = 1,
             DecelerationExemptionEnabled = true,
             DragDecelerationExemptionDurationRatio = 1,
@@ -600,7 +589,6 @@ public class InertiaTests
     {
         var settings = Unfiltered with
         {
-            BrakeStrength = 0,
             VectorRotationMultiplier = multiplier
         };
         var engine = BeginDrag(settings);
@@ -627,13 +615,10 @@ public class InertiaTests
         Near(Vector3.Transform(firstStep, expectedRotation), secondStep);
     }
 
-    [Theory]
-    [InlineData(1, -0.5f)]
-    [InlineData(0.5f, -0.55f)]
-    [InlineData(0, -0.6f)]
-    public void RegripBrakeRampsConfiguredShareOfAngularInertia(float brake, float expectedAngle)
+    [Fact]
+    public void RegripBrakeUsesFullStrengthForAngularInertia()
     {
-        var settings = Unfiltered with { BrakeStrength = brake };
+        var settings = Unfiltered;
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
         var engine = BeginTurn(settings);
         engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
@@ -641,7 +626,7 @@ public class InertiaTests
 
         var regripped = engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
 
-        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, expectedAngle), regripped.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), regripped.Orientation);
     }
 
     private static SpaceManipulator BeginDrag(FlightMotionSettings settings)

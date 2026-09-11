@@ -59,7 +59,7 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(15, sliders.Length);
+            Assert.Equal(14, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -68,7 +68,6 @@ public class MainViewTests
             stepMode.IsChecked = true;
             Assert.True(vm.StepMode);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "値: 1.00");
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "倍率: 1.00");
             vm.IsEnabled = true;
             vm.Status = "テスト中";

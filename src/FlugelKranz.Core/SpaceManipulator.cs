@@ -127,7 +127,6 @@ public sealed class SpaceManipulator
                     ref dragBrakeElapsed,
                     ref dragBrakeFactor,
                     dt,
-                    settings.BrakeStrength,
                     settings.BrakeRampSeconds);
             dragInertiaStep = linearInertia * dt;
             ApplyDeceleration(
@@ -143,7 +142,6 @@ public sealed class SpaceManipulator
                 ref turnBrakeElapsed,
                 ref turnBrakeFactor,
                 dt,
-                settings.BrakeStrength,
                 settings.BrakeRampSeconds);
             turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
             ApplyDeceleration(
@@ -274,15 +272,14 @@ public sealed class SpaceManipulator
         ref float elapsed,
         ref float previousFactor,
         float deltaSeconds,
-        float strength,
         float rampSeconds)
     {
-        if (deltaSeconds <= 0 || velocity.LengthSquared() <= 0 || strength <= 0)
+        if (deltaSeconds <= 0 || velocity.LengthSquared() <= 0)
             return;
 
         if (rampSeconds <= 0)
         {
-            float immediateFactor = MathF.Min(previousFactor, MathF.Max(0, 1 - strength));
+            float immediateFactor = 0;
             if (previousFactor > 0)
                 velocity *= immediateFactor / previousFactor;
             previousFactor = immediateFactor;
@@ -293,7 +290,7 @@ public sealed class SpaceManipulator
         elapsed = MathF.Min(rampSeconds, elapsed + deltaSeconds);
         float progress = elapsed / rampSeconds;
         float easedProgress = progress * progress * (3 - 2 * progress);
-        float targetFactor = 1 - strength * easedProgress;
+        float targetFactor = 1 - easedProgress;
         targetFactor = MathF.Min(previousFactor, MathF.Max(0, targetFactor));
 
         if (previousFactor > 0)

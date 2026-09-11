@@ -27,7 +27,6 @@ public sealed record FlightMotionSettings
     public float DecelerationExemptionStrength { get; init; } = 0.9f;
     public float DragSmoothSeconds { get; init; } = 0.01f;
     public float TurnSmoothSeconds { get; init; } = 0.05f;
-    public float BrakeStrength { get; init; } = 1;
     public float BrakeRampSeconds { get; init; } = 0.2f;
 
     public FlightMotionSettings Normalized() => this with
@@ -45,7 +44,6 @@ public sealed record FlightMotionSettings
         DecelerationExemptionStrength = Math.Clamp(DecelerationExemptionStrength, 0, 1),
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
-        BrakeStrength = Math.Clamp(BrakeStrength, 0, 1),
         BrakeRampSeconds = Math.Clamp(BrakeRampSeconds, 0, 1)
     };
 }
