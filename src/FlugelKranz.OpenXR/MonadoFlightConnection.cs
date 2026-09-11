@@ -11,6 +11,9 @@ internal sealed class MonadoFlightConnection : IDisposable
 {
     private readonly MonadoRoot root;
     private readonly Dictionary<uint, Origin> origins = [];
+    private readonly RigidPose originalOffset;
+    private RigidPose currentStage;
+    private RigidPose currentOffset;
     private uint headOrigin, leftOrigin, rightOrigin;
 
     private sealed class Origin(RigidPose offset)
@@ -19,8 +22,8 @@ internal sealed class MonadoFlightConnection : IDisposable
         public RigidPose Current { get; set; } = offset;
     }
 
-    public RigidPose OriginalOffset => origins[headOrigin].Original;
-    public RigidPose CurrentOffset => origins[headOrigin].Current;
+    public RigidPose OriginalOffset => originalOffset;
+    public RigidPose CurrentOffset => currentOffset;
     public RigidPose StageToRoot { get; }
     public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => origins
         .OrderBy(pair => pair.Key)
@@ -46,8 +49,10 @@ internal sealed class MonadoFlightConnection : IDisposable
                     case "right": rightOrigin = trackingOrigin; break;
                 }
             }
-            // STAGE must remain fixed so it can remove the offset written by this application.
+            originalOffset = origins[headOrigin].Original;
             StageToRoot = ToRigidPose(root.GetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage));
+            currentStage = StageToRoot;
+            currentOffset = originalOffset;
         }
         catch { root.Dispose(); throw; }
     }
@@ -60,10 +65,12 @@ internal sealed class MonadoFlightConnection : IDisposable
 
     public void VerifyUnchanged()
     {
+        // Tracking-origin offsets can be refreshed by a reconnect or another
+        // calibration tool. They are intentionally observed, never owned.
         foreach (var (origin, state) in origins)
-            if (!ReadOrigin(origin).NearlyEquals(state.Current))
-                throw new InvalidOperationException("他のツールがトラッキング原点オフセットを変更したため停止しました。再度オンにして接続し直してください。");
-        if (!ToRigidPose(root.GetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage)).NearlyEquals(StageToRoot))
+            state.Current = ReadOrigin(origin);
+
+        if (!ToRigidPose(root.GetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage)).NearlyEquals(currentStage))
             throw new InvalidOperationException("基準空間が変更されたため停止しました。再度オンにして接続し直してください。");
     }
 
@@ -75,37 +82,31 @@ internal sealed class MonadoFlightConnection : IDisposable
     {
         if (!offset.IsValid) throw new ArgumentException("空間変換が不正です。", nameof(offset));
         var delta = offset * OriginalOffset.Inverse();
-        var targets = origins.ToDictionary(pair => pair.Key, pair => delta * pair.Value.Original);
-        var applied = new List<uint>();
-        try
-        {
-            foreach (var (origin, target) in targets)
-            {
-                root.SetTrackingOriginOffset(origin, ToMonadoPose(target));
-                applied.Add(origin);
-            }
-        }
-        catch
-        {
-            foreach (var origin in applied) root.SetTrackingOriginOffset(origin, ToMonadoPose(origins[origin].Current));
-            throw;
-        }
-        foreach (var (origin, target) in targets) origins[origin].Current = target;
+        // OpenXR reports poses relative to STAGE (S^-1 * pose). To apply the
+        // flight delta to those poses, STAGE itself must receive the inverse
+        // transform: (D^-1 * S)^-1 * pose = S^-1 * D * pose.
+        var targetStage = delta.Inverse() * StageToRoot;
+        root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(targetStage));
+        currentStage = targetStage;
+        currentOffset = offset;
     }
 
     public void Restore()
     {
-        foreach (var (origin, state) in origins)
-            if (!ReadOrigin(origin).NearlyEquals(state.Current))
-                throw new InvalidOperationException("外部で変更されたトラッキング原点オフセットは復元しませんでした。");
-        if (!CurrentOffset.NearlyEquals(OriginalOffset)) Apply(OriginalOffset);
+        VerifyUnchanged();
+        if (!currentStage.NearlyEquals(StageToRoot))
+        {
+            root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(StageToRoot));
+            currentStage = StageToRoot;
+        }
+        currentOffset = OriginalOffset;
     }
 
     private RigidPose ToPhysical(RigidPose stagePose, uint origin)
     {
         var state = origins[origin];
         var originToHead = OriginalOffset.Inverse() * state.Original;
-        var stageToOrigin = state.Current.Inverse() * StageToRoot;
+        var stageToOrigin = state.Current.Inverse() * currentStage;
         return originToHead * stageToOrigin * stagePose;
     }
 

@@ -213,8 +213,10 @@ public sealed unsafe class OpenXrInput : IDisposable
             Check(result, "OpenXR イベントの取得");
             if (buffer.type == XrStructureType.XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING)
                 throw new InvalidOperationException("OpenXR ランタイムへの接続が失われました。");
+            // libmonado emits this event when the app changes the reference-space offset.
+            // Existing XrSpace handles remain valid and will report the new transform.
             if (buffer.type == XrStructureType.XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING)
-                throw new InvalidOperationException("OpenXR 基準空間が変更されました。再接続してください。");
+                continue;
             if (buffer.type != XrStructureType.XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) continue;
             var change = (XrEventDataSessionStateChanged*)&buffer;
             state = change->state;

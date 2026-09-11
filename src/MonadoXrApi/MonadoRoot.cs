@@ -30,7 +30,7 @@ public sealed class MonadoRoot : IDisposable
     private readonly Role role;
     private readonly Property property;
     private readonly GetPose getOrigin, getReference;
-    private readonly SetPose setOrigin;
+    private readonly SetPose setReference;
     private readonly UpdateClients updateClients;
     private readonly ClientCount clientCount;
     private readonly ClientId clientId;
@@ -47,7 +47,7 @@ public sealed class MonadoRoot : IDisposable
             property = library.GetDelegate<Property>("mnd_root_get_device_info_u32");
             getOrigin = library.GetDelegate<GetPose>("mnd_root_get_tracking_origin_offset");
             getReference = library.GetDelegate<GetPose>("mnd_root_get_reference_space_offset");
-            setOrigin = library.GetDelegate<SetPose>("mnd_root_set_tracking_origin_offset");
+            setReference = library.GetDelegate<SetPose>("mnd_root_set_reference_space_offset");
             updateClients = library.GetDelegate<UpdateClients>("mnd_root_update_client_list");
             clientCount = library.GetDelegate<ClientCount>("mnd_root_get_number_clients");
             clientId = library.GetDelegate<ClientId>("mnd_root_get_client_id_at_index");
@@ -75,14 +75,14 @@ public sealed class MonadoRoot : IDisposable
         return pose;
     }
 
-    public void SetTrackingOriginOffset(uint originIndex, MonadoPose pose) =>
-        Check(setOrigin(root, originIndex, in pose), "トラッキング原点オフセットの設定");
-
     public MonadoPose GetReferenceSpaceOffset(MonadoReferenceSpaceType referenceSpaceType)
     {
         Check(getReference(root, (uint)referenceSpaceType, out var pose), "基準空間オフセットの取得");
         return pose;
     }
+
+    public void SetReferenceSpaceOffset(MonadoReferenceSpaceType referenceSpaceType, MonadoPose pose) =>
+        Check(setReference(root, (uint)referenceSpaceType, in pose), "基準空間オフセットの設定");
 
     public IReadOnlyList<string> GetClientNames()
     {
