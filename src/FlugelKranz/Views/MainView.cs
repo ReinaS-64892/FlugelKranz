@@ -134,6 +134,13 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                     .Value(model, x => x.ZAccelerationMultiplier),
                 ResetButton(model, x => x.ResetZAccelerationCommand)),
             Divider(),
+            Header("慣性加速ブーストモード"),
+            Row("有効", new CheckBox().IsChecked(model, x => x.InertiaAccelerationBoostEnabled),
+                ResetButton(model, x => x.ResetInertiaAccelerationBoostEnabledCommand)),
+            Row(model, x => x.InertiaAccelerationBoostMaximumLabel, new Slider().Minimum(1).Maximum(4).TickFrequency(0.05)
+                    .Value(model, x => x.InertiaAccelerationBoostMaximumMultiplier),
+                ResetButton(model, x => x.ResetInertiaAccelerationBoostMaximumMultiplierCommand)),
+            Divider(),
             Header("ベクトル回転倍率"),
             Row("倍率", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.VectorRotationMultiplier),

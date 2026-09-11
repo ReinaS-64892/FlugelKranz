@@ -36,6 +36,8 @@ public class MainViewTests
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.5, vm.TurnAccelerationMultiplier);
         Assert.Equal(1.5, vm.ZAccelerationMultiplier);
+        Assert.True(vm.InertiaAccelerationBoostEnabled);
+        Assert.Equal(1.5, vm.InertiaAccelerationBoostMaximumMultiplier);
         Assert.Equal(2, vm.InertiaDecelerationPerSecond);
         Assert.Equal(0.2, vm.DragDecelerationExemptionDurationRatio);
         Assert.Equal(0.05, vm.TurnDecelerationExemptionDurationRatio);
@@ -57,7 +59,7 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(18, sliders.Length);
+            Assert.Equal(19, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -147,6 +149,8 @@ public class MainViewTests
                 first.DragCutoffCentimetresPerSecond = 12.5;
                 first.TurnAccelerationMultiplier = 1.25;
                 first.ZAccelerationMultiplier = 4.25;
+                first.InertiaAccelerationBoostEnabled = false;
+                first.InertiaAccelerationBoostMaximumMultiplier = 3.25;
                 first.BrakeRampSeconds = 0.75;
             }
 
@@ -155,6 +159,8 @@ public class MainViewTests
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
             Assert.Equal(4.25, second.ZAccelerationMultiplier);
+            Assert.False(second.InertiaAccelerationBoostEnabled);
+            Assert.Equal(3.25, second.InertiaAccelerationBoostMaximumMultiplier);
             Assert.Equal(0.75, second.BrakeRampSeconds);
         }
         finally
@@ -170,13 +176,19 @@ public class MainViewTests
         vm.DragCutoffCentimetresPerSecond = 12;
         vm.TurnCutoffDegreesPerSecond = 123;
         vm.ZAccelerationMultiplier = 4;
+        vm.InertiaAccelerationBoostEnabled = false;
+        vm.InertiaAccelerationBoostMaximumMultiplier = 3;
 
         vm.ResetDragCutoffCommand.Execute(null);
         vm.ResetZAccelerationCommand.Execute(null);
+        vm.ResetInertiaAccelerationBoostEnabledCommand.Execute(null);
+        vm.ResetInertiaAccelerationBoostMaximumMultiplierCommand.Execute(null);
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(1.5, vm.ZAccelerationMultiplier);
+        Assert.True(vm.InertiaAccelerationBoostEnabled);
+        Assert.Equal(1.5, vm.InertiaAccelerationBoostMaximumMultiplier);
     }
 
     [AvaloniaFact]

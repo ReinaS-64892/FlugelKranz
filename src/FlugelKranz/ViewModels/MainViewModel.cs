@@ -39,6 +39,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ZAccelerationLabel))]
     private double zAccelerationMultiplier = 1.5;
+    [ObservableProperty] private bool inertiaAccelerationBoostEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InertiaAccelerationBoostMaximumLabel))]
+    private double inertiaAccelerationBoostMaximumMultiplier = 1.5;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VectorRotationLabel))]
     private double vectorRotationMultiplier = 1;
@@ -86,6 +90,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
     public string TurnAccelerationLabel => $"Turn: {TurnAccelerationMultiplier:0.00} 倍";
     public string ZAccelerationLabel => $"Z: {ZAccelerationMultiplier:0.00} 倍";
+    public string InertiaAccelerationBoostMaximumLabel =>
+        $"最大加速倍率: {InertiaAccelerationBoostMaximumMultiplier:0.00} 倍";
     public string VectorRotationLabel => $"{VectorRotationMultiplier:0.00}";
     public string InertiaDecelerationLabel => $"{InertiaDecelerationPerSecond:0.00} /秒";
     public string DragDecelerationExemptionDurationLabel =>
@@ -118,7 +124,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (e.PropertyName is not (
             nameof(StepMode) or nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
             nameof(TurnCutoffDegreesPerSecond) or nameof(DragAccelerationMultiplier) or
-            nameof(TurnAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or nameof(VectorRotationMultiplier) or
+            nameof(TurnAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
+            nameof(InertiaAccelerationBoostEnabled) or nameof(InertiaAccelerationBoostMaximumMultiplier) or
+            nameof(VectorRotationMultiplier) or
             nameof(InertiaDecelerationPerSecond) or nameof(DecelerationExemptionEnabled) or
             nameof(DragDecelerationExemptionDurationRatio) or nameof(TurnDecelerationExemptionDurationRatio) or
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
@@ -139,6 +147,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DragAccelerationMultiplier = Math.Round(settings.DragAccelerationMultiplier, 6);
         TurnAccelerationMultiplier = Math.Round(settings.TurnAccelerationMultiplier, 6);
         ZAccelerationMultiplier = Math.Round(settings.ZAccelerationMultiplier, 6);
+        InertiaAccelerationBoostEnabled = settings.InertiaAccelerationBoostEnabled;
+        InertiaAccelerationBoostMaximumMultiplier = Math.Round(settings.InertiaAccelerationBoostMaximumMultiplier, 6);
         VectorRotationMultiplier = Math.Round(settings.VectorRotationMultiplier, 6);
         InertiaDecelerationPerSecond = Math.Round(settings.InertiaDecelerationPerSecond, 6);
         DecelerationExemptionEnabled = settings.DecelerationExemptionEnabled;
@@ -169,6 +179,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetDragAcceleration() => ResetToDefaults(s => DragAccelerationMultiplier = s.DragAccelerationMultiplier);
     [RelayCommand] private void ResetTurnAcceleration() => ResetToDefaults(s => TurnAccelerationMultiplier = s.TurnAccelerationMultiplier);
     [RelayCommand] private void ResetZAcceleration() => ResetToDefaults(s => ZAccelerationMultiplier = s.ZAccelerationMultiplier);
+    [RelayCommand] private void ResetInertiaAccelerationBoostEnabled() => ResetToDefaults(s => InertiaAccelerationBoostEnabled = s.InertiaAccelerationBoostEnabled);
+    [RelayCommand] private void ResetInertiaAccelerationBoostMaximumMultiplier() => ResetToDefaults(s => InertiaAccelerationBoostMaximumMultiplier = s.InertiaAccelerationBoostMaximumMultiplier);
     [RelayCommand] private void ResetVectorRotation() => ResetToDefaults(s => VectorRotationMultiplier = s.VectorRotationMultiplier);
     [RelayCommand] private void ResetDeceleration() => ResetToDefaults(s => InertiaDecelerationPerSecond = s.InertiaDecelerationPerSecond);
     [RelayCommand] private void ResetExemptionEnabled() => ResetToDefaults(s => DecelerationExemptionEnabled = s.DecelerationExemptionEnabled);
@@ -258,6 +270,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
         TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
         ZAccelerationMultiplier = (float)ZAccelerationMultiplier,
+        InertiaAccelerationBoostEnabled = InertiaAccelerationBoostEnabled,
+        InertiaAccelerationBoostMaximumMultiplier = (float)InertiaAccelerationBoostMaximumMultiplier,
         VectorRotationMultiplier = (float)VectorRotationMultiplier,
         InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
         DecelerationExemptionEnabled = DecelerationExemptionEnabled,

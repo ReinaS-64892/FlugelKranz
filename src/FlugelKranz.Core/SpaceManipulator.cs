@@ -14,6 +14,7 @@ public sealed class SpaceManipulator
     private Quaternion dragReferenceOrientation;
     private Vector3 previousDragControllerPosition, currentDragDelta, smoothedDragDelta;
     private Vector3 dragGesturePosition;
+    private bool dragAccelerationBoostActive;
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
     private Quaternion turnAnchor;
@@ -37,6 +38,7 @@ public sealed class SpaceManipulator
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = Quaternion.Identity;
         previousDragControllerPosition = currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        dragAccelerationBoostActive = false;
         dragBrakeElapsed = turnBrakeElapsed = 0;
         dragBrakeFactor = turnBrakeFactor = 1;
         linearExemptionSeconds = angularExemptionSeconds = 0;
@@ -78,6 +80,7 @@ public sealed class SpaceManipulator
             linearExemptionSeconds = 0;
             dragBrakeElapsed = 0;
             dragBrakeFactor = 1;
+            dragAccelerationBoostActive = false;
         }
         if (beganTurn)
         {
@@ -122,13 +125,18 @@ public sealed class SpaceManipulator
         if (IsDragging)
         {
             currentDragDelta = Vector3.Zero;
-            ApplyGripBrake(
-                ref linearInertia,
-                ref dragBrakeElapsed,
-                ref dragBrakeFactor,
-                dt,
-                settings.BrakeStrength,
-                settings.BrakeRampSeconds);
+            float controllerSpeed = ControllerMovementSpeed(frame, sampleSeconds);
+            dragAccelerationBoostActive = !settings.StepMode &&
+                settings.InertiaAccelerationBoostEnabled &&
+                controllerSpeed > settings.DragCutoffMetresPerSecond;
+            if (!dragAccelerationBoostActive)
+                ApplyGripBrake(
+                    ref linearInertia,
+                    ref dragBrakeElapsed,
+                    ref dragBrakeFactor,
+                    dt,
+                    settings.BrakeStrength,
+                    settings.BrakeRampSeconds);
             dragInertiaStep = linearInertia * dt;
             ApplyDeceleration(
                 ref linearInertia,
@@ -259,6 +267,14 @@ public sealed class SpaceManipulator
             previousTurnTarget = target;
             turnHistory.Add(time, target);
         }
+    }
+
+    private float ControllerMovementSpeed(InputFrame frame, float sampleSeconds)
+    {
+        if (sampleSeconds <= 0 || !frame.Left.Pose.IsValid)
+            return dragVelocity.Length();
+
+        return Vector3.Distance(frame.Left.Pose.Position, previousDragControllerPosition) / sampleSeconds;
     }
 
     private static float SmoothingAlpha(float smoothSeconds, float elapsedSeconds) =>
@@ -407,17 +423,41 @@ public sealed class SpaceManipulator
                 dragHistory.AverageLinearVelocity,
                 settings.DragCorrectionStrength);
 
-        if (settings.InertiaCutoffEnabled && dragVelocity.Length() < settings.DragCutoffMetresPerSecond)
+        bool hasUsableAcceleration = dragVelocity.LengthSquared() > 0.0000000001f &&
+            (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
+        if (hasUsableAcceleration)
+        {
+            var acceleration = ApplyDragAcceleration(dragVelocity, head.Orientation, settings);
+            float speedBeforeBoost = linearInertia.Length();
+            if (dragAccelerationBoostActive &&
+                speedBeforeBoost > 0.0000000001f)
+            {
+                var boosted = linearInertia + acceleration;
+                float boostReferenceSpeed = MathF.Max(speedBeforeBoost, acceleration.Length());
+                float maximumSpeed = boostReferenceSpeed * settings.InertiaAccelerationBoostMaximumMultiplier;
+                if (boosted.Length() > maximumSpeed && maximumSpeed > 0)
+                    boosted = Vector3.Normalize(boosted) * maximumSpeed;
+                linearInertia = boosted;
+            }
+            else
+                linearInertia = acceleration;
+
+            linearExemptionSeconds = ExemptionDuration(
+                linearInertia.Length(),
+                0.001f,
+                settings.DragDecelerationExemptionDurationRatio,
+                settings);
+        }
+        else if (linearInertia.LengthSquared() <= 0.0000000001f)
+        {
+            // A release below the cutoff must not erase inertia that is still being
+            // braked. It is only safe to clear the state once it has actually stopped.
             linearInertia = Vector3.Zero;
-        else
-            linearInertia = ApplyDragAcceleration(dragVelocity, head.Orientation, settings);
+            linearExemptionSeconds = 0;
+        }
 
-        linearExemptionSeconds = ExemptionDuration(
-            linearInertia.Length(),
-            0.001f,
-            settings.DragDecelerationExemptionDurationRatio,
-            settings);
-
+        dragAccelerationBoostActive = false;
+        dragVelocity = Vector3.Zero;
         dragHistory.Clear();
     }
 
@@ -526,6 +566,7 @@ public sealed class SpaceManipulator
     {
         linearInertia = dragVelocity = Vector3.Zero;
         currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        dragAccelerationBoostActive = false;
         dragBrakeElapsed = 0;
         dragBrakeFactor = 1;
         linearExemptionSeconds = 0;

@@ -11,6 +11,7 @@ public class InertiaTests
     private static readonly FlightMotionSettings Unfiltered = new()
     {
         InertiaCutoffEnabled = false,
+        InertiaAccelerationBoostEnabled = false,
         DirectionCorrectionEnabled = false,
         InertiaDecelerationPerSecond = 0,
         TurnAccelerationMultiplier = 1,
@@ -30,6 +31,8 @@ public class InertiaTests
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(0.5f, settings.TurnAccelerationMultiplier);
         Assert.Equal(1.5f, settings.ZAccelerationMultiplier);
+        Assert.True(settings.InertiaAccelerationBoostEnabled);
+        Assert.Equal(1.5f, settings.InertiaAccelerationBoostMaximumMultiplier);
         Assert.Equal(1, settings.VectorRotationMultiplier);
         Assert.Equal(2, settings.InertiaDecelerationPerSecond);
         Assert.True(settings.DecelerationExemptionEnabled);
@@ -52,6 +55,13 @@ public class InertiaTests
     {
         Assert.Equal(1, new FlightMotionSettings { ZAccelerationMultiplier = 0 }.Normalized().ZAccelerationMultiplier);
         Assert.Equal(5, new FlightMotionSettings { ZAccelerationMultiplier = 8 }.Normalized().ZAccelerationMultiplier);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostMaximumMultiplierIsClampedToItsSupportedRange()
+    {
+        Assert.Equal(1, new FlightMotionSettings { InertiaAccelerationBoostMaximumMultiplier = 0 }.Normalized().InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(4, new FlightMotionSettings { InertiaAccelerationBoostMaximumMultiplier = 8 }.Normalized().InertiaAccelerationBoostMaximumMultiplier);
     }
 
     [Fact]
@@ -302,6 +312,160 @@ public class InertiaTests
         var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
         Near(new(-2, 0, 0), regripped.Position);
+    }
+
+    [Fact]
+    public void ReleasingBeforeDragBrakeFinishesKeepsResidualInertia()
+    {
+        var settings = Unfiltered with
+        {
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        Assert.True(released.Position.X < regripped.Position.X);
+        Assert.True(engine.HasLinearInertia);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostUsesControllerSpeedAndCapsAddedAcceleration()
+    {
+        var settings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = true,
+            InertiaAccelerationBoostMaximumMultiplier = 1.5f,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var moved = engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
+        var released = engine.Update(Frame(leftX: 2), 0.1f, settings);
+
+        float brakeFactor = 1 - 0.1f * 0.1f * (3 - 2 * 0.1f);
+        Near(new(-2 - brakeFactor, 0, 0), regripped.Position);
+        Near(new(-2 - 2 * brakeFactor - 1, 0, 0), moved.Position);
+        float residualSpeed = 10 * brakeFactor;
+        float maximumBoostedSpeed = MathF.Max(residualSpeed, 10) * 1.5f;
+        Near(new(-2 - 2 * brakeFactor - 1 - maximumBoostedSpeed * 0.1f, 0, 0), released.Position);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostUsesNewAccelerationAsLimitBasisWhenItIsLarger()
+    {
+        var firstSettings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = true,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            DragAccelerationMultiplier = 0.5f,
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var secondSettings = firstSettings with { DragAccelerationMultiplier = 1 };
+        var engine = BeginDrag(firstSettings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, firstSettings);
+        engine.Update(Frame(leftX: 1), 0.1f, firstSettings);
+
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, secondSettings);
+        var moved = engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, secondSettings);
+        var released = engine.Update(Frame(leftX: 2), 0.1f, secondSettings);
+
+        float residualSpeed = 5 * (1 - 0.1f * 0.1f * (3 - 2 * 0.1f));
+        float expectedReleaseSpeed = residualSpeed + 10;
+        Near(new(-1.5f - residualSpeed * 0.1f, 0, 0), regripped.Position);
+        Near(new(-1.5f - 2 * residualSpeed * 0.1f - 1, 0, 0), moved.Position);
+        Near(new(-1.5f - 2 * residualSpeed * 0.1f - 1 - expectedReleaseSpeed * 0.1f, 0, 0), released.Position);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostRestartsBrakeWhenControllerStops()
+    {
+        var settings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = true,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var moved = engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
+        var stopped = engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
+
+        float firstBrakeFactor = 1 - 0.1f * 0.1f * (3 - 2 * 0.1f);
+        float secondBrakeFactor = 1 - 0.2f * 0.2f * (3 - 2 * 0.2f);
+        Near(new(-2 - firstBrakeFactor, 0, 0), regripped.Position);
+        Near(new(-2 - 2 * firstBrakeFactor - 1, 0, 0), moved.Position);
+        Near(new(-2 - 2 * firstBrakeFactor - 1 - secondBrakeFactor, 0, 0), stopped.Position);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostAllowsRepeatedAccelerationCycles()
+    {
+        var settings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = true,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var engine = BeginDrag(settings);
+
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var firstRelease = engine.Update(Frame(leftX: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
+        var secondRelease = engine.Update(Frame(leftX: 2), 0.1f, settings);
+        engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 3, leftGrip: 1), 0.1f, settings);
+        var thirdRelease = engine.Update(Frame(leftX: 3), 0.1f, settings);
+
+        Assert.True(firstRelease.Position.X > secondRelease.Position.X);
+        Assert.True(secondRelease.Position.X > thirdRelease.Position.X);
+        Assert.True(engine.HasLinearInertia);
+    }
+
+    [Fact]
+    public void InertiaAccelerationBoostDoesNotCapNewAccelerationWhenResidualIsBelowCutoff()
+    {
+        var slowSettings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = true,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            DragAccelerationMultiplier = 0.02f,
+            BrakeStrength = 1,
+            BrakeRampSeconds = 1
+        };
+        var fastSettings = slowSettings with { DragAccelerationMultiplier = 1 };
+        var engine = BeginDrag(slowSettings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, slowSettings);
+        engine.Update(Frame(leftX: 1), 0.1f, slowSettings);
+
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, fastSettings);
+        engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, fastSettings);
+        var released = engine.Update(Frame(leftX: 2), 0.1f, fastSettings);
+        var continued = engine.Update(Frame(leftX: 2), 0.1f, fastSettings);
+
+        Assert.True(released.Position.X < -3, $"{released.Position.X} should include the full new acceleration");
+        Assert.True(continued.Position.X < released.Position.X - 0.9f, $"{continued.Position.X} did not retain the new acceleration");
     }
 
     [Fact]
