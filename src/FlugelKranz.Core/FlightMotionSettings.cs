@@ -29,11 +29,6 @@ public sealed record FlightMotionSettings
     public float TurnSmoothSeconds { get; init; } = 0.05f;
     public float BrakeStrength { get; init; } = 1;
     public float BrakeRampSeconds { get; init; } = 0.2f;
-    public bool DirectionCorrectionEnabled { get; init; } = true;
-    public float DragCorrectionMaxSeconds { get; init; } = 1;
-    public float DragCorrectionStrength { get; init; } = 1;
-    public float TurnCorrectionMaxSeconds { get; init; } = 0.5f;
-    public float TurnCorrectionStrength { get; init; } = 1;
 
     public FlightMotionSettings Normalized() => this with
     {
@@ -51,10 +46,6 @@ public sealed record FlightMotionSettings
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
         BrakeStrength = Math.Clamp(BrakeStrength, 0, 1),
-        BrakeRampSeconds = Math.Clamp(BrakeRampSeconds, 0, 1),
-        DragCorrectionMaxSeconds = Math.Clamp(DragCorrectionMaxSeconds, 0, 5),
-        DragCorrectionStrength = Math.Clamp(DragCorrectionStrength, 0, 1),
-        TurnCorrectionMaxSeconds = Math.Clamp(TurnCorrectionMaxSeconds, 0, 5),
-        TurnCorrectionStrength = Math.Clamp(TurnCorrectionStrength, 0, 1)
+        BrakeRampSeconds = Math.Clamp(BrakeRampSeconds, 0, 1)
     };
 }

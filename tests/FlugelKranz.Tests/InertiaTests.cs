@@ -12,7 +12,6 @@ public class InertiaTests
     {
         InertiaCutoffEnabled = false,
         InertiaAccelerationBoostEnabled = false,
-        DirectionCorrectionEnabled = false,
         InertiaDecelerationPerSecond = 0,
         TurnAccelerationMultiplier = 1,
         DragSmoothSeconds = 0,
@@ -43,11 +42,6 @@ public class InertiaTests
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
         Assert.Equal(1, settings.BrakeStrength);
         Assert.Equal(0.2f, settings.BrakeRampSeconds);
-        Assert.True(settings.DirectionCorrectionEnabled);
-        Assert.Equal(1, settings.DragCorrectionMaxSeconds);
-        Assert.Equal(1, settings.DragCorrectionStrength);
-        Assert.Equal(0.5f, settings.TurnCorrectionMaxSeconds);
-        Assert.Equal(1, settings.TurnCorrectionStrength);
     }
 
     [Fact]
@@ -519,62 +513,6 @@ public class InertiaTests
         Assert.True(followingStep < brakingStep, $"{followingStep} >= {brakingStep}");
     }
 
-    [Fact]
-    public void StraightShortDragUsesWholeGestureDirectionWithoutChangingReleaseSpeed()
-    {
-        var settings = Unfiltered with
-        {
-            DirectionCorrectionEnabled = true,
-            DragCorrectionMaxSeconds = 1,
-            DragCorrectionStrength = 1
-        };
-        var engine = BeginDrag(settings);
-        engine.Update(Frame(new Vector3(0.5f, 0, 0), leftGrip: 1), 0.1f, settings);
-        engine.Update(Frame(new Vector3(1, -0.1f, 0), leftGrip: 1), 0.1f, settings);
-
-        var released = engine.Update(Frame(new Vector3(1, -0.1f, 0)), 0.1f, settings);
-
-        var releaseVelocity = new Vector3(-5, 1, 0);
-        var correctedVelocity = Vector3.Normalize(new Vector3(-5, 0.5f, 0)) * releaseVelocity.Length();
-        Near(new Vector3(-1, 0.1f, 0) + correctedVelocity * 0.1f, released.Position);
-    }
-
-    [Fact]
-    public void StraightDragCorrectionDoesNotReplaceReleaseSpeedWithGestureAverage()
-    {
-        var settings = Unfiltered with
-        {
-            DirectionCorrectionEnabled = true,
-            DragCorrectionMaxSeconds = 1,
-            DragCorrectionStrength = 1
-        };
-        var engine = BeginDrag(settings);
-        engine.Update(Frame(leftX: 0.1f, leftGrip: 1), 0.1f, settings);
-        engine.Update(Frame(leftX: 1.1f, leftGrip: 1), 0.1f, settings);
-
-        var released = engine.Update(Frame(leftX: 1.1f), 0.1f, settings);
-
-        Near(new(-2.1f, 0, 0), released.Position);
-    }
-
-    [Fact]
-    public void CurvedDragKeepsReleaseDirection()
-    {
-        var settings = Unfiltered with
-        {
-            DirectionCorrectionEnabled = true,
-            DragCorrectionMaxSeconds = 1,
-            DragCorrectionStrength = 1
-        };
-        var engine = BeginDrag(settings);
-        engine.Update(Frame(new Vector3(1, 0, 0), leftGrip: 1), 0.1f, settings);
-        engine.Update(Frame(new Vector3(1, 1, 0), leftGrip: 1), 0.1f, settings);
-
-        var released = engine.Update(Frame(new Vector3(1, 1, 0)), 0.1f, settings);
-
-        Near(new(-1, -2, 0), released.Position);
-    }
-
     [Theory]
     [InlineData(1, 0, 0)]
     [InlineData(0, 1, 0)]
@@ -704,28 +642,6 @@ public class InertiaTests
         var regripped = engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
 
         Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, expectedAngle), regripped.Orientation);
-    }
-
-    [Fact]
-    public void StraightShortTurnUsesWholeGestureDirectionWithoutChangingReleaseSpeed()
-    {
-        var settings = Unfiltered with
-        {
-            DirectionCorrectionEnabled = true,
-            TurnCorrectionMaxSeconds = 0.5f,
-            TurnCorrectionStrength = 1
-        };
-        var engine = BeginTurn(settings);
-        engine.Update(
-            Frame(rightGrip: 1, rightRotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.1f)),
-            0.1f,
-            settings);
-        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.3f);
-        engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
-
-        var released = engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
-
-        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -0.5f), released.Orientation);
     }
 
     private static SpaceManipulator BeginDrag(FlightMotionSettings settings)

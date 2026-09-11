@@ -13,7 +13,6 @@ public sealed class SpaceManipulator
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
     private Vector3 previousDragControllerPosition, currentDragDelta, smoothedDragDelta;
-    private Vector3 dragGesturePosition;
     private bool dragAccelerationBoostActive;
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
@@ -21,9 +20,6 @@ public sealed class SpaceManipulator
     private Vector3 angularInertia, turnVelocity;
     private RigidPose previousTurnTarget;
     private float linearExemptionSeconds, angularExemptionSeconds;
-    private double time;
-    private readonly MotionHistory dragHistory = new();
-    private readonly MotionHistory turnHistory = new();
     public bool IsDragging { get; private set; }
     public bool IsTurning { get; private set; }
     public bool HasLinearInertia => linearInertia.LengthSquared() > 0;
@@ -37,13 +33,11 @@ public sealed class SpaceManipulator
         IsDragging = IsTurning = leftArmed = rightArmed = false;
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = Quaternion.Identity;
-        previousDragControllerPosition = currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        previousDragControllerPosition = currentDragDelta = smoothedDragDelta = Vector3.Zero;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = turnBrakeElapsed = 0;
         dragBrakeFactor = turnBrakeFactor = 1;
         linearExemptionSeconds = angularExemptionSeconds = 0;
-        dragHistory.Clear();
-        turnHistory.Clear();
     }
 
     public void SetOffset(RigidPose offset)
@@ -65,8 +59,6 @@ public sealed class SpaceManipulator
         float dt = Math.Min(sampleSeconds, MaximumStepSeconds);
         if (!frame.HeadTracked || !frame.Head.IsValid)
             return Offset;
-
-        time += sampleSeconds;
 
         bool wasDragging = IsDragging;
         bool wasTurning = IsTurning;
@@ -93,7 +85,7 @@ public sealed class SpaceManipulator
         {
             dragReferenceOrientation = Offset.Orientation;
             previousDragControllerPosition = frame.Left.Pose.Position;
-            currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+            currentDragDelta = smoothedDragDelta = Vector3.Zero;
         }
         if (beganTurn)
             turnAnchor = Quaternion.Normalize(Offset.Orientation * frame.Right.Pose.Orientation);
@@ -162,8 +154,8 @@ public sealed class SpaceManipulator
         }
 
         // Build a base target before measuring this frame's controller movement. This
-        // gives turn history a stable sample while the drag measurement is refreshed
-        // below, independently of any turn-induced translation.
+        // gives turn measurement a stable target while drag is refreshed independently
+        // of any turn-induced translation.
         var target = GrabTarget(
             frame,
             IsDragging,
@@ -177,13 +169,11 @@ public sealed class SpaceManipulator
             if (beganDrag)
             {
                 dragVelocity = Vector3.Zero;
-                dragHistory.Begin(time, new(Quaternion.Identity, Vector3.Zero));
             }
             if (beganTurn)
             {
                 turnVelocity = Vector3.Zero;
                 previousTurnTarget = target;
-                turnHistory.Begin(time, target);
             }
         }
         UpdateRawVelocities(
@@ -252,8 +242,6 @@ public sealed class SpaceManipulator
             currentDragDelta = -Vector3.Transform(controllerDelta, dragReferenceOrientation);
             dragVelocity = currentDragDelta / sampleSeconds;
             previousDragControllerPosition = frame.Left.Pose.Position;
-            dragGesturePosition += currentDragDelta;
-            dragHistory.Add(time, new(Quaternion.Identity, dragGesturePosition));
         }
         else if (!dragging)
             currentDragDelta = Vector3.Zero;
@@ -265,7 +253,6 @@ public sealed class SpaceManipulator
                 target.Orientation,
                 sampleSeconds);
             previousTurnTarget = target;
-            turnHistory.Add(time, target);
         }
     }
 
@@ -417,12 +404,6 @@ public sealed class SpaceManipulator
             return;
         }
 
-        if (settings.DirectionCorrectionEnabled && dragHistory.IsStraightPositionPath(settings.DragCorrectionMaxSeconds))
-            dragVelocity = CorrectDirection(
-                dragVelocity,
-                dragHistory.AverageLinearVelocity,
-                settings.DragCorrectionStrength);
-
         bool hasUsableAcceleration = dragVelocity.LengthSquared() > 0.0000000001f &&
             (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
         if (hasUsableAcceleration)
@@ -458,7 +439,6 @@ public sealed class SpaceManipulator
 
         dragAccelerationBoostActive = false;
         dragVelocity = Vector3.Zero;
-        dragHistory.Clear();
     }
 
     private static Vector3 ApplyDragAcceleration(
@@ -488,12 +468,6 @@ public sealed class SpaceManipulator
             return;
         }
 
-        if (settings.DirectionCorrectionEnabled && turnHistory.IsStraightRotationPath(settings.TurnCorrectionMaxSeconds))
-            turnVelocity = CorrectDirection(
-                turnVelocity,
-                turnHistory.AverageAngularVelocity,
-                settings.TurnCorrectionStrength);
-
         if (settings.InertiaCutoffEnabled && turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond)
             angularInertia = Vector3.Zero;
         else
@@ -504,26 +478,6 @@ public sealed class SpaceManipulator
             MathF.PI / 1800,
             settings.TurnDecelerationExemptionDurationRatio,
             settings);
-
-        turnHistory.Clear();
-    }
-
-    private static Vector3 CorrectDirection(
-        Vector3 releaseVelocity,
-        Vector3 averageVelocity,
-        float strength)
-    {
-        float speed = releaseVelocity.Length();
-        if (speed <= 0 || averageVelocity.LengthSquared() <= 0 || strength <= 0)
-            return releaseVelocity;
-
-        var direction = Vector3.Lerp(
-            releaseVelocity / speed,
-            Vector3.Normalize(averageVelocity),
-            strength);
-        return direction.LengthSquared() <= 0.0000000001f
-            ? releaseVelocity
-            : Vector3.Normalize(direction) * speed;
     }
 
     private static void ApplyDeceleration(
@@ -565,12 +519,11 @@ public sealed class SpaceManipulator
     private void CancelDrag()
     {
         linearInertia = dragVelocity = Vector3.Zero;
-        currentDragDelta = smoothedDragDelta = dragGesturePosition = Vector3.Zero;
+        currentDragDelta = smoothedDragDelta = Vector3.Zero;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = 0;
         dragBrakeFactor = 1;
         linearExemptionSeconds = 0;
-        dragHistory.Clear();
     }
 
     private void CancelTurn()
@@ -579,7 +532,6 @@ public sealed class SpaceManipulator
         turnBrakeElapsed = 0;
         turnBrakeFactor = 1;
         angularExemptionSeconds = 0;
-        turnHistory.Clear();
     }
 
     private static Quaternion IntegrateRotation(Quaternion rotation, Vector3 velocity, float dt)
@@ -604,9 +556,6 @@ public sealed class SpaceManipulator
             : new Vector3(delta.X, delta.Y, delta.Z) / sine * (angle / dt);
     }
 
-    private static float RotationDistance(Quaternion from, Quaternion to) =>
-        2 * MathF.Acos(Math.Clamp(MathF.Abs(Quaternion.Dot(from, to)), -1, 1));
-
     private static bool Held(HandSample hand, ref bool armed, bool held)
     {
         if (!Usable(hand))
@@ -626,84 +575,4 @@ public sealed class SpaceManipulator
 
     private static bool Usable(HandSample hand) =>
         hand.IsTracked && hand.Pose.IsValid && float.IsFinite(hand.Grip);
-
-    private sealed class MotionHistory
-    {
-        private readonly List<Sample> samples = [];
-        private bool exceededMaximumWindow;
-
-        public Vector3 AverageLinearVelocity => samples.Count < 2
-            ? Vector3.Zero
-            : (samples[^1].Pose.Position - samples[0].Pose.Position) / (float)(samples[^1].Time - samples[0].Time);
-
-        public Vector3 AverageAngularVelocity => samples.Count < 2
-            ? Vector3.Zero
-            : RotationVelocity(
-                samples[0].Pose.Orientation,
-                samples[^1].Pose.Orientation,
-                (float)(samples[^1].Time - samples[0].Time));
-
-        public void Begin(double time, RigidPose pose)
-        {
-            samples.Clear();
-            exceededMaximumWindow = false;
-            samples.Add(new(time, pose));
-        }
-
-        public void Add(double time, RigidPose pose)
-        {
-            if (samples.Count == 0)
-                return;
-
-            if (time - samples[0].Time > 5)
-            {
-                exceededMaximumWindow = true;
-                return;
-            }
-
-            if (time - samples[^1].Time >= 1.0 / 60)
-                samples.Add(new(time, pose));
-        }
-
-        public bool IsStraightPositionPath(float maximumSeconds)
-        {
-            if (!ValidDuration(maximumSeconds))
-                return false;
-
-            float path = 0;
-            for (int i = 1; i < samples.Count; i++)
-                path += Vector3.Distance(samples[i - 1].Pose.Position, samples[i].Pose.Position);
-
-            float direct = Vector3.Distance(samples[0].Pose.Position, samples[^1].Pose.Position);
-            return direct > 0.001f && path > 0 && direct / path >= 0.9f;
-        }
-
-        public bool IsStraightRotationPath(float maximumSeconds)
-        {
-            if (!ValidDuration(maximumSeconds))
-                return false;
-
-            float path = 0;
-            for (int i = 1; i < samples.Count; i++)
-                path += RotationDistance(samples[i - 1].Pose.Orientation, samples[i].Pose.Orientation);
-
-            float direct = RotationDistance(samples[0].Pose.Orientation, samples[^1].Pose.Orientation);
-            return direct > 0.001f && path > 0 && direct / path >= 0.9f;
-        }
-
-        private bool ValidDuration(float maximumSeconds) =>
-            !exceededMaximumWindow &&
-            samples.Count >= 2 &&
-            maximumSeconds > 0 &&
-            samples[^1].Time > samples[0].Time &&
-            samples[^1].Time - samples[0].Time <= maximumSeconds;
-
-        public void Clear()
-        {
-            samples.Clear();
-            exceededMaximumWindow = false;
-        }
-
-        private readonly record struct Sample(double Time, RigidPose Pose);
-    }
 }

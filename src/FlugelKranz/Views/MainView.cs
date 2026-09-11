@@ -179,22 +179,6 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Row(model, x => x.BrakeRampLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeRampSeconds),
                 ResetButton(model, x => x.ResetBrakeRampCommand)),
-            Divider(),
-            Header("方向補正"),
-            Row("有効", new CheckBox().IsChecked(model, x => x.DirectionCorrectionEnabled),
-                ResetButton(model, x => x.ResetDirectionCorrectionEnabledCommand)),
-            Row(model, x => x.DragCorrectionTimeLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.1)
-                    .Value(model, x => x.DragCorrectionMaxSeconds),
-                ResetButton(model, x => x.ResetDragCorrectionTimeCommand)),
-            Row(model, x => x.DragCorrectionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
-                    .Value(model, x => x.DragCorrectionStrength),
-                ResetButton(model, x => x.ResetDragCorrectionStrengthCommand)),
-            Row(model, x => x.TurnCorrectionTimeLabel, new Slider().Minimum(0).Maximum(5).TickFrequency(0.1)
-                    .Value(model, x => x.TurnCorrectionMaxSeconds),
-                ResetButton(model, x => x.ResetTurnCorrectionTimeCommand)),
-            Row(model, x => x.TurnCorrectionStrengthLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
-                    .Value(model, x => x.TurnCorrectionStrength),
-                ResetButton(model, x => x.ResetTurnCorrectionStrengthCommand)),
             new Button().Content("接続時の位置・姿勢に戻す")
                 .IsEnabled(model, x => x.IsConnected)
                 .Command(model, x => x.ResetCommand)

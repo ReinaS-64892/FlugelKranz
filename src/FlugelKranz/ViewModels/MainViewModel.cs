@@ -71,19 +71,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.2;
-    [ObservableProperty] private bool directionCorrectionEnabled = true;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DragCorrectionTimeLabel))]
-    private double dragCorrectionMaxSeconds = 1;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DragCorrectionStrengthLabel))]
-    private double dragCorrectionStrength = 1;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TurnCorrectionTimeLabel))]
-    private double turnCorrectionMaxSeconds = 0.5;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TurnCorrectionStrengthLabel))]
-    private double turnCorrectionStrength = 1;
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
@@ -103,10 +90,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
     public string BrakeLabel => $"値: {BrakeStrength:0.00}";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
-    public string DragCorrectionTimeLabel => $"Drag 最大時間: {DragCorrectionMaxSeconds:0.0} 秒";
-    public string DragCorrectionStrengthLabel => $"Drag 強度: {DragCorrectionStrength:0.00}";
-    public string TurnCorrectionTimeLabel => $"Turn 最大時間: {TurnCorrectionMaxSeconds:0.0} 秒";
-    public string TurnCorrectionStrengthLabel => $"Turn 強度: {TurnCorrectionStrength:0.00}";
 
     public MainViewModel(string libraryPath, string? settingsPath = null)
     {
@@ -130,8 +113,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(InertiaDecelerationPerSecond) or nameof(DecelerationExemptionEnabled) or
             nameof(DragDecelerationExemptionDurationRatio) or nameof(TurnDecelerationExemptionDurationRatio) or
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
-            nameof(BrakeStrength) or nameof(BrakeRampSeconds) or nameof(DirectionCorrectionEnabled) or nameof(DragCorrectionMaxSeconds) or
-            nameof(DragCorrectionStrength) or nameof(TurnCorrectionMaxSeconds) or nameof(TurnCorrectionStrength)))
+            nameof(BrakeStrength) or nameof(BrakeRampSeconds)))
             return;
 
         settingsStore.Save(CreateMotionSettings());
@@ -159,11 +141,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         TurnSmoothSeconds = Math.Round(settings.TurnSmoothSeconds, 6);
         BrakeStrength = Math.Round(settings.BrakeStrength, 6);
         BrakeRampSeconds = Math.Round(settings.BrakeRampSeconds, 6);
-        DirectionCorrectionEnabled = settings.DirectionCorrectionEnabled;
-        DragCorrectionMaxSeconds = Math.Round(settings.DragCorrectionMaxSeconds, 6);
-        DragCorrectionStrength = Math.Round(settings.DragCorrectionStrength, 6);
-        TurnCorrectionMaxSeconds = Math.Round(settings.TurnCorrectionMaxSeconds, 6);
-        TurnCorrectionStrength = Math.Round(settings.TurnCorrectionStrength, 6);
     }
 
     private void ResetToDefaults(Action<FlightMotionSettings> apply)
@@ -191,11 +168,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetTurnSmooth() => ResetToDefaults(s => TurnSmoothSeconds = s.TurnSmoothSeconds);
     [RelayCommand] private void ResetBrake() => ResetToDefaults(s => BrakeStrength = s.BrakeStrength);
     [RelayCommand] private void ResetBrakeRamp() => ResetToDefaults(s => BrakeRampSeconds = s.BrakeRampSeconds);
-    [RelayCommand] private void ResetDirectionCorrectionEnabled() => ResetToDefaults(s => DirectionCorrectionEnabled = s.DirectionCorrectionEnabled);
-    [RelayCommand] private void ResetDragCorrectionTime() => ResetToDefaults(s => DragCorrectionMaxSeconds = s.DragCorrectionMaxSeconds);
-    [RelayCommand] private void ResetDragCorrectionStrength() => ResetToDefaults(s => DragCorrectionStrength = s.DragCorrectionStrength);
-    [RelayCommand] private void ResetTurnCorrectionTime() => ResetToDefaults(s => TurnCorrectionMaxSeconds = s.TurnCorrectionMaxSeconds);
-    [RelayCommand] private void ResetTurnCorrectionStrength() => ResetToDefaults(s => TurnCorrectionStrength = s.TurnCorrectionStrength);
 
     [RelayCommand]
     private void Toggle()
@@ -281,12 +253,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DragSmoothSeconds = (float)DragSmoothSeconds,
         TurnSmoothSeconds = (float)TurnSmoothSeconds,
         BrakeStrength = (float)BrakeStrength,
-        BrakeRampSeconds = (float)BrakeRampSeconds,
-        DirectionCorrectionEnabled = DirectionCorrectionEnabled,
-        DragCorrectionMaxSeconds = (float)DragCorrectionMaxSeconds,
-        DragCorrectionStrength = (float)DragCorrectionStrength,
-        TurnCorrectionMaxSeconds = (float)TurnCorrectionMaxSeconds,
-        TurnCorrectionStrength = (float)TurnCorrectionStrength
+        BrakeRampSeconds = (float)BrakeRampSeconds
     };
 
     public async ValueTask DisposeAsync()

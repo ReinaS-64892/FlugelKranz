@@ -59,7 +59,7 @@ public class MainViewTests
             Assert.Same(vm.ToggleCommand, toggle.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(19, sliders.Length);
+            Assert.Equal(15, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
