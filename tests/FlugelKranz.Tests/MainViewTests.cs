@@ -68,6 +68,7 @@ public class MainViewTests
             stepMode.IsChecked = true;
             Assert.True(vm.StepMode);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "値: 1.00");
             vm.IsEnabled = true;
             vm.Status = "テスト中";
             Assert.Equal("ON", toggle.Content);

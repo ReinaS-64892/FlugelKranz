@@ -173,7 +173,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                 ResetButton(model, x => x.ResetTurnSmoothCommand)),
             Divider(),
             Header("ドラグブレーキ値"),
-            Row("値", new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+            Row(model, x => x.BrakeLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
                     .Value(model, x => x.BrakeStrength),
                 ResetButton(model, x => x.ResetBrakeCommand)),
             Row(model, x => x.BrakeRampLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)

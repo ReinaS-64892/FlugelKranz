@@ -101,7 +101,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
     public string DragSmoothLabel => $"Drag: {DragSmoothSeconds:0.00} 秒";
     public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
-    public string BrakeLabel => $"{BrakeStrength:0.00}";
+    public string BrakeLabel => $"値: {BrakeStrength:0.00}";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
     public string DragCorrectionTimeLabel => $"Drag 最大時間: {DragCorrectionMaxSeconds:0.0} 秒";
     public string DragCorrectionStrengthLabel => $"Drag 強度: {DragCorrectionStrength:0.00}";
