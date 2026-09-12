@@ -24,7 +24,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     private sealed class Hand(bool isLeft)
     {
         public bool IsLeft { get; } = isLeft;
-        public XrAction Pose, TrackpadPosition, TrackpadTouch, ThumbRestTouch, TriggerTouch;
+        public XrAction Pose, TrackpadPosition, TrackpadTouch, TrackpadForce, ThumbRestTouch, TriggerTouch;
         public XrSpace Space;
     }
 
@@ -110,6 +110,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             hands[i].Pose = CreateAction($"{side}_pose", XrActionType.XR_ACTION_TYPE_POSE_INPUT);
             hands[i].TrackpadPosition = CreateAction($"{side}_trackpad", XrActionType.XR_ACTION_TYPE_VECTOR2F_INPUT);
             hands[i].TrackpadTouch = CreateAction($"{side}_trackpad_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].TrackpadForce = CreateAction($"{side}_trackpad_force", XrActionType.XR_ACTION_TYPE_FLOAT_INPUT);
             hands[i].ThumbRestTouch = CreateAction($"{side}_thumb_rest", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].TriggerTouch = CreateAction($"{side}_trigger_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
         }
@@ -163,19 +164,20 @@ public sealed unsafe class OpenXrInput : IDisposable
 
     private void SuggestValveIndex()
     {
-        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[6];
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[8];
         for (int i = 0; i < hands.Length; i++)
         {
             string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
-            bindings[i * 3] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
-            bindings[i * 3 + 1] = new() { action = hands[i].TrackpadPosition, binding = Path(prefix + "trackpad") };
-            bindings[i * 3 + 2] = new() { action = hands[i].TrackpadTouch, binding = Path(prefix + "trackpad/touch") };
+            bindings[i * 4] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
+            bindings[i * 4 + 1] = new() { action = hands[i].TrackpadPosition, binding = Path(prefix + "trackpad") };
+            bindings[i * 4 + 2] = new() { action = hands[i].TrackpadTouch, binding = Path(prefix + "trackpad/touch") };
+            bindings[i * 4 + 3] = new() { action = hands[i].TrackpadForce, binding = Path(prefix + "trackpad/force") };
         }
         var info = new XrInteractionProfileSuggestedBinding
         {
             type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
             interactionProfile = Path("/interaction_profiles/valve/index_controller"),
-            countSuggestedBindings = 6,
+            countSuggestedBindings = 8,
             suggestedBindings = bindings
         };
         var result = xrSuggestInteractionProfileBindings(instance, &info);
@@ -208,6 +210,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             return default;
         var trackpad = ReadVector2(hand.TrackpadPosition);
         var trackpadTouch = ReadBoolean(hand.TrackpadTouch);
+        var trackpadForce = ReadFloat(hand.TrackpadForce);
         var thumbRest = ReadBoolean(hand.ThumbRestTouch);
         var triggerTouch = ReadBoolean(hand.TriggerTouch);
         var (pose, tracked) = Locate(hand.Space, time);
@@ -216,6 +219,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             new(
                 trackpad.Value,
                 trackpadTouch.Value,
+                trackpadForce.Value,
                 thumbRest.Value,
                 triggerTouch.Value,
                 thumbRest.Active && triggerTouch.Active));
@@ -225,6 +229,21 @@ public sealed unsafe class OpenXrInput : IDisposable
             actions.Turn ? 1 : 0,
             actions.ModeSwitch ? 1 : 0,
             tracked);
+    }
+
+    private (bool Active, float Value) ReadFloat(XrAction action)
+    {
+        var get = new XrActionStateGetInfo
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_GET_INFO,
+            action = action
+        };
+        var state = new XrActionStateFloat
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_FLOAT
+        };
+        Check(xrGetActionStateFloat(session, &get, &state), "トラックパッド感圧値の取得");
+        return (state.isActive, state.isActive ? state.currentState : 0);
     }
 
     private (bool Active, Vector2 Value) ReadVector2(XrAction action)

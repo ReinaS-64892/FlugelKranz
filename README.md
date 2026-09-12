@@ -28,7 +28,7 @@ OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/
 
 操作はコントローラーごとの論理 Drag / Turn に割り当てます。ON にした後やモード変更・位置姿勢リセットの後は、操作入力を一度離してから掴み直してください。
 
-- **Valve Index**: 左手トラックパッド左／右手トラックパッド右が Drag、左手トラックパッド右／右手トラックパッド左が Turn です。OpenXR からトラックパッドの touch と座標を読み、中央のデッドゾーン外を D-pad として判定します。両手のトラックパッド下を同時に 1 秒押すとモードを切り替えます。
+- **Valve Index**: 左手トラックパッド右／右手トラックパッド左の内側入力が Drag、左手トラックパッド左／右手トラックパッド右の外側入力が Turn です。OpenXR からトラックパッドの touch・座標・force を読み、半径 `0.30` の中央デッドゾーン外かつ force `0.75` 以上を D-pad として判定します。両手のトラックパッド下を同時に 1 秒押すとモードを切り替えます。
 - **Oculus Touch 系**: Thumb Rest に触れ、同時にトリガーへ指が触れていれば Drag、触れていなければ Turn です。
 - UI の丸い `I` / `F` ボタンでも、無限歩行（Infinite Walking）と自由飛行（Free Flight）を切り替えられます。
 
