@@ -259,8 +259,11 @@ public class InertiaTests
         Near(new(-alpha, 0, 0), moved.Position);
 
         var releasedFrame = Frame(leftX: 1);
-        for (int step = 0; step < 20; step++)
+        for (int step = 1; step < 9; step++)
             engine.Update(releasedFrame, 0.05f, settings);
+        Assert.NotEqual(new Vector3(-1, 0, 0), engine.Offset.Position);
+
+        engine.Update(releasedFrame, 0.05f, settings);
         Assert.Equal(new Vector3(-1, 0, 0), engine.Offset.Position);
 
         var settled = engine.Offset;
@@ -563,12 +566,27 @@ public class InertiaTests
         var settings = Unfiltered with { TurnSmoothSeconds = 0.05f };
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1);
         var engine = BeginTurn(settings);
+        var directSettings = settings with { TurnSmoothSeconds = 0 };
+        var directEngine = BeginTurn(directSettings);
+        var target = directEngine.Update(
+            Frame(rightGrip: 1, rightRotation: rotation),
+            0.05f,
+            directSettings);
 
         var moved = engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.05f, settings);
 
         float expectedAngle = -(1 - MathF.Exp(-1));
         Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, expectedAngle), moved.Orientation);
         Near(Head.Position, moved.Transform(Head.Position));
+
+        for (int step = 1; step < 10; step++)
+            engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.05f, settings);
+
+        Assert.Equal(target, engine.Offset);
+        var settled = engine.Offset;
+        Assert.Equal(
+            settled,
+            engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.05f, settings));
     }
 
     [Fact]

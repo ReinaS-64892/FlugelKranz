@@ -5,8 +5,9 @@ namespace FlugelKranz.Core;
 /// <summary>Moves applied motion toward an independently calculated target pose.</summary>
 internal static class MotionSmoothing
 {
-    private const float PositionTolerance = 0.00001f;
-    private const float RotationTolerance = 0.0000001f;
+    // Stop interpolation below tracking-relevant motion instead of leaving a long exponential tail.
+    private const float PositionSettleDistanceMetres = 0.0001f;
+    private const float RotationSettleDotTolerance = 0.0000001f;
 
     public static float Follow(float current, float target, float smoothSeconds, float elapsedSeconds)
     {
@@ -16,7 +17,7 @@ internal static class MotionSmoothing
             return current;
 
         float result = float.Lerp(current, target, Alpha(smoothSeconds, elapsedSeconds));
-        return MathF.Abs(target - result) <= PositionTolerance ? target : result;
+        return MathF.Abs(target - result) <= PositionSettleDistanceMetres ? target : result;
     }
 
     public static Vector3 Follow(
@@ -31,7 +32,8 @@ internal static class MotionSmoothing
             return current;
 
         Vector3 result = Vector3.Lerp(current, target, Alpha(smoothSeconds, elapsedSeconds));
-        return Vector3.DistanceSquared(result, target) <= PositionTolerance * PositionTolerance
+        return Vector3.DistanceSquared(result, target) <=
+            PositionSettleDistanceMetres * PositionSettleDistanceMetres
             ? target
             : result;
     }
@@ -46,14 +48,14 @@ internal static class MotionSmoothing
             return target;
         if (elapsedSeconds <= 0)
             return current;
-        if (1 - MathF.Abs(Quaternion.Dot(current, target)) <= RotationTolerance)
+        if (1 - MathF.Abs(Quaternion.Dot(current, target)) <= RotationSettleDotTolerance)
             return target;
 
         Quaternion result = Quaternion.Normalize(Quaternion.Slerp(
             current,
             target,
             Alpha(smoothSeconds, elapsedSeconds)));
-        return 1 - MathF.Abs(Quaternion.Dot(result, target)) <= RotationTolerance
+        return 1 - MathF.Abs(Quaternion.Dot(result, target)) <= RotationSettleDotTolerance
             ? target
             : result;
     }
