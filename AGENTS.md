@@ -28,6 +28,14 @@ Monado 本体を本当に改造しなければ実現できない要件が判明�
 
 飛行による空間移動は `mnd_root_set_reference_space_offset`（現在の OpenXR 入力が使う STAGE）で行ってください。`mnd_root_set_tracking_origin_offset` はスペースキャリブレーターなどが扱う原点設定であり、本プロジェクトから呼び出してはいけません。トラッキング原点のオフセットは読み取り専用で扱い、HMD 再接続や原点更新を理由に処理を停止しないでください。
 
+Monado 本体のビルド、ダミードライバーを使った実験、統合テストは実行して構いません。ただしビルドディレクトリと生成物はサブモジュールの外に置き、サブモジュール内へキャッシュやテスト結果も書き込まないでください。
+
+## 仕様の参照先
+
+つかみ操作（左手 Drag・右手全軸 Turn）、慣性パラメーターの意味・既定値・範囲、トラッキング喪失とリセット時の状態、設定保存、UI のテーマ・配置は `README.md` を唯一の権威として参照してください。ここに仕様を重複記載しません。これらを変更するときは、`README.md` と対応する実装・テストを同時に更新します。
+
+実装では Drag の線速度と Turn の角速度を分離し、物理座標の復元と参照空間の適用順序を README の説明に合わせてください。削除済みの機能を再導入する場合や、README の仕様で判断できない挙動を変更する場合は、先に Reina_Sakiria へ確認します。
+
 ## ビルド・開発コマンド
 
 `net10.0` と `.slnx` 形式に対応した .NET SDK を使用してください。以下はリポジトリのルートで実行します。
@@ -36,6 +44,7 @@ Monado 本体を本当に改造しなければ実現できない要件が判明�
 - `dotnet build FlugelKranz.slnx` — ソリューション全体をビルドします。
 - `dotnet test FlugelKranz.slnx` — 座標変換・実行制御・UI の自動テストを実行します。
 - `dotnet run --project src/FlugelKranz -- --help` — CLI の使い方を表示します。
+- `dotnet run --project src/FlugelKranz -- --diagnose --lib-monado PATH` — UI を開かず、接続先・基準空間・HMD・左右入力とオフセットを確認します。
 - `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。libmonado は `XR_RUNTIME_JSON` または XDG の OpenXR runtime manifest から `MND_libmonado_path` を探索し、見つからない場合は `/usr/lib/wivrn/libmonado_wivrn.so` を使用します。`--lib-monado PATH` で明示指定できます。
 
 ## コーディング規約
