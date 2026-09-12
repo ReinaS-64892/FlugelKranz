@@ -22,7 +22,7 @@ dotnet run --project src/FlugelKranz -- --lib-monado /path/to/libmonado.so
 
 OpenXR ローダー（`libopenxr_loader.so.1`）が同じ Monado / WiVRn サービスを使用するよう設定してください。必要に応じて `XR_RUNTIME_JSON=/path/to/runtime.json` を起動時に指定します。FlugelKranz はシステムのランタイム設定を変更しません。
 
-UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) の `UseWayland()` を明示的に選択します。XWayland への自動フォールバックはありません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm により、UI・バインディングを C# で記述しています。FluentTheme の Light / Dark テーマ辞書を使用し、既定は白い Light テーマです。OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/OpenXR.NET) を使用します。
+OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/OpenXR.NET) を使用します。
 
 ## 操作
 
@@ -35,8 +35,6 @@ UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linu
 
 ## 慣性パラメーター
 
-通常画面には大きなオン・オフボタンと設定ボタンを表示します。初期ウィンドウは横長（1100×650）で、設定ボタンを押すと右側の約80%を設定パネルが占め、メイン領域を左へ押し出します。ウィンドウ幅が720px以下の場合はパネルが全幅になり、各項目を「名前・操作部・初期値」の一行で変更できます。
-
 - **ステップモード**はグリップ解放時の慣性を無効にします。スムーズ処理は引き続き適用されます。
 - **慣性カットオフ**は解放速度が Drag `40 cm/s`、Turn `45 °/s` 未満なら慣性を開始しません。開始済みの慣性が減速によって閾値を下回っても停止には使用しません。チェックを外すと無効になります。
 - **慣性加速倍率**は解放速度を Drag・Turn 別に `0.0`～`5.0` 倍します。既定値は Drag `1.0`、Turn `0.4` です。
@@ -47,8 +45,6 @@ UI は [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linu
 - **慣性減速免除**の時間は、現在速度から実用上の停止速度まで通常減速する予測時間に対する割合です。Drag と Turn を個別に設定でき、既定値は Drag `0.20`、Turn `0.15` です。免除割合の既定値は共通の `0.90` です。
 - **ドラグスムーズ**は空間オフセットへ反映する Drag と Turn の追従だけを、それぞれ `0.0`～`1.0` 秒の時定数で平滑化します。既定値は Drag `0.01` 秒、Turn `0.05` 秒です。慣性速度は平滑化前のコントローラー操作から計算します。
 - **ドラグブレーキ**は新しくグリップした瞬間に対応する慣性を完全に減衰させます。左手の Drag は線速度だけ、右手の Turn は角速度だけに作用します。適用時間を `0.0`～`1.0` 秒で設定でき、既定値は `0.40` 秒、`0.0` 秒なら即時停止します。発動時は対応する慣性減速免除を解除します。
-
-設定値は変更時に JSON へ保存され、次回起動時に復元されます。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` で設定ディレクトリを変更でき、`FLUGELKRANZ_CONFIG` を指定すると保存先ファイルを直接指定できます。UI の各設定には初期値へ戻すボタンがあります。
 
 ## 対応条件と制約
 
