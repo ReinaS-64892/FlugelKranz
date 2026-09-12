@@ -134,6 +134,12 @@ public sealed class InfiniteWalkingManipulator
 
     private void FollowTarget(float elapsedSeconds, InfiniteWalkingSettings settings)
     {
+        if (!IsDragging && !IsTurning)
+        {
+            Offset = targetOffset;
+            return;
+        }
+
         float turnSmoothSeconds = turnFollowerUsesHeadSmoothing
             ? settings.TurnHeadSmoothSeconds
             : settings.TurnSmoothSeconds;

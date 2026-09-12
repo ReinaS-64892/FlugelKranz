@@ -274,13 +274,19 @@ public sealed class FreeFlightManipulator
         float elapsedSeconds,
         FlightMotionSettings settings)
     {
+        if (!IsDragging && !IsTurning)
+        {
+            Offset = targetOffset;
+            return;
+        }
+
         float positionSmoothSeconds = positionTargetUsesDragSmoothing
             ? settings.DragSmoothSeconds
             : settings.TurnSmoothSeconds;
         Quaternion orientation = MotionSmoothing.Follow(
             Offset.Orientation,
             targetOffset.Orientation,
-            settings.TurnSmoothSeconds,
+            IsTurning ? settings.TurnSmoothSeconds : 0,
             elapsedSeconds);
         Vector3 position;
         if (IsDragging)

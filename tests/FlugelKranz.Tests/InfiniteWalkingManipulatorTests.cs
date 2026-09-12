@@ -131,16 +131,18 @@ public class InfiniteWalkingManipulatorTests
 
         float alpha = 1 - MathF.Exp(-1);
         Near(new(0, -alpha, 0), moved.Position);
-        for (int step = 1; step < 9; step++)
-            engine.Update(movedFrame, 0.05f, settings);
-        Assert.NotEqual(new Vector3(0, -1, 0), engine.Offset.Position);
-
-        engine.Update(movedFrame, 0.05f, settings);
-        Assert.Equal(new Vector3(0, -1, 0), engine.Offset.Position);
+        var released = engine.Update(
+            movedFrame with { Left = Hand(Left with { Position = Left.Position + Vector3.UnitY }, drag: 0) },
+            0.05f,
+            settings);
+        Assert.Equal(new Vector3(0, -1, 0), released.Position);
 
         var settled = engine.Offset;
         for (int step = 0; step < 20; step++)
-            Assert.Equal(settled, engine.Update(movedFrame, 0.05f, settings));
+            Assert.Equal(settled, engine.Update(
+                movedFrame with { Left = Hand(Left with { Position = Left.Position + Vector3.UnitY }, drag: 0) },
+                0.05f,
+                settings));
     }
 
     [Fact]

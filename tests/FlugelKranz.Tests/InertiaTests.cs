@@ -259,10 +259,6 @@ public class InertiaTests
         Near(new(-alpha, 0, 0), moved.Position);
 
         var releasedFrame = Frame(leftX: 1);
-        for (int step = 1; step < 9; step++)
-            engine.Update(releasedFrame, 0.05f, settings);
-        Assert.NotEqual(new Vector3(-1, 0, 0), engine.Offset.Position);
-
         engine.Update(releasedFrame, 0.05f, settings);
         Assert.Equal(new Vector3(-1, 0, 0), engine.Offset.Position);
 
@@ -280,12 +276,8 @@ public class InertiaTests
 
         var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
 
-        float alpha = 1 - MathF.Exp(-0.1f);
-        Near(Vector3.Lerp(moved.Position, new(-2, 0, 0), alpha), released.Position);
-        Near(new(-3, 0, 0), engine.Update(
-            Frame(leftX: 1),
-            0.1f,
-            settings with { DragSmoothSeconds = 0 }).Position);
+        Near(new(-2, 0, 0), released.Position);
+        Near(new(-3, 0, 0), engine.Update(Frame(leftX: 1), 0.1f, settings).Position);
     }
 
     [Fact]
@@ -602,16 +594,10 @@ public class InertiaTests
 
         var released = engine.Update(Frame(rightRotation: controllerRotation), 0.1f, settings);
 
-        float alpha = 1 - MathF.Exp(-0.1f);
         var target = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.4f);
-        var expected = Quaternion.Normalize(Quaternion.Slerp(moved.Orientation, target, alpha));
-        Near(expected, released.Orientation);
-        Near(
-            Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.6f),
-            engine.Update(
-                Frame(rightRotation: controllerRotation),
-                0.1f,
-                settings with { TurnSmoothSeconds = 0 }).Orientation);
+        Near(target, released.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.6f), engine.Update(
+            Frame(rightRotation: controllerRotation), 0.1f, settings).Orientation);
     }
 
     [Theory]
