@@ -154,6 +154,24 @@ public class InertiaTests
     }
 
     [Fact]
+    public void InertiaDecelerationStopsAtTheResidualMotionCutoff()
+    {
+        var settings = Unfiltered with
+        {
+            InertiaDecelerationPerSecond = 2,
+            DecelerationExemptionEnabled = false
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        var frame = Frame(leftX: 1);
+
+        for (int i = 0; i < 100; i++)
+            engine.Update(frame, 0.1f, settings);
+
+        Assert.False(engine.HasLinearInertia);
+    }
+
+    [Fact]
     public void DecelerationDoesNotApplyCutoffAfterInertiaStarts()
     {
         var settings = Unfiltered with
@@ -164,10 +182,10 @@ public class InertiaTests
             DecelerationExemptionEnabled = false
         };
         var engine = BeginDrag(settings);
-        engine.Update(Frame(leftX: 0.006f, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 0.1f, leftGrip: 1), 0.1f, settings);
 
-        var released = engine.Update(Frame(leftX: 0.006f), 0.1f, settings);
-        var continued = engine.Update(Frame(leftX: 0.006f), 0.1f, settings);
+        var released = engine.Update(Frame(leftX: 0.1f), 0.1f, settings);
+        var continued = engine.Update(Frame(leftX: 0.1f), 0.1f, settings);
 
         Assert.NotEqual(released, continued);
         Assert.True(engine.HasLinearInertia);

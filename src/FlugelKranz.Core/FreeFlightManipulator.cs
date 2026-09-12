@@ -5,6 +5,10 @@ namespace FlugelKranz.Core;
 /// <summary>Consumes poses in the unmodified physical tracking origin, never transformed XR poses.</summary>
 public sealed class FreeFlightManipulator
 {
+    // Stop feeding imperceptibly small per-update changes to the runtime. The
+    // threshold is applied to displacement (or radians), so it follows the
+    // actual update interval rather than an arbitrary velocity value.
+    private const float InertiaStopDisplacementCutoff = 0.001f;
     private static readonly FlightMotionSettings DirectManipulationSettings =
         FlightMotionSettings.Default with
         {
@@ -175,7 +179,8 @@ public sealed class FreeFlightManipulator
                 ref linearInertia,
                 ref linearExemptionSeconds,
                 dt,
-                settings);
+                settings,
+                InertiaStopDisplacementCutoff);
         }
         if (IsTurning)
         {
@@ -193,7 +198,8 @@ public sealed class FreeFlightManipulator
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
-                settings);
+                settings,
+                InertiaStopDisplacementCutoff);
         }
         else if (dragHands == BothHands)
         {
@@ -208,7 +214,8 @@ public sealed class FreeFlightManipulator
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
-                settings);
+                settings,
+                InertiaStopDisplacementCutoff);
         }
 
         var target = GrabTarget(frame, settings);
@@ -500,13 +507,15 @@ public sealed class FreeFlightManipulator
                 ref linearInertia,
                 ref linearExemptionSeconds,
                 dt,
-                settings);
+                settings,
+                InertiaStopDisplacementCutoff);
         if (turn)
             ApplyDeceleration(
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
-                settings);
+                settings,
+                InertiaStopDisplacementCutoff);
     }
 
     private void FinishDrag(RigidPose head, FlightMotionSettings settings)
@@ -581,7 +590,8 @@ public sealed class FreeFlightManipulator
         ref Vector3 velocity,
         ref float exemptionSeconds,
         float elapsedSeconds,
-        FlightMotionSettings settings)
+        FlightMotionSettings settings,
+        float stopCutoff)
     {
         if (velocity.LengthSquared() <= 0 || elapsedSeconds <= 0)
             return;
@@ -592,7 +602,7 @@ public sealed class FreeFlightManipulator
         float exponent = settings.InertiaDecelerationPerSecond *
             (regularSeconds + exemptedSeconds * (1 - settings.DecelerationExemptionStrength));
         velocity *= MathF.Exp(-exponent);
-        if (velocity.LengthSquared() < 0.0000000001f)
+        if (velocity.Length() * elapsedSeconds < stopCutoff)
             velocity = Vector3.Zero;
     }
 
