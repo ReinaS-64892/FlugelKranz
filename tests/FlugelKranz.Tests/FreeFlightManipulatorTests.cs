@@ -209,6 +209,61 @@ public class FreeFlightManipulatorTests
     }
 
     [Fact]
+    public void MixedDragAndTurnKeepsDragHandAtItsGrabbedPointAcrossFrames()
+    {
+        var engine = Armed();
+        engine.Update(Frame(1, 1));
+
+        for (int step = 1; step <= 8; step++)
+        {
+            float amount = step / 8f;
+            var movedLeft = Left with
+            {
+                Position = Left.Position + new Vector3(amount, amount * 0.5f, -amount * 0.25f)
+            };
+            var movedRight = Right with
+            {
+                Orientation = Quaternion.CreateFromYawPitchRoll(
+                    amount * 0.8f,
+                    amount * 0.5f,
+                    -amount * 0.4f)
+            };
+
+            var offset = engine.Update(new(
+                Head,
+                true,
+                new(movedLeft, 1, 0, 0, true),
+                new(movedRight, 0, 1, 0, true)));
+
+            Near(Left.Position, offset.Transform(movedLeft.Position));
+        }
+    }
+
+    [Fact]
+    public void SmoothedMixedDragAndTurnConvergesToTheGrabbedPoint()
+    {
+        var settings = HeadOrigin with { DragSmoothSeconds = 0.05f };
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        engine.Update(Frame(), 0.01f, settings);
+        engine.Update(Frame(1, 1), 0.01f, settings);
+        var movedLeft = Left with { Position = Left.Position + new Vector3(1, 0.5f, -0.25f) };
+        var movedRight = Right with
+        {
+            Orientation = Quaternion.CreateFromYawPitchRoll(0.8f, 0.5f, -0.4f)
+        };
+        var moved = new InputFrame(
+            Head,
+            true,
+            new(movedLeft, 1, 0, 0, true),
+            new(movedRight, 0, 1, 0, true));
+
+        for (int step = 0; step < 100; step++)
+            engine.Update(moved, 0.01f, settings);
+
+        Near(Left.Position, engine.Offset.Transform(movedLeft.Position));
+    }
+
+    [Fact]
     public void ExistingOffsetAndRotatedCoordinatesArePreserved()
     {
         var initial = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 0.5f, 0.6f), new(2, 3, 4));

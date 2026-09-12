@@ -66,7 +66,7 @@ public sealed class InfiniteWalkingManipulator
 
     private void RebaseTurn(InputFrame frame)
     {
-        turnStartInputOrientation = HandOrientation(frame, turnHands);
+        turnStartInputOrientation = TurnInputOrientation(frame);
         turnStartOffsetOrientation = Offset.Orientation;
     }
 
@@ -83,7 +83,7 @@ public sealed class InfiniteWalkingManipulator
 
     private void ApplyTurn(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
     {
-        Quaternion currentInput = HandOrientation(frame, turnHands);
+        Quaternion currentInput = TurnInputOrientation(frame);
         Quaternion inputDelta = Quaternion.Normalize(
             currentInput * Quaternion.Conjugate(turnStartInputOrientation));
         Quaternion yaw = FreeFlightManipulator.TwistAroundAxis(inputDelta, Vector3.UnitY);
@@ -123,9 +123,12 @@ public sealed class InfiniteWalkingManipulator
     {
         LeftHand => frame.Left.Pose.Orientation,
         RightHand => frame.Right.Pose.Orientation,
-        BothHands => Average(frame.Left.Pose.Orientation, frame.Right.Pose.Orientation),
         _ => Quaternion.Identity
     };
+
+    private Quaternion TurnInputOrientation(InputFrame frame) => turnHands == BothHands
+        ? frame.Head.Orientation
+        : HandOrientation(frame, turnHands);
 
     private static Vector3 HandPosition(InputFrame frame, byte hands) => hands switch
     {
@@ -134,13 +137,6 @@ public sealed class InfiniteWalkingManipulator
         BothHands => (frame.Left.Pose.Position + frame.Right.Pose.Position) * 0.5f,
         _ => Vector3.Zero
     };
-
-    private static Quaternion Average(Quaternion left, Quaternion right)
-    {
-        if (Quaternion.Dot(left, right) < 0)
-            right = -right;
-        return Quaternion.Normalize(Quaternion.Slerp(left, right, 0.5f));
-    }
 
     private static bool Held(HandSample hand, float value, ref bool armed, bool held)
     {

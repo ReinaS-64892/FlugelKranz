@@ -23,7 +23,8 @@ public sealed class FreeFlightManipulator
     private byte dragHands, turnHands;
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
-    private Vector3 previousDragPosition, currentDragDelta, smoothedDragDelta;
+    private Vector3 dragAnchorInRoot, dragPointInRoot, previousDragPosition;
+    private Vector3 currentDragControllerDelta, smoothedDragDelta;
     private bool dragAccelerationBoostActive;
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
@@ -46,7 +47,8 @@ public sealed class FreeFlightManipulator
         leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = turnStartOrientation = turnStartOffsetOrientation = Quaternion.Identity;
-        previousDragPosition = currentDragDelta = smoothedDragDelta = twoHandTurnAxis = Vector3.Zero;
+        dragAnchorInRoot = dragPointInRoot = previousDragPosition = Vector3.Zero;
+        currentDragControllerDelta = smoothedDragDelta = twoHandTurnAxis = Vector3.Zero;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = turnBrakeElapsed = 0;
         dragBrakeFactor = turnBrakeFactor = 1;
@@ -117,10 +119,8 @@ public sealed class FreeFlightManipulator
 
         var orientationBefore = Offset.Orientation;
         AdvanceFreeInertia(frame, dt, !IsDragging, !IsTurning, settings);
-        Vector3 dragInertiaStep = Vector3.Zero;
         if (IsDragging)
         {
-            currentDragDelta = Vector3.Zero;
             float controllerSpeed = ControllerMovementSpeed(frame, sampleSeconds);
             dragAccelerationBoostActive =
                 settings.InertiaAccelerationBoostEnabled &&
@@ -132,7 +132,9 @@ public sealed class FreeFlightManipulator
                     ref dragBrakeFactor,
                     dt,
                     settings.BrakeRampSeconds);
-            dragInertiaStep = linearInertia * dt;
+            Vector3 dragInertiaStep = linearInertia * dt;
+            dragAnchorInRoot += dragInertiaStep;
+            dragPointInRoot += dragInertiaStep;
             ApplyDeceleration(
                 ref linearInertia,
                 ref linearExemptionSeconds,
@@ -158,12 +160,7 @@ public sealed class FreeFlightManipulator
                 settings);
         }
 
-        var target = GrabTarget(
-            frame,
-            dragInertiaStep,
-            sampleSeconds,
-            settings,
-            includeCurrentDragDelta: false);
+        var target = GrabTarget(frame, settings);
         if (turnHandsChanged && IsTurning)
             previousTurnTarget = target;
         UpdateRawVelocities(
@@ -172,12 +169,6 @@ public sealed class FreeFlightManipulator
             IsDragging && !dragHandsChanged,
             IsTurning && !turnHandsChanged,
             sampleSeconds);
-        target = GrabTarget(
-            frame,
-            dragInertiaStep,
-            sampleSeconds,
-            settings,
-            includeCurrentDragDelta: true);
         ApplySmoothedTarget(frame, target, dt, settings);
         RotateLinearInertia(orientationBefore, Offset.Orientation, settings.VectorRotationMultiplier);
         return Offset;
@@ -205,7 +196,9 @@ public sealed class FreeFlightManipulator
     {
         dragReferenceOrientation = Offset.Orientation;
         previousDragPosition = HandPosition(frame, dragHands);
-        currentDragDelta = smoothedDragDelta = dragVelocity = Vector3.Zero;
+        dragAnchorInRoot = Offset.Transform(previousDragPosition);
+        dragPointInRoot = dragAnchorInRoot;
+        currentDragControllerDelta = smoothedDragDelta = dragVelocity = Vector3.Zero;
     }
 
     private void RebaseTurn(InputFrame frame)
@@ -231,7 +224,24 @@ public sealed class FreeFlightManipulator
             ? Quaternion.Normalize(Quaternion.Slerp(Offset.Orientation, target.Orientation, turnAlpha))
             : Offset.Orientation;
         var smoothedPosition = Offset.Position;
-        if (IsTurning)
+        if (IsDragging)
+        {
+            // Preserve each raw movement distance while smoothing its direction. Any
+            // temporary deviation converges on the root-space point captured at grab.
+            Vector3 controllerMotion = Vector3.Transform(
+                currentDragControllerDelta,
+                Offset.Orientation);
+            Vector3 filteredOffsetMotion = SmoothDragDelta(
+                -controllerMotion,
+                elapsedSeconds,
+                settings.DragSmoothSeconds);
+            Vector3 candidatePoint = dragPointInRoot + controllerMotion + filteredOffsetMotion;
+            float correctionAlpha = SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds);
+            dragPointInRoot = Vector3.Lerp(candidatePoint, dragAnchorInRoot, correctionAlpha);
+            smoothedPosition = dragPointInRoot -
+                Vector3.Transform(HandPosition(frame, dragHands), smoothedRotation);
+        }
+        else if (IsTurning)
         {
             Vector3 pivot = TurnPivot(frame, settings);
             Vector3 pivotInRoot = Offset.Transform(pivot);
@@ -240,13 +250,6 @@ public sealed class FreeFlightManipulator
             smoothedPosition = pivotInRoot - Vector3.Transform(pivot, smoothedRotation) +
                 dragAndInertiaTranslation;
         }
-        else if (IsDragging)
-        {
-            // The complete controller displacement is retained. Smoothing only changes
-            // its direction; release velocity always uses the unsmoothed sample.
-            smoothedPosition = target.Position;
-        }
-
         Offset = new(smoothedRotation, smoothedPosition);
     }
 
@@ -261,12 +264,12 @@ public sealed class FreeFlightManipulator
         {
             Vector3 current = HandPosition(frame, dragHands);
             var controllerDelta = current - previousDragPosition;
-            currentDragDelta = -Vector3.Transform(controllerDelta, dragReferenceOrientation);
-            dragVelocity = currentDragDelta / sampleSeconds;
+            currentDragControllerDelta = controllerDelta;
+            dragVelocity = -Vector3.Transform(controllerDelta, dragReferenceOrientation) / sampleSeconds;
             previousDragPosition = current;
         }
-        else if (!dragging)
-            currentDragDelta = Vector3.Zero;
+        else
+            currentDragControllerDelta = Vector3.Zero;
 
         if (turning && sampleSeconds > 0)
         {
@@ -331,12 +334,7 @@ public sealed class FreeFlightManipulator
         linearInertia = Vector3.Transform(linearInertia, applied);
     }
 
-    private RigidPose GrabTarget(
-        InputFrame frame,
-        Vector3 dragInertiaStep,
-        float elapsedSeconds,
-        FlightMotionSettings settings,
-        bool includeCurrentDragDelta)
+    private RigidPose GrabTarget(InputFrame frame, FlightMotionSettings settings)
     {
         var rotation = Offset.Orientation;
         var translation = Offset.Position;
@@ -345,13 +343,6 @@ public sealed class FreeFlightManipulator
             rotation = TurnTargetOrientation(frame);
             Vector3 pivot = TurnPivot(frame, settings);
             translation = Offset.Transform(pivot) - Vector3.Transform(pivot, rotation);
-        }
-
-        if (IsDragging)
-        {
-            translation += dragInertiaStep;
-            if (includeCurrentDragDelta)
-                translation += SmoothDragDelta(currentDragDelta, elapsedSeconds, settings.DragSmoothSeconds);
         }
 
         return new(rotation, translation);
@@ -556,7 +547,8 @@ public sealed class FreeFlightManipulator
     private void CancelDrag()
     {
         linearInertia = dragVelocity = Vector3.Zero;
-        currentDragDelta = smoothedDragDelta = Vector3.Zero;
+        dragAnchorInRoot = dragPointInRoot = previousDragPosition = Vector3.Zero;
+        currentDragControllerDelta = smoothedDragDelta = Vector3.Zero;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = 0;
         dragBrakeFactor = 1;

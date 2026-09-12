@@ -101,18 +101,23 @@ public class InfiniteWalkingManipulatorTests
     }
 
     [Fact]
-    public void TwoHandTurnUsesHeadPivotAndRebasesWhenOneHandReleases()
+    public void TwoHandTurnUsesHeadYawAndRebasesWhenOneHandReleases()
     {
         var engine = Armed();
         engine.Update(Frame(leftTurn: 1, rightTurn: 1), 0.1f, Direct);
         var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f);
+        var controllerYaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.8f);
         var both = Frame(leftTurn: 1, rightTurn: 1) with
         {
-            Left = Hand(Left with { Orientation = yaw }, turn: 1),
-            Right = Hand(Right with { Orientation = yaw }, turn: 1)
+            Left = Hand(Left with { Orientation = controllerYaw }, turn: 1),
+            Right = Hand(Right with { Orientation = controllerYaw }, turn: 1)
         };
+        Near(Quaternion.Identity, engine.Update(both, 0.1f, Direct).Orientation);
+
+        both = both with { Head = Head with { Orientation = yaw } };
         var turned = engine.Update(both, 0.1f, Direct);
-        Near(Head.Position, turned.Transform(Head.Position));
+        Near(Quaternion.Conjugate(yaw), turned.Orientation);
+        Near(both.Head.Position, turned.Transform(both.Head.Position));
 
         var oneHand = both with { Left = Hand(Left with { Orientation = yaw }) };
         var rebased = engine.Update(oneHand, 0.1f, Direct);
