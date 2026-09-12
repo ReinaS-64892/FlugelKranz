@@ -137,6 +137,8 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                     .Command(model, x => x.ToggleSettingsCommand)
             ),
             new TextBlock().Text(model, x => x.Status).TextWrapping(TextWrapping.Wrap),
+            new TextBlock().Text(model, x => x.ReferenceSpaceOffsetStatus)
+                .TextWrapping(TextWrapping.Wrap),
             new TextBlock().Text("操作状態").FontWeight(FontWeight.SemiBold),
             new TextBlock().Text(model, x => x.LeftStatus),
             new TextBlock().Text(model, x => x.RightStatus),

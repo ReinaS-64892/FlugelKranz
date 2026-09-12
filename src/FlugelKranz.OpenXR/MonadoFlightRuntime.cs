@@ -3,12 +3,13 @@ using MonadoXrApi;
 
 namespace FlugelKranz.OpenXR;
 
-public sealed class MonadoFlightRuntime : IFlightRuntime
+public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetProvider
 {
     private readonly MonadoFlightConnection monado;
     private readonly OpenXrInput input;
     public RigidPose OriginalOffset => monado.OriginalOffset;
     public RigidPose CurrentOffset => monado.CurrentOffset;
+    public RigidPose ReferenceSpaceOffset => monado.CurrentReferenceSpaceOffset;
     public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => monado.TrackingOrigins;
 
     public MonadoFlightRuntime(

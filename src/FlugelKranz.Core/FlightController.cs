@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 
 namespace FlugelKranz.Core;
 
@@ -11,6 +12,11 @@ public interface IFlightRuntime : IDisposable
     void Restore();
 }
 
+public interface IReferenceSpaceOffsetProvider
+{
+    RigidPose ReferenceSpaceOffset { get; }
+}
+
 public sealed record FlightStatus(
     bool Enabled,
     bool Connected,
@@ -19,7 +25,9 @@ public sealed record FlightStatus(
     bool Turning = false,
     FlightMode Mode = FlightMode.InfiniteWalking,
     float? LeftTrackpadForce = null,
-    float? RightTrackpadForce = null);
+    float? RightTrackpadForce = null,
+    RigidPose? ReferenceSpaceOffset = null,
+    Vector3? RecentReferenceSpaceMovement = null);
 
 /// <summary>Owns the runtime on one worker. Off retains the offset; reset restores it without disabling the controller.</summary>
 public sealed class FlightController(
@@ -76,6 +84,7 @@ public sealed class FlightController(
             DpadHold dpadHold = DpadHold.None;
             float dpadHoldSeconds = 0;
             bool dpadHoldTriggered = false;
+            RigidPose? previousReferenceSpaceOffset = null;
             int tick = 0;
             while (!shutdown.IsCancellationRequested)
             {
@@ -247,6 +256,13 @@ public sealed class FlightController(
                             : !frame.HeadTracked ? "HMD のトラッキングを待っています。"
                             : !frame.Left.IsTracked || !frame.Right.IsTracked ? "コントローラーの姿勢・操作入力を待っています。"
                             : "オン — 操作入力を一度離してから使用してください。";
+                        var referenceSpaceOffset = (runtime as IReferenceSpaceOffsetProvider)
+                            ?.ReferenceSpaceOffset;
+                        var recentReferenceSpaceMovement = referenceSpaceOffset is { } currentReferenceSpaceOffset
+                            && previousReferenceSpaceOffset is { } previous
+                            ? currentReferenceSpaceOffset.Position - previous.Position
+                            : (Vector3?)null;
+                        previousReferenceSpaceOffset = referenceSpaceOffset;
                         progress.Report(new(
                             enabled,
                             true,
@@ -255,7 +271,9 @@ public sealed class FlightController(
                             turning,
                             selectedMode,
                             TrackpadForce(frame.Left),
-                            TrackpadForce(frame.Right)));
+                            TrackpadForce(frame.Right),
+                            referenceSpaceOffset,
+                            recentReferenceSpaceMovement));
                     }
                 }
                 await Task.Delay(10, shutdown.Token).ConfigureAwait(false);

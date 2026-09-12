@@ -24,6 +24,7 @@ internal sealed class MonadoFlightConnection : IDisposable
 
     public RigidPose OriginalOffset => originalOffset;
     public RigidPose CurrentOffset => currentOffset;
+    public RigidPose CurrentReferenceSpaceOffset => currentStage;
     public RigidPose StageToRoot { get; }
     public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => origins
         .OrderBy(pair => pair.Key)
