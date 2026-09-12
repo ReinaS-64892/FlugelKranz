@@ -59,9 +59,9 @@ public sealed record InfiniteWalkingSettings
 {
     public static InfiniteWalkingSettings Default { get; } = new();
 
-    public float DragSmoothSeconds { get; init; } = 0.01f;
-    public float TurnSmoothSeconds { get; init; } = 0.05f;
-    public float TurnHeadSmoothSeconds { get; init; } = 0.02f;
+    public float DragSmoothSeconds { get; init; }
+    public float TurnSmoothSeconds { get; init; }
+    public float TurnHeadSmoothSeconds { get; init; }
 
     public InfiniteWalkingSettings Normalized() => this with
     {

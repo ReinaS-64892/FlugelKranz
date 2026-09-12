@@ -49,9 +49,9 @@ public class MainViewTests
         Assert.Equal(1, vm.VectorRotationMultiplier);
         Assert.Equal(0.4, vm.BrakeRampSeconds);
         Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
-        Assert.Equal(0.01, vm.InfiniteDragSmoothSeconds);
-        Assert.Equal(0.05, vm.InfiniteTurnSmoothSeconds);
-        Assert.Equal(0.02, vm.InfiniteTurnHeadSmoothSeconds);
+        Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
+        Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
+        Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
         Assert.Equal(0.3, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
@@ -276,6 +276,9 @@ public class MainViewTests
         vm.ZAccelerationMultiplier = 4;
         vm.InertiaAccelerationBoostEnabled = false;
         vm.InertiaAccelerationBoostMaximumMultiplier = 3;
+        vm.InfiniteDragSmoothSeconds = 0.6;
+        vm.InfiniteTurnSmoothSeconds = 0.7;
+        vm.InfiniteTurnHeadSmoothSeconds = 0.8;
         vm.ValveIndexPositionDeadZone = 0.8;
         vm.ValveIndexForceThreshold = 0.9;
 
@@ -283,6 +286,9 @@ public class MainViewTests
         vm.ResetZAccelerationCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostEnabledCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostMaximumMultiplierCommand.Execute(null);
+        vm.ResetInfiniteDragSmoothCommand.Execute(null);
+        vm.ResetInfiniteTurnSmoothCommand.Execute(null);
+        vm.ResetInfiniteTurnHeadSmoothCommand.Execute(null);
         vm.ResetValveIndexForceThresholdCommand.Execute(null);
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
@@ -290,6 +296,9 @@ public class MainViewTests
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
+        Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
+        Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
         Assert.Equal(0.8, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
     }

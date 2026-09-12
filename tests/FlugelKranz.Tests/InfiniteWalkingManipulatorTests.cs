@@ -22,9 +22,9 @@ public class InfiniteWalkingManipulatorTests
     {
         var settings = InfiniteWalkingSettings.Default;
 
-        Assert.Equal(0.01f, settings.DragSmoothSeconds);
-        Assert.Equal(0.05f, settings.TurnSmoothSeconds);
-        Assert.Equal(0.02f, settings.TurnHeadSmoothSeconds);
+        Assert.Equal(0, settings.DragSmoothSeconds);
+        Assert.Equal(0, settings.TurnSmoothSeconds);
+        Assert.Equal(0, settings.TurnHeadSmoothSeconds);
         Assert.Equal(FlightMode.InfiniteWalking, FlugelKranzSettings.Default.Mode);
     }
 

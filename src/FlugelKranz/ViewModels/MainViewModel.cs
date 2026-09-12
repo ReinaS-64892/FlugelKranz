@@ -71,13 +71,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double turnSmoothSeconds = 0.05;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteDragSmoothLabel))]
-    private double infiniteDragSmoothSeconds = 0.01;
+    private double infiniteDragSmoothSeconds;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteTurnSmoothLabel))]
-    private double infiniteTurnSmoothSeconds = 0.05;
+    private double infiniteTurnSmoothSeconds;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteTurnHeadSmoothLabel))]
-    private double infiniteTurnHeadSmoothSeconds = 0.02;
+    private double infiniteTurnHeadSmoothSeconds;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;

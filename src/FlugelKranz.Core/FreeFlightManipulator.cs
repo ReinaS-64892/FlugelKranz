@@ -78,6 +78,14 @@ public sealed class FreeFlightManipulator
         byte previousTurnHands = turnHands;
         dragHands = ActiveHands(frame, true, previousDragHands);
         turnHands = ActiveHands(frame, false, previousTurnHands);
+        if (previousDragHands == BothHands && dragHands is LeftHand or RightHand)
+        {
+            if (dragHands == LeftHand)
+                leftDragArmed = false;
+            else
+                rightDragArmed = false;
+            dragHands = 0;
+        }
         bool dragHandsChanged = dragHands != previousDragHands;
         bool turnHandsChanged = turnHands != previousTurnHands;
         bool beganDrag = previousDragHands == 0 && dragHands != 0;
@@ -219,25 +227,37 @@ public sealed class FreeFlightManipulator
         float elapsedSeconds,
         FlightMotionSettings settings)
     {
-        float turnAlpha = SmoothingAlpha(settings.TurnSmoothSeconds, elapsedSeconds);
         var smoothedRotation = IsTurning
-            ? Quaternion.Normalize(Quaternion.Slerp(Offset.Orientation, target.Orientation, turnAlpha))
+            ? settings.TurnSmoothSeconds <= 0
+                ? target.Orientation
+                : Quaternion.Normalize(Quaternion.Slerp(
+                    Offset.Orientation,
+                    target.Orientation,
+                    SmoothingAlpha(settings.TurnSmoothSeconds, elapsedSeconds)))
             : Offset.Orientation;
         var smoothedPosition = Offset.Position;
         if (IsDragging)
         {
-            // Preserve each raw movement distance while smoothing its direction. Any
-            // temporary deviation converges on the root-space point captured at grab.
-            Vector3 controllerMotion = Vector3.Transform(
-                currentDragControllerDelta,
-                Offset.Orientation);
-            Vector3 filteredOffsetMotion = SmoothDragDelta(
-                -controllerMotion,
-                elapsedSeconds,
-                settings.DragSmoothSeconds);
-            Vector3 candidatePoint = dragPointInRoot + controllerMotion + filteredOffsetMotion;
-            float correctionAlpha = SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds);
-            dragPointInRoot = Vector3.Lerp(candidatePoint, dragAnchorInRoot, correctionAlpha);
+            if (settings.DragSmoothSeconds <= 0)
+            {
+                smoothedDragDelta = Vector3.Zero;
+                dragPointInRoot = dragAnchorInRoot;
+            }
+            else
+            {
+                // Preserve each raw movement distance while smoothing its direction. Any
+                // temporary deviation converges on the root-space point captured at grab.
+                Vector3 controllerMotion = Vector3.Transform(
+                    currentDragControllerDelta,
+                    Offset.Orientation);
+                Vector3 filteredOffsetMotion = SmoothDragDelta(
+                    -controllerMotion,
+                    elapsedSeconds,
+                    settings.DragSmoothSeconds);
+                Vector3 candidatePoint = dragPointInRoot + controllerMotion + filteredOffsetMotion;
+                float correctionAlpha = SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds);
+                dragPointInRoot = Vector3.Lerp(candidatePoint, dragAnchorInRoot, correctionAlpha);
+            }
             smoothedPosition = dragPointInRoot -
                 Vector3.Transform(HandPosition(frame, dragHands), smoothedRotation);
         }
@@ -388,6 +408,12 @@ public sealed class FreeFlightManipulator
 
     private Vector3 SmoothDragDelta(Vector3 rawDelta, float elapsedSeconds, float smoothSeconds)
     {
+        if (smoothSeconds <= 0)
+        {
+            smoothedDragDelta = Vector3.Zero;
+            return rawDelta;
+        }
+
         if (rawDelta.LengthSquared() <= 0)
         {
             float decayAlpha = SmoothingAlpha(smoothSeconds, elapsedSeconds);

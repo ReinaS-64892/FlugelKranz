@@ -140,6 +140,42 @@ public class FreeFlightManipulatorTests
     }
 
     [Fact]
+    public void ReleasingOneOfTwoDragHandsForcesTheRemainingHandToRegrip()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 1, 0, 0, true),
+            new(Right, 1, 0, 0, true));
+        engine.Update(both);
+
+        var rightHeld = both with { Left = new(Left, 0, 0, 0, true) };
+        var released = engine.Update(rightHeld);
+        Assert.False(engine.IsDragging);
+
+        var movedRight = Right with { Position = Right.Position + Vector3.UnitX };
+        var stillHeld = rightHeld with { Right = new(movedRight, 1, 0, 0, true) };
+        Assert.True(released.NearlyEquals(engine.Update(stillHeld)));
+        Assert.False(engine.IsDragging);
+
+        engine.Update(stillHeld with { Right = new(movedRight, 0, 0, 0, true) });
+        engine.Update(stillHeld);
+        Assert.True(engine.IsDragging);
+
+        var movedAgain = stillHeld with
+        {
+            Right = new(
+                movedRight with { Position = movedRight.Position + Vector3.UnitX },
+                1,
+                0,
+                0,
+                true)
+        };
+        Assert.False(engine.Update(movedAgain).NearlyEquals(released));
+    }
+
+    [Fact]
     public void TwoHandTurnIsConstrainedToControllerLine()
     {
         var engine = Armed();

@@ -75,9 +75,13 @@ public sealed class InfiniteWalkingManipulator
         float amount = dragHands == BothHands ? 2 : 1;
         float targetY = dragStartOffsetY -
             (HandPosition(frame, dragHands).Y - dragStartY) * amount;
-        float alpha = FreeFlightManipulator.SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds);
         var position = Offset.Position;
-        position.Y = float.Lerp(position.Y, targetY, alpha);
+        position.Y = settings.DragSmoothSeconds <= 0
+            ? targetY
+            : float.Lerp(
+                position.Y,
+                targetY,
+                FreeFlightManipulator.SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds));
         Offset = Offset with { Position = position };
     }
 
@@ -92,9 +96,12 @@ public sealed class InfiniteWalkingManipulator
         float smoothSeconds = turnHands == BothHands
             ? settings.TurnHeadSmoothSeconds
             : settings.TurnSmoothSeconds;
-        float alpha = FreeFlightManipulator.SmoothingAlpha(smoothSeconds, elapsedSeconds);
-        Quaternion rotation = Quaternion.Normalize(
-            Quaternion.Slerp(Offset.Orientation, target, alpha));
+        Quaternion rotation = smoothSeconds <= 0
+            ? target
+            : Quaternion.Normalize(Quaternion.Slerp(
+                Offset.Orientation,
+                target,
+                FreeFlightManipulator.SmoothingAlpha(smoothSeconds, elapsedSeconds)));
         Vector3 pivot = frame.Head.Position;
         Vector3 pivotInRoot = Offset.Transform(pivot);
         Vector3 position = pivotInRoot - Vector3.Transform(pivot, rotation);
