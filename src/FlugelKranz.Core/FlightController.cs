@@ -71,9 +71,11 @@ public sealed class FlightController(
             long observedVersion = -1;
             FlightMode? appliedMode = null;
             InfiniteWalkingTransition? modeTransition = null;
+            SpaceResetTransition? spaceResetTransition = null;
             FlightMode? inputModeOverride = null;
-            float modeSwitchSeconds = 0;
-            bool modeSwitchTriggered = false;
+            DpadHold dpadHold = DpadHold.None;
+            float dpadHoldSeconds = 0;
+            bool dpadHoldTriggered = false;
             int tick = 0;
             while (!shutdown.IsCancellationRequested)
             {
@@ -87,26 +89,35 @@ public sealed class FlightController(
                 FlightMode selectedMode = inputModeOverride ?? settings.Mode;
                 reportedMode = selectedMode;
 
-                bool modeSwitchHeld = ModeSwitchHeld(frame);
-                if (modeSwitchHeld)
+                DpadHold currentDpadHold = GetDpadHold(frame);
+                if (currentDpadHold != dpadHold)
                 {
-                    modeSwitchSeconds += elapsedSeconds;
-                    if (!modeSwitchTriggered && modeSwitchSeconds >= 1)
+                    dpadHold = currentDpadHold;
+                    dpadHoldSeconds = 0;
+                    dpadHoldTriggered = false;
+                }
+                bool spaceResetRequested = false;
+                if (dpadHold != DpadHold.None && !dpadHoldTriggered)
+                {
+                    dpadHoldSeconds += elapsedSeconds;
+                    if (dpadHoldSeconds >= 1 && dpadHold == DpadHold.Both)
                     {
                         selectedMode = selectedMode == FlightMode.InfiniteWalking
                             ? FlightMode.FreeFlight
                             : FlightMode.InfiniteWalking;
                         inputModeOverride = selectedMode;
                         reportedMode = selectedMode;
-                        modeSwitchTriggered = true;
+                        dpadHoldTriggered = true;
                         progress.Report(new(enabled, true, ModeChangedMessage(selectedMode),
                             Mode: selectedMode));
                     }
-                }
-                else
-                {
-                    modeSwitchSeconds = 0;
-                    modeSwitchTriggered = false;
+                    else if (dpadHoldSeconds >= 1 &&
+                        (selectedMode == FlightMode.InfiniteWalking ||
+                            frame.HeadTracked && frame.Head.IsValid))
+                    {
+                        spaceResetRequested = true;
+                        dpadHoldTriggered = true;
+                    }
                 }
                 lock (gate)
                 {
@@ -114,6 +125,7 @@ public sealed class FlightController(
                     {
                         freeFlight.Release();
                         infiniteWalking.Release();
+                        spaceResetTransition = null;
                         observedVersion = releaseVersion;
                     }
                     if (resetRequested)
@@ -122,11 +134,19 @@ public sealed class FlightController(
                         freeFlight.SetOffset(runtime.CurrentOffset);
                         infiniteWalking.SetOffset(runtime.CurrentOffset);
                         modeTransition = null;
+                        spaceResetTransition = null;
                         appliedMode = selectedMode;
                         resetRequested = false;
                     }
                     if (enabled)
                     {
+                        if (spaceResetTransition is not null &&
+                            spaceResetTransition.Mode != selectedMode)
+                        {
+                            spaceResetTransition = null;
+                            freeFlight.SetOffset(runtime.CurrentOffset);
+                            infiniteWalking.SetOffset(runtime.CurrentOffset);
+                        }
                         if (modeTransition is not null && selectedMode == FlightMode.FreeFlight)
                         {
                             modeTransition = null;
@@ -140,6 +160,7 @@ public sealed class FlightController(
                                 selectedMode == FlightMode.InfiniteWalking)
                             {
                                 modeTransition = new(runtime.CurrentOffset, runtime.OriginalOffset);
+                                spaceResetTransition = null;
                                 freeFlight.Release();
                                 infiniteWalking.Release();
                             }
@@ -149,6 +170,26 @@ public sealed class FlightController(
                                 infiniteWalking.SetOffset(runtime.CurrentOffset);
                                 appliedMode = selectedMode;
                             }
+                        }
+
+                        if (spaceResetRequested && modeTransition is null &&
+                            spaceResetTransition is null)
+                        {
+                            spaceResetTransition = selectedMode == FlightMode.FreeFlight
+                                ? SpaceResetTransition.CreateFreeFlight(
+                                    runtime.CurrentOffset,
+                                    frame.Head,
+                                    freeFlight.GetCurrentTurnPivot(frame, settings.FreeFlight))
+                                : SpaceResetTransition.CreateInfiniteWalking(
+                                    runtime.CurrentOffset,
+                                    runtime.OriginalOffset);
+                            freeFlight.Release();
+                            infiniteWalking.Release();
+                            progress.Report(new(
+                                enabled,
+                                true,
+                                SpaceResetMessage(selectedMode),
+                                Mode: selectedMode));
                         }
 
                         RigidPose offset;
@@ -163,6 +204,16 @@ public sealed class FlightController(
                                 modeTransition = null;
                             }
                         }
+                        else if (spaceResetTransition is not null)
+                        {
+                            offset = spaceResetTransition.Advance(elapsedSeconds);
+                            if (spaceResetTransition.IsComplete)
+                            {
+                                freeFlight.SetOffset(offset);
+                                infiniteWalking.SetOffset(offset);
+                                spaceResetTransition = null;
+                            }
+                        }
                         else
                         {
                             offset = selectedMode == FlightMode.FreeFlight
@@ -175,21 +226,24 @@ public sealed class FlightController(
                     else
                     {
                         modeTransition = null;
+                        spaceResetTransition = null;
                         freeFlight.Release();
                         infiniteWalking.Release();
                     }
                     if (tick++ % 10 == 0)
                     {
-                        bool dragging = modeTransition is not null ? false
+                        bool transitioning = modeTransition is not null || spaceResetTransition is not null;
+                        bool dragging = transitioning ? false
                             : selectedMode == FlightMode.FreeFlight
                             ? freeFlight.IsDragging
                             : infiniteWalking.IsDragging;
-                        bool turning = modeTransition is not null ? false
+                        bool turning = transitioning ? false
                             : selectedMode == FlightMode.FreeFlight
                             ? freeFlight.IsTurning
                             : infiniteWalking.IsTurning;
                         string message = !enabled ? "オフ — 現在の位置・姿勢を保持しています。"
                             : modeTransition is not null ? "無限歩行モードへ戻しています…"
+                            : spaceResetTransition is not null ? SpaceResetMessage(selectedMode)
                             : !frame.HeadTracked ? "HMD のトラッキングを待っています。"
                             : !frame.Left.IsTracked || !frame.Right.IsTracked ? "コントローラーの姿勢・操作入力を待っています。"
                             : "オン — 操作入力を一度離してから使用してください。";
@@ -232,11 +286,30 @@ public sealed class FlightController(
         }
     }
 
-    private static bool ModeSwitchHeld(InputFrame frame) =>
-        frame.Left.IsTracked && frame.Left.Pose.IsValid &&
-        frame.Right.IsTracked && frame.Right.Pose.IsValid &&
-        float.IsFinite(frame.Left.ModeSwitch) && frame.Left.ModeSwitch >= 0.65f &&
-        float.IsFinite(frame.Right.ModeSwitch) && frame.Right.ModeSwitch >= 0.65f;
+    private enum DpadHold
+    {
+        None,
+        Left,
+        Right,
+        Both
+    }
+
+    private static DpadHold GetDpadHold(InputFrame frame)
+    {
+        bool left = DpadDownHeld(frame.Left);
+        bool right = DpadDownHeld(frame.Right);
+        return (left, right) switch
+        {
+            (true, true) => DpadHold.Both,
+            (true, false) => DpadHold.Left,
+            (false, true) => DpadHold.Right,
+            _ => DpadHold.None
+        };
+    }
+
+    private static bool DpadDownHeld(HandSample hand) =>
+        hand.IsTracked && hand.Pose.IsValid &&
+        float.IsFinite(hand.DpadDown) && hand.DpadDown >= 0.65f;
 
     private static float? TrackpadForce(HandSample hand) =>
         hand.TrackpadForceActive && float.IsFinite(hand.TrackpadForce)
@@ -246,6 +319,10 @@ public sealed class FlightController(
     private static string ModeChangedMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
         ? "無限歩行モードへ切り替えました。操作入力を離してから使用してください。"
         : "自由飛行モードへ切り替えました。操作入力を離してから使用してください。";
+
+    private static string SpaceResetMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
+        ? "無限歩行の高さを戻しています…"
+        : "自由飛行の水平へ戻しています…";
 
     public async ValueTask DisposeAsync()
     {

@@ -107,6 +107,68 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task OneDpadDownHeldForOneSecondLevelsFreeFlightWithoutChangingMode()
+    {
+        var runtime = new FakeRuntime();
+        var current = new RigidPose(
+            Quaternion.CreateFromYawPitchRoll(0.4f, 0.7f, -0.3f),
+            new(1, 2, 3));
+        runtime.Apply(current);
+        var progress = new Recorder();
+        await using var controller = new FlightController(
+            () => runtime,
+            progress,
+            FreeFlightSettings);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+        var held = new InputFrame(
+            new(Quaternion.Identity, new(0, 1.7f, 0)),
+            true,
+            new(RigidPose.Identity, 0, 0, 1, true),
+            new(new(Quaternion.Identity, new(0.4f, 1.2f, -0.3f)), 1, 0, 0, true));
+        Vector3 turnPivot = held.Right.Pose.Position;
+        var expectedTransition = SpaceResetTransition.CreateFreeFlight(
+            current,
+            held.Head,
+            turnPivot);
+        var expected = expectedTransition.Advance(1);
+
+        runtime.Frame = held;
+        await Wait(() => progress.Statuses.Any(s => s.Message.Contains("水平へ戻しています")));
+        await Wait(() => runtime.CurrentOffset.NearlyEquals(expected, 0.001f));
+
+        Assert.DoesNotContain(progress.Statuses, s => s.Message.Contains("切り替え"));
+        Assert.All(progress.Statuses, s => Assert.Equal(FlightMode.FreeFlight, s.Mode));
+        Assert.True(Vector3.Distance(
+            current.Transform(turnPivot),
+            runtime.CurrentOffset.Transform(turnPivot)) < 0.001f);
+    }
+
+    [Fact]
+    public async Task OneDpadDownHeldForOneSecondResetsOnlyInfiniteWalkingHeight()
+    {
+        var runtime = new FakeRuntime();
+        var current = new RigidPose(
+            Quaternion.CreateFromYawPitchRoll(0.4f, 0.2f, -0.3f),
+            new(1, 2, 3));
+        runtime.Apply(current);
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        runtime.Frame = DpadFrame(0, 1);
+        await Wait(() => progress.Statuses.Any(s => s.Message.Contains("高さを戻しています")));
+        await Wait(() => MathF.Abs(runtime.CurrentOffset.Position.Y) < 0.001f);
+
+        Assert.True(1 - MathF.Abs(Quaternion.Dot(
+            current.Orientation,
+            runtime.CurrentOffset.Orientation)) < 0.0001f);
+        Assert.Equal(current.Position.X, runtime.CurrentOffset.Position.X);
+        Assert.Equal(current.Position.Z, runtime.CurrentOffset.Position.Z);
+    }
+
+    [Fact]
     public async Task FreeFlightToInfiniteWalkingLevelsOverOneSecond()
     {
         var runtime = new FakeRuntime();
@@ -166,6 +228,11 @@ public class FlightControllerTests
         true,
         new(RigidPose.Identity, 0, 0, value, true),
         new(RigidPose.Identity, 0, 0, value, true));
+    private static InputFrame DpadFrame(float left, float right) => new(
+        RigidPose.Identity,
+        true,
+        new(RigidPose.Identity, 0, 0, left, true),
+        new(RigidPose.Identity, 0, 0, right, true));
     private static async Task Wait(Func<bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

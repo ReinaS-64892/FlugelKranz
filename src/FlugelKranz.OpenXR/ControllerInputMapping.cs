@@ -17,7 +17,7 @@ public readonly record struct ControllerInputState(
     bool TriggerTouched,
     bool TouchInputsActive);
 
-public readonly record struct ManipulationActions(bool Drag, bool Turn, bool ModeSwitch);
+public readonly record struct ManipulationActions(bool Drag, bool Turn, bool DpadDown);
 
 /// <summary>Maps interaction-profile controls to logical actions used by the motion engines.</summary>
 public static class ControllerInputMapping

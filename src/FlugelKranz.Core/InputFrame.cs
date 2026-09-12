@@ -4,7 +4,7 @@ public readonly record struct HandSample(
     RigidPose Pose,
     float Drag,
     float Turn,
-    float ModeSwitch,
+    float DpadDown,
     bool IsTracked)
 {
     public bool TrackpadForceActive { get; init; }

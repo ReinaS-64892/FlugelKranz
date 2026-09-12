@@ -92,6 +92,7 @@ public sealed class FreeFlightManipulator
         bool turnHandsChanged = turnHands != previousTurnHands;
         bool beganDrag = previousDragHands == 0 && dragHands != 0;
         bool beganTurn = previousTurnHands == 0 && turnHands != 0;
+        bool beganTwoHandDrag = previousDragHands != BothHands && dragHands == BothHands;
 
         if (previousDragHands != 0 && dragHands == 0)
         {
@@ -121,6 +122,12 @@ public sealed class FreeFlightManipulator
             turnBrakeElapsed = 0;
             turnBrakeFactor = 1;
         }
+        if (beganTwoHandDrag)
+        {
+            angularExemptionSeconds = 0;
+            turnBrakeElapsed = 0;
+            turnBrakeFactor = 1;
+        }
 
         bool activeHandsChanged =
             (dragHandsChanged && dragHands != 0) ||
@@ -138,8 +145,9 @@ public sealed class FreeFlightManipulator
 
         bool linearMotionActive = linearInertia.LengthSquared() > 0;
         bool angularMotionActive = angularInertia.LengthSquared() > 0;
+        bool brakingAngularInertia = IsTurning || dragHands == BothHands;
         var orientationBefore = targetOffset.Orientation;
-        AdvanceFreeInertia(frame, dt, !IsDragging, !IsTurning, settings);
+        AdvanceFreeInertia(frame, dt, !IsDragging, !brakingAngularInertia, settings);
         if (IsDragging)
         {
             float controllerSpeed = ControllerMovementSpeed(frame, sampleSeconds);
@@ -173,6 +181,21 @@ public sealed class FreeFlightManipulator
                 turnStartOffsetOrientation = IntegrateRotation(turnStartOffsetOrientation, angularInertia, dt);
             else
                 turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
+            ApplyDeceleration(
+                ref angularInertia,
+                ref angularExemptionSeconds,
+                dt,
+                settings);
+        }
+        else if (dragHands == BothHands)
+        {
+            ApplyGrabBrake(
+                ref angularInertia,
+                ref turnBrakeElapsed,
+                ref turnBrakeFactor,
+                dt,
+                settings.BrakeRampSeconds);
+            AdvanceTargetRotation(frame, angularInertia, dt, settings);
             ApplyDeceleration(
                 ref angularInertia,
                 ref angularExemptionSeconds,
@@ -399,6 +422,29 @@ public sealed class FreeFlightManipulator
             count++;
         }
         return sum / count;
+    }
+
+    internal Vector3 GetCurrentTurnPivot(InputFrame frame, FlightMotionSettings settings) =>
+        TurnPivot(frame, settings.Normalized());
+
+    private void AdvanceTargetRotation(
+        InputFrame frame,
+        Vector3 velocity,
+        float elapsedSeconds,
+        FlightMotionSettings settings)
+    {
+        if (velocity.LengthSquared() <= 0 || elapsedSeconds <= 0)
+            return;
+
+        Vector3 pivot = TurnPivot(frame, settings);
+        Vector3 pivotInRoot = targetOffset.Transform(pivot);
+        Quaternion orientation = IntegrateRotation(
+            targetOffset.Orientation,
+            velocity,
+            elapsedSeconds);
+        targetOffset = new(
+            orientation,
+            pivotInRoot - Vector3.Transform(pivot, orientation));
     }
 
     private void AdvanceFreeInertia(

@@ -51,13 +51,13 @@ public class ControllerInputMappingTests
     }
 
     [Fact]
-    public void IndexDpadDownMapsToModeSwitch()
+    public void IndexDpadDownMapsToLogicalDownAction()
     {
         var result = ControllerInputMapping.Map(
             ControllerHand.Right,
             new(new(0, -1), true, 1, false, false, false));
 
-        Assert.True(result.ModeSwitch);
+        Assert.True(result.DpadDown);
         Assert.False(result.Drag);
         Assert.False(result.Turn);
     }
@@ -75,7 +75,7 @@ public class ControllerInputMappingTests
 
         Assert.False(result.Drag);
         Assert.False(result.Turn);
-        Assert.False(result.ModeSwitch);
+        Assert.False(result.DpadDown);
     }
 
     [Fact]

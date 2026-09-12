@@ -235,7 +235,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             pose,
             actions.Drag ? 1 : 0,
             actions.Turn ? 1 : 0,
-            actions.ModeSwitch ? 1 : 0,
+            actions.DpadDown ? 1 : 0,
             tracked)
         {
             TrackpadForceActive = trackpadForce.Active,

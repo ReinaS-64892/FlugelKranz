@@ -644,6 +644,30 @@ public class InertiaTests
         Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), regripped.Orientation);
     }
 
+    [Fact]
+    public void TwoHandDragAlsoBrakesAngularInertia()
+    {
+        var settings = Unfiltered with { BrakeRampSeconds = 0.2f };
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f);
+        var engine = BeginTurn(settings);
+        engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
+        engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
+        var bothDrag = new InputFrame(
+            Head,
+            true,
+            new(RigidPose.Identity, 1, 0, 0, true),
+            new(RigidPose.Identity, 1, 0, 0, true));
+
+        var braking = engine.Update(bothDrag, 0.1f, settings);
+        var stopped = engine.Update(bothDrag, 0.1f, settings);
+        var released = engine.Update(Frame(), 0.1f, settings);
+
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), braking.Orientation);
+        Near(braking.Orientation, stopped.Orientation);
+        Near(stopped.Orientation, released.Orientation);
+        Assert.False(engine.HasAngularInertia);
+    }
+
     private static FreeFlightManipulator BeginDrag(FlightMotionSettings settings)
     {
         var engine = new FreeFlightManipulator(Identity);
