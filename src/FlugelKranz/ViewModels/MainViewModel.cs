@@ -80,7 +80,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double infiniteTurnHeadSmoothSeconds;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteWalkingBoostLabel))]
-    private double infiniteWalkingBoostMultiplier = 1;
+    private double infiniteWalkingBoostMultiplier = 0.6;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;
@@ -223,7 +223,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
-    [RelayCommand] private void ResetInfiniteWalkingBoost() => InfiniteWalkingBoostMultiplier = InfiniteWalkingSettings.Default.TurnMovementBoostMultiplier;
+    [RelayCommand] private void ResetInfiniteWalkingBoost() => InfiniteWalkingBoostMultiplier = Math.Round(InfiniteWalkingSettings.Default.TurnMovementBoostMultiplier, 6);
     [RelayCommand] private void ResetValveIndexPositionDeadZone() => ValveIndexPositionDeadZone = ValveIndexInputSettings.Default.PositionDeadZone;
     [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = Math.Round(ValveIndexInputSettings.Default.ForceThreshold, 6);
     [RelayCommand] private void ResetMode() => Mode = FlightMode.InfiniteWalking;

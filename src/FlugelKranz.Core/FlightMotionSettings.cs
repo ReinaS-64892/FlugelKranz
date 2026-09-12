@@ -62,7 +62,7 @@ public sealed record InfiniteWalkingSettings
     public float DragSmoothSeconds { get; init; }
     public float TurnSmoothSeconds { get; init; }
     public float TurnHeadSmoothSeconds { get; init; }
-    public float TurnMovementBoostMultiplier { get; init; } = 1;
+    public float TurnMovementBoostMultiplier { get; init; } = 0.6f;
 
     public InfiniteWalkingSettings Normalized() => this with
     {
