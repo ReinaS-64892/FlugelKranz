@@ -10,10 +10,12 @@ public sealed class InfiniteWalkingManipulator
     private const byte BothHands = LeftHand | RightHand;
     private bool leftDragArmed, rightDragArmed, leftTurnArmed, rightTurnArmed;
     private byte dragHands, turnHands;
+    private RigidPose targetOffset;
     private float dragStartY, dragStartOffsetY;
     private Quaternion turnStartInputOrientation, turnStartOffsetOrientation;
     private Vector3 previousTurnHeadPosition;
     private bool hasPreviousTurnHeadPosition;
+    private bool turnFollowerUsesHeadSmoothing;
 
     public InfiniteWalkingManipulator(RigidPose offset) => SetOffset(offset);
 
@@ -25,17 +27,19 @@ public sealed class InfiniteWalkingManipulator
     {
         dragHands = turnHands = 0;
         leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
+        targetOffset = Offset;
         turnStartInputOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragStartY = dragStartOffsetY = 0;
         previousTurnHeadPosition = Vector3.Zero;
         hasPreviousTurnHeadPosition = false;
+        turnFollowerUsesHeadSmoothing = false;
     }
 
     public void SetOffset(RigidPose offset)
     {
         if (!offset.IsValid)
             throw new ArgumentException("Invalid space offset.", nameof(offset));
-        Offset = offset;
+        Offset = targetOffset = offset;
         Release();
     }
 
@@ -53,48 +57,54 @@ public sealed class InfiniteWalkingManipulator
         byte previousTurnHands = turnHands;
         dragHands = ActiveHands(frame, true, previousDragHands);
         turnHands = ActiveHands(frame, false, previousTurnHands);
-        if (dragHands != previousDragHands && dragHands != 0)
-            RebaseDrag(frame);
-        if (turnHands != previousTurnHands && turnHands != 0)
-            RebaseTurn(frame);
+        bool dragHandsChanged = dragHands != previousDragHands;
+        bool turnHandsChanged = turnHands != previousTurnHands;
+        bool activeHandsChanged =
+            (dragHandsChanged && dragHands != 0) ||
+            (turnHandsChanged && turnHands != 0);
+        if (activeHandsChanged)
+        {
+            targetOffset = Offset;
+            if (IsDragging)
+                RebaseDrag(frame);
+            if (IsTurning)
+                RebaseTurn(frame);
+        }
 
         if (IsTurning)
-            ApplyTurn(frame, dt, settings);
+            ApplyTurn(frame, settings);
         if (IsDragging)
-            ApplyDrag(frame, dt, settings);
+            ApplyDrag(frame);
+        FollowTarget(dt, settings);
         return Offset;
     }
 
     private void RebaseDrag(InputFrame frame)
     {
         dragStartY = HandPosition(frame, dragHands).Y;
-        dragStartOffsetY = Offset.Position.Y;
+        dragStartOffsetY = targetOffset.Position.Y;
     }
 
     private void RebaseTurn(InputFrame frame)
     {
         turnStartInputOrientation = TurnInputOrientation(frame);
-        turnStartOffsetOrientation = Offset.Orientation;
+        turnStartOffsetOrientation = targetOffset.Orientation;
         previousTurnHeadPosition = frame.Head.Position;
         hasPreviousTurnHeadPosition = true;
+        turnFollowerUsesHeadSmoothing = turnHands == BothHands;
     }
 
-    private void ApplyDrag(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
+    private void ApplyDrag(InputFrame frame)
     {
         float amount = dragHands == BothHands ? 2 : 1;
         float targetY = dragStartOffsetY -
             (HandPosition(frame, dragHands).Y - dragStartY) * amount;
-        var position = Offset.Position;
-        position.Y = settings.DragSmoothSeconds <= 0
-            ? targetY
-            : float.Lerp(
-                position.Y,
-                targetY,
-                FreeFlightManipulator.SmoothingAlpha(settings.DragSmoothSeconds, elapsedSeconds));
-        Offset = Offset with { Position = position };
+        var position = targetOffset.Position;
+        position.Y = targetY;
+        targetOffset = targetOffset with { Position = position };
     }
 
-    private void ApplyTurn(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
+    private void ApplyTurn(InputFrame frame, InfiniteWalkingSettings settings)
     {
         Vector3 headMovement = hasPreviousTurnHeadPosition
             ? frame.Head.Position - previousTurnHeadPosition
@@ -108,26 +118,48 @@ public sealed class InfiniteWalkingManipulator
         Quaternion yaw = FreeFlightManipulator.TwistAroundAxis(inputDelta, Vector3.UnitY);
         Quaternion target = Quaternion.Normalize(
             turnStartOffsetOrientation * Quaternion.Conjugate(yaw));
-        float smoothSeconds = turnHands == BothHands
-            ? settings.TurnHeadSmoothSeconds
-            : settings.TurnSmoothSeconds;
-        Quaternion rotation = smoothSeconds <= 0
-            ? target
-            : Quaternion.Normalize(Quaternion.Slerp(
-                Offset.Orientation,
-                target,
-                FreeFlightManipulator.SmoothingAlpha(smoothSeconds, elapsedSeconds)));
-        bool rotated = 1 - MathF.Abs(Quaternion.Dot(Offset.Orientation, rotation)) > 0.0000001f;
+        bool rotated = 1 - MathF.Abs(Quaternion.Dot(targetOffset.Orientation, target)) > 0.0000001f;
         Vector3 pivot = frame.Head.Position;
-        Vector3 pivotInRoot = Offset.Transform(pivot);
-        Vector3 position = pivotInRoot - Vector3.Transform(pivot, rotation);
+        Vector3 pivotInRoot = targetOffset.Transform(pivot);
+        Vector3 position = pivotInRoot - Vector3.Transform(pivot, target);
         if (rotated && settings.TurnMovementBoostMultiplier > 0)
         {
-            Vector3 boost = Vector3.Transform(headMovement, Offset.Orientation);
+            Vector3 boost = Vector3.Transform(headMovement, targetOffset.Orientation);
             boost.Y = 0;
             position += boost * settings.TurnMovementBoostMultiplier;
         }
-        Offset = new(rotation, position);
+        targetOffset = new(target, position);
+        turnFollowerUsesHeadSmoothing = turnHands == BothHands;
+    }
+
+    private void FollowTarget(float elapsedSeconds, InfiniteWalkingSettings settings)
+    {
+        float turnSmoothSeconds = turnFollowerUsesHeadSmoothing
+            ? settings.TurnHeadSmoothSeconds
+            : settings.TurnSmoothSeconds;
+        var position = new Vector3(
+            MotionSmoothing.Follow(
+                Offset.Position.X,
+                targetOffset.Position.X,
+                turnSmoothSeconds,
+                elapsedSeconds),
+            MotionSmoothing.Follow(
+                Offset.Position.Y,
+                targetOffset.Position.Y,
+                settings.DragSmoothSeconds,
+                elapsedSeconds),
+            MotionSmoothing.Follow(
+                Offset.Position.Z,
+                targetOffset.Position.Z,
+                turnSmoothSeconds,
+                elapsedSeconds));
+        Offset = new(
+            MotionSmoothing.Follow(
+                Offset.Orientation,
+                targetOffset.Orientation,
+                turnSmoothSeconds,
+                elapsedSeconds),
+            position);
     }
 
     private byte ActiveHands(InputFrame frame, bool drag, byte previous)

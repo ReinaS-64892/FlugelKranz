@@ -244,14 +244,28 @@ public class InertiaTests
     }
 
     [Fact]
-    public void DragSmoothingPreservesControllerDistance()
+    public void DragSmoothingFollowsTheAbsoluteTargetAndSettlesExactly()
     {
-        var settings = Unfiltered with { DragSmoothSeconds = 0.05f };
+        var settings = Unfiltered with
+        {
+            DragAccelerationMultiplier = 0,
+            DragSmoothSeconds = 0.05f
+        };
         var engine = BeginDrag(settings);
+        var movedFrame = Frame(leftX: 1, leftGrip: 1);
 
-        var moved = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.05f, settings);
+        var moved = engine.Update(movedFrame, 0.05f, settings);
+        float alpha = 1 - MathF.Exp(-1);
+        Near(new(-alpha, 0, 0), moved.Position);
 
-        Near(new(-1, 0, 0), moved.Position);
+        var releasedFrame = Frame(leftX: 1);
+        for (int step = 0; step < 20; step++)
+            engine.Update(releasedFrame, 0.05f, settings);
+        Assert.Equal(new Vector3(-1, 0, 0), engine.Offset.Position);
+
+        var settled = engine.Offset;
+        for (int step = 0; step < 20; step++)
+            Assert.Equal(settled, engine.Update(releasedFrame, 0.05f, settings));
     }
 
     [Fact]
@@ -263,7 +277,12 @@ public class InertiaTests
 
         var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
 
-        Near(moved.Position + new Vector3(-1, 0, 0), released.Position);
+        float alpha = 1 - MathF.Exp(-0.1f);
+        Near(Vector3.Lerp(moved.Position, new(-2, 0, 0), alpha), released.Position);
+        Near(new(-3, 0, 0), engine.Update(
+            Frame(leftX: 1),
+            0.1f,
+            settings with { DragSmoothSeconds = 0 }).Position);
     }
 
     [Fact]
@@ -565,8 +584,16 @@ public class InertiaTests
 
         var released = engine.Update(Frame(rightRotation: controllerRotation), 0.1f, settings);
 
-        var expected = Integrate(moved.Orientation, new(0, 0, -2), 0.1f);
+        float alpha = 1 - MathF.Exp(-0.1f);
+        var target = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.4f);
+        var expected = Quaternion.Normalize(Quaternion.Slerp(moved.Orientation, target, alpha));
         Near(expected, released.Orientation);
+        Near(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.6f),
+            engine.Update(
+                Frame(rightRotation: controllerRotation),
+                0.1f,
+                settings with { TurnSmoothSeconds = 0 }).Orientation);
     }
 
     [Theory]

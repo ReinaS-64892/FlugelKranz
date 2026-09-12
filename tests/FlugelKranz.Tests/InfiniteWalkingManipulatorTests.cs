@@ -117,6 +117,30 @@ public class InfiniteWalkingManipulatorTests
     }
 
     [Fact]
+    public void DragSmoothingFollowsTheAbsoluteTargetAndStopsAfterSettling()
+    {
+        var settings = Direct with { DragSmoothSeconds = 0.05f };
+        var engine = Armed();
+        engine.Update(Frame(leftDrag: 1), 0.05f, settings);
+        var movedFrame = Frame(leftDrag: 1) with
+        {
+            Left = Hand(Left with { Position = Left.Position + Vector3.UnitY }, drag: 1)
+        };
+
+        var moved = engine.Update(movedFrame, 0.05f, settings);
+
+        float alpha = 1 - MathF.Exp(-1);
+        Near(new(0, -alpha, 0), moved.Position);
+        for (int step = 0; step < 20; step++)
+            engine.Update(movedFrame, 0.05f, settings);
+        Assert.Equal(new Vector3(0, -1, 0), engine.Offset.Position);
+
+        var settled = engine.Offset;
+        for (int step = 0; step < 20; step++)
+            Assert.Equal(settled, engine.Update(movedFrame, 0.05f, settings));
+    }
+
+    [Fact]
     public void TwoHandDragUsesMidpointAndDoublesItsMovement()
     {
         var engine = Armed();
