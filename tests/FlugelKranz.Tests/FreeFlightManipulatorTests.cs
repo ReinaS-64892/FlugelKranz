@@ -300,6 +300,51 @@ public class FreeFlightManipulatorTests
     }
 
     [Fact]
+    public void SmoothedMixedDragAndTurnFollowsTheDragPointWithoutLateralWobble()
+    {
+        var settings = HeadOrigin with
+        {
+            DragSmoothSeconds = 0.01f,
+            TurnSmoothSeconds = 0.05f
+        };
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        engine.Update(Frame(), 0.01f, settings);
+        engine.Update(Frame(1, 1), 0.01f, settings);
+        float dragAlpha = 1 - MathF.Exp(-1);
+
+        for (int step = 1; step <= 8; step++)
+        {
+            float amount = step / 8f;
+            var movedLeft = Left with
+            {
+                Position = Left.Position + new Vector3(amount, amount * 0.5f, -amount * 0.25f)
+            };
+            var movedRight = Right with
+            {
+                Orientation = Quaternion.CreateFromYawPitchRoll(
+                    amount * 0.8f,
+                    amount * 0.5f,
+                    -amount * 0.4f)
+            };
+            Vector3 expectedDragPoint = Vector3.Lerp(
+                engine.Offset.Transform(movedLeft.Position),
+                Left.Position,
+                dragAlpha);
+
+            var offset = engine.Update(
+                new(
+                    Head,
+                    true,
+                    new(movedLeft, 1, 0, 0, true),
+                    new(movedRight, 0, 1, 0, true)),
+                0.01f,
+                settings);
+
+            Near(expectedDragPoint, offset.Transform(movedLeft.Position));
+        }
+    }
+
+    [Fact]
     public void ExistingOffsetAndRotatedCoordinatesArePreserved()
     {
         var initial = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 0.5f, 0.6f), new(2, 3, 4));

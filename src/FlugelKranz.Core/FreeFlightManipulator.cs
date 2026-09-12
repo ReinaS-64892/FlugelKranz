@@ -275,7 +275,17 @@ public sealed class FreeFlightManipulator
             settings.TurnSmoothSeconds,
             elapsedSeconds);
         Vector3 position;
-        if (positionTargetUsesDragSmoothing)
+        if (IsDragging)
+        {
+            Vector3 dragPoint = HandPosition(frame, dragHands);
+            Vector3 dragPointInRoot = MotionSmoothing.Follow(
+                Offset.Transform(dragPoint),
+                dragAnchorInRoot,
+                settings.DragSmoothSeconds,
+                elapsedSeconds);
+            position = dragPointInRoot - Vector3.Transform(dragPoint, orientation);
+        }
+        else if (positionTargetUsesDragSmoothing)
         {
             position = MotionSmoothing.Follow(
                 Offset.Position,
