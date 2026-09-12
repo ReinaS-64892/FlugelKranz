@@ -140,6 +140,18 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             new TextBlock().Text("操作状態").FontWeight(FontWeight.SemiBold),
             new TextBlock().Text(model, x => x.LeftStatus),
             new TextBlock().Text(model, x => x.RightStatus),
+            new TextBlock().Text(model, x => x.ValveIndexForceStatus)
+                .IsVisible(model, x => x.IsValveIndexDetected),
+            Divider(),
+            Header("Valve Index 専用入力"),
+            Row(model, x => x.ValveIndexPositionDeadZoneLabel,
+                new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.ValveIndexPositionDeadZone),
+                ResetButton(model, x => x.ResetValveIndexPositionDeadZoneCommand)),
+            Row(model, x => x.ValveIndexForceThresholdLabel,
+                new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.ValveIndexForceThreshold),
+                ResetButton(model, x => x.ResetValveIndexForceThresholdCommand)),
             Divider(),
             Header("動作モード"),
             Row(model, x => x.ModeDescription, new Button().Content("I / F 切替")

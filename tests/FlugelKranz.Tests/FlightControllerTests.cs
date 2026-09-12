@@ -129,6 +129,33 @@ public class FlightControllerTests
         Assert.Contains(progress.Statuses, s => s.Message.Contains("戻しています"));
     }
 
+    [Fact]
+    public async Task ReportsActiveValveIndexForceForBothHands()
+    {
+        var runtime = new FakeRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        runtime.Frame = Frame(0, 0) with
+        {
+            Left = new(RigidPose.Identity, 0, 0, 0, true)
+            {
+                TrackpadForceActive = true,
+                TrackpadForce = 0.42f
+            },
+            Right = new(RigidPose.Identity, 0, 0, 0, true)
+            {
+                TrackpadForceActive = true,
+                TrackpadForce = 0.87f
+            }
+        };
+
+        await Wait(() => progress.Statuses.Any(s =>
+            s.LeftTrackpadForce == 0.42f && s.RightTrackpadForce == 0.87f));
+    }
+
     private static InputFrame Frame(float grip, float x) => new(RigidPose.Identity, true,
         new(new(Quaternion.Identity, new(x, 0, 0)), grip, 0, 0, true),
         new(RigidPose.Identity, 0, 0, 0, true));

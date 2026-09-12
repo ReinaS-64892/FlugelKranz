@@ -10,6 +10,7 @@ namespace FlugelKranz.OpenXR;
 /// <summary>A non-rendering OpenXR input client; never requests primary/focused status from libmonado.</summary>
 public sealed unsafe class OpenXrInput : IDisposable
 {
+    private readonly Func<ValveIndexInputSettings> getValveIndexSettings;
     private XrInstance instance;
     private XrSession session;
     private XrActionSet actionSet;
@@ -32,8 +33,9 @@ public sealed unsafe class OpenXrInput : IDisposable
     private struct Timespec { public long Seconds, Nanoseconds; }
     [DllImport("libc", SetLastError = true)] private static extern int clock_gettime(int clockId, out Timespec time);
 
-    public OpenXrInput()
+    public OpenXrInput(Func<ValveIndexInputSettings>? getValveIndexSettings = null)
     {
+        this.getValveIndexSettings = getValveIndexSettings ?? (() => ValveIndexInputSettings.Default);
         try
         {
             CreateInstance();
@@ -198,10 +200,15 @@ public sealed unsafe class OpenXrInput : IDisposable
         long time;
         Check(convertTime(instance, &now, &time), "OpenXR 時刻の変換");
         var (head, tracked) = Locate(view, time);
-        return new(head, tracked, ReadHand(hands[0], time), ReadHand(hands[1], time));
+        var valveIndexSettings = getValveIndexSettings().Normalized();
+        return new(
+            head,
+            tracked,
+            ReadHand(hands[0], time, valveIndexSettings),
+            ReadHand(hands[1], time, valveIndexSettings));
     }
 
-    private HandSample ReadHand(Hand hand, long time)
+    private HandSample ReadHand(Hand hand, long time, ValveIndexInputSettings valveIndexSettings)
     {
         var get = new XrActionStateGetInfo { type = XrStructureType.XR_TYPE_ACTION_STATE_GET_INFO, action = hand.Pose };
         var poseState = new XrActionStatePose { type = XrStructureType.XR_TYPE_ACTION_STATE_POSE };
@@ -222,13 +229,18 @@ public sealed unsafe class OpenXrInput : IDisposable
                 trackpadForce.Value,
                 thumbRest.Value,
                 triggerTouch.Value,
-                thumbRest.Active && triggerTouch.Active));
+                thumbRest.Active && triggerTouch.Active),
+            valveIndexSettings);
         return new(
             pose,
             actions.Drag ? 1 : 0,
             actions.Turn ? 1 : 0,
             actions.ModeSwitch ? 1 : 0,
-            tracked);
+            tracked)
+        {
+            TrackpadForceActive = trackpadForce.Active,
+            TrackpadForce = trackpadForce.Value
+        };
     }
 
     private (bool Active, float Value) ReadFloat(XrAction action)

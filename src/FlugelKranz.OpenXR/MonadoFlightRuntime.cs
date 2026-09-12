@@ -11,12 +11,14 @@ public sealed class MonadoFlightRuntime : IFlightRuntime
     public RigidPose CurrentOffset => monado.CurrentOffset;
     public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => monado.TrackingOrigins;
 
-    public MonadoFlightRuntime(string libraryPath)
+    public MonadoFlightRuntime(
+        string libraryPath,
+        Func<ValveIndexInputSettings>? getValveIndexSettings = null)
     {
         monado = new(libraryPath);
         try
         {
-            input = new();
+            input = new(getValveIndexSettings);
             try { monado.VerifyClient(input.ApplicationName); }
             catch { input.Dispose(); throw; }
         }

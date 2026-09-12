@@ -1,4 +1,5 @@
 using System.Numerics;
+using FlugelKranz.Core;
 using FlugelKranz.OpenXR;
 using Xunit;
 
@@ -6,6 +7,13 @@ namespace FlugelKranz.Tests;
 
 public class ControllerInputMappingTests
 {
+    [Fact]
+    public void ValveIndexDefaultsMatchUiParameters()
+    {
+        Assert.Equal(0.3f, ValveIndexInputSettings.Default.PositionDeadZone);
+        Assert.Equal(0.5f, ValveIndexInputSettings.Default.ForceThreshold);
+    }
+
     [Theory]
     [InlineData(ControllerHand.Left, -1, 0, false, true)]
     [InlineData(ControllerHand.Left, 1, 0, true, false)]
@@ -98,7 +106,8 @@ public class ControllerInputMappingTests
     {
         var result = ControllerInputMapping.Map(
             ControllerHand.Left,
-            new(new(1, 0), true, force, false, false, false));
+            new(new(1, 0), true, force, false, false, false),
+            ValveIndexInputSettings.Default with { ForceThreshold = 0.75f });
 
         Assert.Equal(default, result);
     }
@@ -108,8 +117,24 @@ public class ControllerInputMappingTests
     {
         var result = ControllerInputMapping.Map(
             ControllerHand.Left,
-            new(new(1, 0), true, 0.75f, false, false, false));
+            new(new(1, 0), true, 0.75f, false, false, false),
+            ValveIndexInputSettings.Default with { ForceThreshold = 0.75f });
 
         Assert.True(result.Drag);
+    }
+
+    [Fact]
+    public void CustomPositionDeadZoneIsApplied()
+    {
+        var input = new ControllerInputState(new(0.6f, 0), true, 1, false, false, false);
+
+        Assert.True(ControllerInputMapping.Map(
+            ControllerHand.Left,
+            input,
+            ValveIndexInputSettings.Default with { PositionDeadZone = 0.5f }).Drag);
+        Assert.False(ControllerInputMapping.Map(
+            ControllerHand.Left,
+            input,
+            ValveIndexInputSettings.Default with { PositionDeadZone = 0.7f }).Drag);
     }
 }

@@ -81,6 +81,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ValveIndexPositionDeadZoneLabel))]
+    private double valveIndexPositionDeadZone = 0.3;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ValveIndexForceThresholdLabel))]
+    private double valveIndexForceThreshold = 0.5;
+    [ObservableProperty] private bool isValveIndexDetected;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ValveIndexForceStatus))]
+    private double leftValveIndexForce;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ValveIndexForceStatus))]
+    private double rightValveIndexForce;
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
     public string ModeLabel => Mode == FlightMode.InfiniteWalking ? "I" : "F";
     public string ModeDescription => Mode == FlightMode.InfiniteWalking ? "無限歩行モード" : "自由飛行モード";
@@ -104,6 +117,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string InfiniteTurnSmoothLabel => $"Turn: {InfiniteTurnSmoothSeconds:0.00} 秒";
     public string InfiniteTurnHeadSmoothLabel => $"Turn Head: {InfiniteTurnHeadSmoothSeconds:0.00} 秒";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
+    public string ValveIndexPositionDeadZoneLabel => $"位置デッドゾーン: {ValveIndexPositionDeadZone:0.00}";
+    public string ValveIndexForceThresholdLabel => $"Force 閾値: {ValveIndexForceThreshold:0.00}";
+    public string ValveIndexForceStatus =>
+        $"Valve Index force — 左: {LeftValveIndexForce:0.00} / 右: {RightValveIndexForce:0.00}";
 
     public MainViewModel(string libraryPath, string? settingsPath = null)
     {
@@ -111,7 +128,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ApplySettings(settingsStore.Load());
         PropertyChanged += SettingsChanged;
         controller = new(
-            () => new MonadoFlightRuntime(libraryPath),
+            () => new MonadoFlightRuntime(libraryPath, CreateValveIndexSettings),
             new UiProgress(Update),
             CreateSettings);
         if (File.Exists(libraryPath))
@@ -137,6 +154,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
             nameof(InfiniteDragSmoothSeconds) or nameof(InfiniteTurnSmoothSeconds) or
             nameof(InfiniteTurnHeadSmoothSeconds) or
+            nameof(ValveIndexPositionDeadZone) or nameof(ValveIndexForceThreshold) or
             nameof(BrakeRampSeconds)))
             return;
 
@@ -169,6 +187,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InfiniteDragSmoothSeconds = Math.Round(root.InfiniteWalking.DragSmoothSeconds, 6);
         InfiniteTurnSmoothSeconds = Math.Round(root.InfiniteWalking.TurnSmoothSeconds, 6);
         InfiniteTurnHeadSmoothSeconds = Math.Round(root.InfiniteWalking.TurnHeadSmoothSeconds, 6);
+        ValveIndexPositionDeadZone = Math.Round(root.ValveIndex.PositionDeadZone, 6);
+        ValveIndexForceThreshold = Math.Round(root.ValveIndex.ForceThreshold, 6);
     }
 
     private void ResetToDefaults(Action<FlightMotionSettings> apply)
@@ -198,6 +218,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
+    [RelayCommand] private void ResetValveIndexPositionDeadZone() => ValveIndexPositionDeadZone = ValveIndexInputSettings.Default.PositionDeadZone;
+    [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = ValveIndexInputSettings.Default.ForceThreshold;
     [RelayCommand] private void ResetMode() => Mode = FlightMode.InfiniteWalking;
 
     [RelayCommand]
@@ -270,6 +292,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Status = state.Message;
         LeftStatus = state.Dragging ? "Space Drag — 操作中" : "左右の操作入力から Drag";
         RightStatus = state.Turning ? "Space Turn — 操作中" : "左右の操作入力から Turn";
+        IsValveIndexDetected = state.LeftTrackpadForce.HasValue || state.RightTrackpadForce.HasValue;
+        LeftValveIndexForce = state.LeftTrackpadForce ?? 0;
+        RightValveIndexForce = state.RightTrackpadForce ?? 0;
     }
 
     private FlugelKranzSettings CreateSettings() => new()
@@ -301,7 +326,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             DragSmoothSeconds = (float)InfiniteDragSmoothSeconds,
             TurnSmoothSeconds = (float)InfiniteTurnSmoothSeconds,
             TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds
-        }
+        },
+        ValveIndex = CreateValveIndexSettings()
+    };
+
+    private ValveIndexInputSettings CreateValveIndexSettings() => new()
+    {
+        PositionDeadZone = (float)ValveIndexPositionDeadZone,
+        ForceThreshold = (float)ValveIndexForceThreshold
     };
 
     public async ValueTask DisposeAsync()

@@ -80,12 +80,14 @@ public sealed record FlugelKranzSettings
     public FlightMode Mode { get; init; } = FlightMode.InfiniteWalking;
     public FlightMotionSettings FreeFlight { get; init; } = FlightMotionSettings.Default;
     public InfiniteWalkingSettings InfiniteWalking { get; init; } = InfiniteWalkingSettings.Default;
+    public ValveIndexInputSettings ValveIndex { get; init; } = ValveIndexInputSettings.Default;
 
     public FlugelKranzSettings Normalized() => this with
     {
         SchemaVersion = CurrentSchemaVersion,
         Mode = Enum.IsDefined(Mode) ? Mode : FlightMode.InfiniteWalking,
         FreeFlight = (FreeFlight ?? FlightMotionSettings.Default).Normalized(),
-        InfiniteWalking = (InfiniteWalking ?? InfiniteWalkingSettings.Default).Normalized()
+        InfiniteWalking = (InfiniteWalking ?? InfiniteWalkingSettings.Default).Normalized(),
+        ValveIndex = (ValveIndex ?? ValveIndexInputSettings.Default).Normalized()
     };
 }

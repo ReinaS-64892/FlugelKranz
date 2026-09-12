@@ -38,13 +38,13 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 
 ## 設定保存
 
-設定値は変更時に JSON へ保存し、次回起動時に復元します。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。設定は `schemaVersion`、`mode`、`freeFlight`、`infiniteWalking` の階層を持ち、両モードの値を混在させません。今回のモード導入以前の平坦な設定は互換読み込みせず、現在の既定値で初期化して上書きします。保存形式や `SettingsStore` を変更した場合は、現行形式の読み書きと旧形式の移行をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
+設定値は変更時に JSON へ保存し、次回起動時に復元します。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。設定は `schemaVersion`、`mode`、`freeFlight`、`infiniteWalking`、`valveIndex` の階層を持ち、モード別の値と機器固有の入力値を混在させません。今回のモード導入以前の平坦な設定は互換読み込みせず、現在の既定値で初期化して上書きします。保存形式や `SettingsStore` を変更した場合は、現行形式の読み書きと旧形式の移行をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
 
 ## UI 方針
 
 [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) は `UseWayland()` を明示的に選択し、XWayland へ自動フォールバックしません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm を使い、View とバインディングは基本的に C# で記述します。FluentTheme の Light / Dark テーマ辞書を使い、既定は白い Light テーマにします。状態色はテーマリソースから取得し、個別の固定色を場当たり的に追加しません。
 
-メイン画面は大きな ON/OFF ボタン、その左の現在モードを示す円形 `I` / `F` 切替ボタン、その右の円形の設定 `⚙`・位置姿勢リセット `↻` ボタンを配置します。設定と位置姿勢リセットは中央線の上下に縦配置します。初期ウィンドウは横長（1100×650）とし、設定パネルはメイン領域を左へ押し出して幅の約80%を占め、幅720px以下では全幅にします。設定項目はモードごとの区切りとグループを明示し、ラベル・操作部・小さな正方形の初期値リセットを同じ行で揃えます。設定スクロールバーは常時表示（`AllowAutoHide = false`）とし、操作部と重ならない右マージンを確保します。
+メイン画面は大きな ON/OFF ボタン、その左の現在モードを示す円形 `I` / `F` 切替ボタン、その右の円形の設定 `⚙`・位置姿勢リセット `↻` ボタンを配置します。設定と位置姿勢リセットは中央線の上下に縦配置します。初期ウィンドウは横長（1100×650）とし、設定パネルはメイン領域を左へ押し出して幅の約80%を占め、幅720px以下では全幅にします。設定項目はモードごとの区切りとグループを明示し、ラベル・操作部・小さな正方形の初期値リセットを同じ行で揃えます。Valve Index が有効な間は操作状態に左右の trackpad force を表示し、専用グループで位置デッドゾーンと感圧閾値を調整可能にします。設定スクロールバーは常時表示（`AllowAutoHide = false`）とし、操作部と重ならない右マージンを確保します。
 
 ## ビルド・開発コマンド
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using FlugelKranz.Core;
 
 namespace FlugelKranz.OpenXR;
 
@@ -21,17 +22,19 @@ public readonly record struct ManipulationActions(bool Drag, bool Turn, bool Mod
 /// <summary>Maps interaction-profile controls to logical actions used by the motion engines.</summary>
 public static class ControllerInputMapping
 {
-    private const float TrackpadCenterRadius = 0.3f;
-    private const float TrackpadForceThreshold = 0.75f;
-
-    public static ManipulationActions Map(ControllerHand hand, ControllerInputState input)
+    public static ManipulationActions Map(
+        ControllerHand hand,
+        ControllerInputState input,
+        ValveIndexInputSettings? valveIndexSettings = null)
     {
+        var settings = (valveIndexSettings ?? ValveIndexInputSettings.Default).Normalized();
         bool touchDrag = input.TouchInputsActive && input.ThumbRestTouched && input.TriggerTouched;
         bool touchTurn = input.TouchInputsActive && input.ThumbRestTouched && !input.TriggerTouched;
         var dpad = TrackpadDpad(
             input.TrackpadPosition,
             input.TrackpadTouched,
-            input.TrackpadForce);
+            input.TrackpadForce,
+            settings);
         bool indexDrag = hand == ControllerHand.Left ? dpad.Right : dpad.Left;
         bool indexTurn = hand == ControllerHand.Left ? dpad.Left : dpad.Right;
         return new(indexDrag || touchDrag, indexTurn || touchTurn, dpad.Down);
@@ -40,11 +43,12 @@ public static class ControllerInputMapping
     private static (bool Left, bool Right, bool Down) TrackpadDpad(
         Vector2 position,
         bool touched,
-        float force)
+        float force,
+        ValveIndexInputSettings settings)
     {
-        if (!touched || !float.IsFinite(force) || force < TrackpadForceThreshold ||
+        if (!touched || !float.IsFinite(force) || force < settings.ForceThreshold ||
             !float.IsFinite(position.X) || !float.IsFinite(position.Y) ||
-            position.LengthSquared() < TrackpadCenterRadius * TrackpadCenterRadius)
+            position.LengthSquared() < settings.PositionDeadZone * settings.PositionDeadZone)
             return default;
 
         if (MathF.Abs(position.X) >= MathF.Abs(position.Y))

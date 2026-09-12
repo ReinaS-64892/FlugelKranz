@@ -17,7 +17,9 @@ public sealed record FlightStatus(
     string Message,
     bool Dragging = false,
     bool Turning = false,
-    FlightMode Mode = FlightMode.InfiniteWalking);
+    FlightMode Mode = FlightMode.InfiniteWalking,
+    float? LeftTrackpadForce = null,
+    float? RightTrackpadForce = null);
 
 /// <summary>Owns the runtime on one worker. Off retains the offset; reset restores it without disabling the controller.</summary>
 public sealed class FlightController(
@@ -191,7 +193,15 @@ public sealed class FlightController(
                             : !frame.HeadTracked ? "HMD のトラッキングを待っています。"
                             : !frame.Left.IsTracked || !frame.Right.IsTracked ? "コントローラーの姿勢・操作入力を待っています。"
                             : "オン — 操作入力を一度離してから使用してください。";
-                        progress.Report(new(enabled, true, message, dragging, turning, selectedMode));
+                        progress.Report(new(
+                            enabled,
+                            true,
+                            message,
+                            dragging,
+                            turning,
+                            selectedMode,
+                            TrackpadForce(frame.Left),
+                            TrackpadForce(frame.Right)));
                     }
                 }
                 await Task.Delay(10, shutdown.Token).ConfigureAwait(false);
@@ -227,6 +237,11 @@ public sealed class FlightController(
         frame.Right.IsTracked && frame.Right.Pose.IsValid &&
         float.IsFinite(frame.Left.ModeSwitch) && frame.Left.ModeSwitch >= 0.65f &&
         float.IsFinite(frame.Right.ModeSwitch) && frame.Right.ModeSwitch >= 0.65f;
+
+    private static float? TrackpadForce(HandSample hand) =>
+        hand.TrackpadForceActive && float.IsFinite(hand.TrackpadForce)
+            ? Math.Clamp(hand.TrackpadForce, 0, 1)
+            : null;
 
     private static string ModeChangedMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
         ? "無限歩行モードへ切り替えました。操作入力を離してから使用してください。"

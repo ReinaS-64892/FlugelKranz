@@ -52,6 +52,8 @@ public class MainViewTests
         Assert.Equal(0.01, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0.05, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0.02, vm.InfiniteTurnHeadSmoothSeconds);
+        Assert.Equal(0.3, vm.ValveIndexPositionDeadZone);
+        Assert.Equal(0.5, vm.ValveIndexForceThreshold);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -93,7 +95,7 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(17, sliders.Length);
+            Assert.Equal(19, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -103,6 +105,13 @@ public class MainViewTests
             Assert.True(vm.UseHeadTurnOrigin);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "倍率: 1.00");
+            vm.IsValveIndexDetected = true;
+            vm.LeftValveIndexForce = 0.42;
+            vm.RightValveIndexForce = 0.87;
+            var forceStatus = Assert.Single(
+                window.GetVisualDescendants().OfType<TextBlock>(),
+                t => t.Text == "Valve Index force — 左: 0.42 / 右: 0.87");
+            Assert.True(forceStatus.IsVisible);
             vm.ToggleModeCommand.Execute(null);
             Assert.Equal(FlightMode.FreeFlight, vm.Mode);
             Assert.Equal("F", mode.Content);
@@ -192,6 +201,8 @@ public class MainViewTests
                 first.InertiaAccelerationBoostMaximumMultiplier = 3.25;
                 first.BrakeRampSeconds = 0.75;
                 first.InfiniteTurnHeadSmoothSeconds = 0.4;
+                first.ValveIndexPositionDeadZone = 0.44;
+                first.ValveIndexForceThreshold = 0.62;
             }
 
             await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
@@ -204,6 +215,8 @@ public class MainViewTests
             Assert.Equal(3.25, second.InertiaAccelerationBoostMaximumMultiplier);
             Assert.Equal(0.75, second.BrakeRampSeconds);
             Assert.Equal(0.4, second.InfiniteTurnHeadSmoothSeconds);
+            Assert.Equal(0.44, second.ValveIndexPositionDeadZone);
+            Assert.Equal(0.62, second.ValveIndexForceThreshold);
 
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
             Assert.Equal(FlugelKranzSettings.CurrentSchemaVersion,
@@ -212,6 +225,8 @@ public class MainViewTests
                 document.RootElement.GetProperty("freeFlight").ValueKind);
             Assert.Equal(JsonValueKind.Object,
                 document.RootElement.GetProperty("infiniteWalking").ValueKind);
+            Assert.Equal(JsonValueKind.Object,
+                document.RootElement.GetProperty("valveIndex").ValueKind);
         }
         finally
         {
@@ -243,6 +258,7 @@ public class MainViewTests
                 document.RootElement.GetProperty("schemaVersion").GetInt32());
             Assert.True(document.RootElement.TryGetProperty("freeFlight", out _));
             Assert.True(document.RootElement.TryGetProperty("infiniteWalking", out _));
+            Assert.True(document.RootElement.TryGetProperty("valveIndex", out _));
             Assert.False(document.RootElement.TryGetProperty("stepMode", out _));
         }
         finally
@@ -260,17 +276,22 @@ public class MainViewTests
         vm.ZAccelerationMultiplier = 4;
         vm.InertiaAccelerationBoostEnabled = false;
         vm.InertiaAccelerationBoostMaximumMultiplier = 3;
+        vm.ValveIndexPositionDeadZone = 0.8;
+        vm.ValveIndexForceThreshold = 0.9;
 
         vm.ResetDragCutoffCommand.Execute(null);
         vm.ResetZAccelerationCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostEnabledCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostMaximumMultiplierCommand.Execute(null);
+        vm.ResetValveIndexForceThresholdCommand.Execute(null);
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.Equal(0.8, vm.ValveIndexPositionDeadZone);
+        Assert.Equal(0.5, vm.ValveIndexForceThreshold);
     }
 
     [AvaloniaFact]
