@@ -27,6 +27,7 @@ public sealed record FlightMotionSettings
     public float InertiaAccelerationBoostMaximumMultiplier { get; init; } = 4;
     public float VectorRotationMultiplier { get; init; } = 1;
     public float InertiaDecelerationPerSecond { get; init; } = 2;
+    public float InertiaStopDisplacementMetres { get; init; } = 0.001f;
     public bool DecelerationExemptionEnabled { get; init; } = true;
     public float DragDecelerationExemptionDurationRatio { get; init; } = 0.2f;
     public float TurnDecelerationExemptionDurationRatio { get; init; } = 0.15f;
@@ -46,6 +47,7 @@ public sealed record FlightMotionSettings
         InertiaAccelerationBoostMaximumMultiplier = Math.Clamp(InertiaAccelerationBoostMaximumMultiplier, 1, 6),
         VectorRotationMultiplier = Math.Clamp(VectorRotationMultiplier, 0, 1),
         InertiaDecelerationPerSecond = Math.Clamp(InertiaDecelerationPerSecond, 0, 10),
+        InertiaStopDisplacementMetres = Math.Clamp(InertiaStopDisplacementMetres, 0.000001f, 0.001f),
         DragDecelerationExemptionDurationRatio = Math.Clamp(DragDecelerationExemptionDurationRatio, 0, 1),
         TurnDecelerationExemptionDurationRatio = Math.Clamp(TurnDecelerationExemptionDurationRatio, 0, 1),
         DecelerationExemptionStrength = Math.Clamp(DecelerationExemptionStrength, 0, 1),

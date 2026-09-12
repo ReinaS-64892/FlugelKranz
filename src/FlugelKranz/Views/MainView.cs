@@ -219,6 +219,9 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Row(model, x => x.InertiaDecelerationLabel, new Slider().Minimum(0).Maximum(10).TickFrequency(0.01)
                     .Value(model, x => x.InertiaDecelerationPerSecond),
                 ResetButton(model, x => x.ResetDecelerationCommand)),
+            Row(model, x => x.InertiaStopDisplacementLabel, new Slider().Minimum(0.000001).Maximum(0.001).TickFrequency(0.000001)
+                    .Value(model, x => x.InertiaStopDisplacementMetres),
+                ResetButton(model, x => x.ResetInertiaStopDisplacementCommand)),
             Divider(),
             Header("慣性減速免除"),
             Row("有効", new CheckBox().IsChecked(model, x => x.DecelerationExemptionEnabled),

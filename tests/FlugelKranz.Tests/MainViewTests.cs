@@ -96,7 +96,7 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(20, sliders.Length);
+            Assert.Equal(21, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);

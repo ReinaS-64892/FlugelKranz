@@ -8,7 +8,6 @@ public sealed class FreeFlightManipulator
     // Stop feeding imperceptibly small per-update changes to the runtime. The
     // threshold is applied to displacement (or radians), so it follows the
     // actual update interval rather than an arbitrary velocity value.
-    private const float InertiaStopDisplacementCutoff = 0.001f;
     private static readonly FlightMotionSettings DirectManipulationSettings =
         FlightMotionSettings.Default with
         {
@@ -180,7 +179,7 @@ public sealed class FreeFlightManipulator
                 ref linearExemptionSeconds,
                 dt,
                 settings,
-                InertiaStopDisplacementCutoff);
+                settings.InertiaStopDisplacementMetres);
         }
         if (IsTurning)
         {
@@ -199,7 +198,7 @@ public sealed class FreeFlightManipulator
                 ref angularExemptionSeconds,
                 dt,
                 settings,
-                InertiaStopDisplacementCutoff);
+                settings.InertiaStopDisplacementMetres);
         }
         else if (dragHands == BothHands)
         {
@@ -215,7 +214,7 @@ public sealed class FreeFlightManipulator
                 ref angularExemptionSeconds,
                 dt,
                 settings,
-                InertiaStopDisplacementCutoff);
+                settings.InertiaStopDisplacementMetres);
         }
 
         var target = GrabTarget(frame, settings);
@@ -508,14 +507,14 @@ public sealed class FreeFlightManipulator
                 ref linearExemptionSeconds,
                 dt,
                 settings,
-                InertiaStopDisplacementCutoff);
+                settings.InertiaStopDisplacementMetres);
         if (turn)
             ApplyDeceleration(
                 ref angularInertia,
                 ref angularExemptionSeconds,
                 dt,
                 settings,
-                InertiaStopDisplacementCutoff);
+                settings.InertiaStopDisplacementMetres);
     }
 
     private void FinishDrag(RigidPose head, FlightMotionSettings settings)
