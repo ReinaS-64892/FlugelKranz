@@ -88,6 +88,14 @@ public sealed class FreeFlightManipulator
                 rightDragArmed = false;
             dragHands = 0;
         }
+        if (previousTurnHands == BothHands && turnHands is LeftHand or RightHand)
+        {
+            if (turnHands == LeftHand)
+                leftTurnArmed = false;
+            else
+                rightTurnArmed = false;
+            turnHands = 0;
+        }
         bool dragHandsChanged = dragHands != previousDragHands;
         bool turnHandsChanged = turnHands != previousTurnHands;
         bool beganDrag = previousDragHands == 0 && dragHands != 0;

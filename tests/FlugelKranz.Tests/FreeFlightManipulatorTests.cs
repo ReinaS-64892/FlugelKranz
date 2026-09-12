@@ -207,6 +207,41 @@ public class FreeFlightManipulatorTests
     }
 
     [Fact]
+    public void ReleasingOneHandOfTwoHandTurnReleasesTheWholeTurn()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 0, 1, 0, true),
+            new(Right, 0, 1, 0, true));
+        engine.Update(both);
+
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f);
+        var moved = both with
+        {
+            Left = new(Left with { Orientation = rotation }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = rotation }, 0, 1, 0, true)
+        };
+        engine.Update(moved);
+
+        var oneHand = moved with { Left = new(Left, 0, 0, 0, true) };
+        engine.Update(oneHand);
+        Assert.False(engine.IsTurning);
+
+        var stillHeld = oneHand with
+        {
+            Right = new(Right with { Orientation = rotation }, 0, 1, 0, true)
+        };
+        engine.Update(stillHeld);
+        Assert.False(engine.IsTurning);
+
+        engine.Update(stillHeld with { Right = new(Right, 0, 0, 0, true) });
+        engine.Update(stillHeld);
+        Assert.True(engine.IsTurning);
+    }
+
+    [Fact]
     public void AddingSecondTurnHandRebasesWithoutJump()
     {
         var engine = Armed();
