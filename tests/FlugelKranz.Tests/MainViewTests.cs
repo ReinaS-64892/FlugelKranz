@@ -53,7 +53,7 @@ public class MainViewTests
         Assert.Equal(0.05, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0.02, vm.InfiniteTurnHeadSmoothSeconds);
         Assert.Equal(0.3, vm.ValveIndexPositionDeadZone);
-        Assert.Equal(0.5, vm.ValveIndexForceThreshold);
+        Assert.Equal(0.2, vm.ValveIndexForceThreshold);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -291,7 +291,7 @@ public class MainViewTests
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
         Assert.Equal(0.8, vm.ValveIndexPositionDeadZone);
-        Assert.Equal(0.5, vm.ValveIndexForceThreshold);
+        Assert.Equal(0.2, vm.ValveIndexForceThreshold);
     }
 
     [AvaloniaFact]

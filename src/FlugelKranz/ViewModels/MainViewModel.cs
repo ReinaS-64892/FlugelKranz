@@ -86,7 +86,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double valveIndexPositionDeadZone = 0.3;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ValveIndexForceThresholdLabel))]
-    private double valveIndexForceThreshold = 0.5;
+    private double valveIndexForceThreshold = 0.2;
     [ObservableProperty] private bool isValveIndexDetected;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ValveIndexForceStatus))]
@@ -219,7 +219,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
     [RelayCommand] private void ResetValveIndexPositionDeadZone() => ValveIndexPositionDeadZone = ValveIndexInputSettings.Default.PositionDeadZone;
-    [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = ValveIndexInputSettings.Default.ForceThreshold;
+    [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = Math.Round(ValveIndexInputSettings.Default.ForceThreshold, 6);
     [RelayCommand] private void ResetMode() => Mode = FlightMode.InfiniteWalking;
 
     [RelayCommand]

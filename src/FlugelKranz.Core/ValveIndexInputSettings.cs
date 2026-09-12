@@ -5,7 +5,7 @@ public sealed record ValveIndexInputSettings
     public static ValveIndexInputSettings Default { get; } = new();
 
     public float PositionDeadZone { get; init; } = 0.3f;
-    public float ForceThreshold { get; init; } = 0.5f;
+    public float ForceThreshold { get; init; } = 0.2f;
 
     public ValveIndexInputSettings Normalized() => this with
     {

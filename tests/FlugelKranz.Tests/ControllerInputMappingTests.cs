@@ -11,7 +11,7 @@ public class ControllerInputMappingTests
     public void ValveIndexDefaultsMatchUiParameters()
     {
         Assert.Equal(0.3f, ValveIndexInputSettings.Default.PositionDeadZone);
-        Assert.Equal(0.5f, ValveIndexInputSettings.Default.ForceThreshold);
+        Assert.Equal(0.2f, ValveIndexInputSettings.Default.ForceThreshold);
     }
 
     [Theory]
