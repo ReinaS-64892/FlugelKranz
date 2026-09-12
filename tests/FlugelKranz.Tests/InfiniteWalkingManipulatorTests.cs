@@ -25,7 +25,80 @@ public class InfiniteWalkingManipulatorTests
         Assert.Equal(0, settings.DragSmoothSeconds);
         Assert.Equal(0, settings.TurnSmoothSeconds);
         Assert.Equal(0, settings.TurnHeadSmoothSeconds);
+        Assert.Equal(1, settings.TurnMovementBoostMultiplier);
+        Assert.Equal(0, (settings with { TurnMovementBoostMultiplier = -1 }).Normalized().TurnMovementBoostMultiplier);
+        Assert.Equal(2, (settings with { TurnMovementBoostMultiplier = 3 }).Normalized().TurnMovementBoostMultiplier);
         Assert.Equal(FlightMode.InfiniteWalking, FlugelKranzSettings.Default.Mode);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    public void TurnMovementBoostAmplifiesHorizontalHeadMovement(
+        float multiplier,
+        float expectedMovementScale)
+    {
+        var settings = Direct with { TurnMovementBoostMultiplier = multiplier };
+        var initial = new RigidPose(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f),
+            new(2, 0, -1));
+        var engine = new InfiniteWalkingManipulator(initial);
+        engine.Update(Frame(), 0.1f, settings);
+        engine.Update(Frame(leftTurn: 1), 0.1f, settings);
+        var movement = new Vector3(0.2f, 0.3f, -0.4f);
+        var movedHead = Head with { Position = Head.Position + movement };
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f);
+        var moved = Frame(leftTurn: 1) with
+        {
+            Head = movedHead,
+            Left = Hand(Left with { Orientation = yaw }, turn: 1)
+        };
+
+        var offset = engine.Update(moved, 0.1f, settings);
+
+        Vector3 naturalMovement = Vector3.Transform(movement, initial.Orientation);
+        Vector3 expected = initial.Transform(Head.Position) + naturalMovement;
+        naturalMovement.Y = 0;
+        expected += naturalMovement * (expectedMovementScale - 1);
+        Near(expected, offset.Transform(movedHead.Position));
+    }
+
+    [Fact]
+    public void TurnMovementBoostDoesNotAccumulateMovementWithoutRotation()
+    {
+        var engine = Armed();
+        engine.Update(Frame(leftTurn: 1), 0.1f, Direct);
+        var movedHead = Head with { Position = Head.Position + Vector3.UnitX };
+        var translated = Frame(leftTurn: 1) with { Head = movedHead };
+
+        Near(movedHead.Position, engine.Update(translated, 0.1f, Direct).Transform(movedHead.Position));
+
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f);
+        var rotated = translated with
+        {
+            Left = Hand(Left with { Orientation = yaw }, turn: 1)
+        };
+        Near(movedHead.Position, engine.Update(rotated, 0.1f, Direct).Transform(movedHead.Position));
+    }
+
+    [Fact]
+    public void TurnMovementBoostRebasesAfterHeadTrackingReturns()
+    {
+        var engine = Armed();
+        engine.Update(Frame(leftTurn: 1), 0.1f, Direct);
+        engine.Update(Frame(leftTurn: 1) with { HeadTracked = false }, 0.1f, Direct);
+        var recoveredHead = Head with { Position = Head.Position + Vector3.UnitX * 5 };
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f);
+        var recovered = Frame(leftTurn: 1) with
+        {
+            Head = recoveredHead,
+            Left = Hand(Left with { Orientation = yaw }, turn: 1)
+        };
+
+        var offset = engine.Update(recovered, 0.1f, Direct);
+
+        Near(recoveredHead.Position, offset.Transform(recoveredHead.Position));
     }
 
     [Fact]

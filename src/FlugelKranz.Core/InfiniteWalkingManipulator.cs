@@ -12,6 +12,8 @@ public sealed class InfiniteWalkingManipulator
     private byte dragHands, turnHands;
     private float dragStartY, dragStartOffsetY;
     private Quaternion turnStartInputOrientation, turnStartOffsetOrientation;
+    private Vector3 previousTurnHeadPosition;
+    private bool hasPreviousTurnHeadPosition;
 
     public InfiniteWalkingManipulator(RigidPose offset) => SetOffset(offset);
 
@@ -25,6 +27,8 @@ public sealed class InfiniteWalkingManipulator
         leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
         turnStartInputOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragStartY = dragStartOffsetY = 0;
+        previousTurnHeadPosition = Vector3.Zero;
+        hasPreviousTurnHeadPosition = false;
     }
 
     public void SetOffset(RigidPose offset)
@@ -40,7 +44,10 @@ public sealed class InfiniteWalkingManipulator
         settings = settings.Normalized();
         float dt = float.IsFinite(elapsedSeconds) ? MathF.Max(0, elapsedSeconds) : 0;
         if (!frame.HeadTracked || !frame.Head.IsValid)
+        {
+            hasPreviousTurnHeadPosition = false;
             return Offset;
+        }
 
         byte previousDragHands = dragHands;
         byte previousTurnHands = turnHands;
@@ -68,6 +75,8 @@ public sealed class InfiniteWalkingManipulator
     {
         turnStartInputOrientation = TurnInputOrientation(frame);
         turnStartOffsetOrientation = Offset.Orientation;
+        previousTurnHeadPosition = frame.Head.Position;
+        hasPreviousTurnHeadPosition = true;
     }
 
     private void ApplyDrag(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
@@ -87,6 +96,12 @@ public sealed class InfiniteWalkingManipulator
 
     private void ApplyTurn(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
     {
+        Vector3 headMovement = hasPreviousTurnHeadPosition
+            ? frame.Head.Position - previousTurnHeadPosition
+            : Vector3.Zero;
+        previousTurnHeadPosition = frame.Head.Position;
+        hasPreviousTurnHeadPosition = true;
+
         Quaternion currentInput = TurnInputOrientation(frame);
         Quaternion inputDelta = Quaternion.Normalize(
             currentInput * Quaternion.Conjugate(turnStartInputOrientation));
@@ -102,9 +117,16 @@ public sealed class InfiniteWalkingManipulator
                 Offset.Orientation,
                 target,
                 FreeFlightManipulator.SmoothingAlpha(smoothSeconds, elapsedSeconds)));
+        bool rotated = 1 - MathF.Abs(Quaternion.Dot(Offset.Orientation, rotation)) > 0.0000001f;
         Vector3 pivot = frame.Head.Position;
         Vector3 pivotInRoot = Offset.Transform(pivot);
         Vector3 position = pivotInRoot - Vector3.Transform(pivot, rotation);
+        if (rotated && settings.TurnMovementBoostMultiplier > 0)
+        {
+            Vector3 boost = Vector3.Transform(headMovement, Offset.Orientation);
+            boost.Y = 0;
+            position += boost * settings.TurnMovementBoostMultiplier;
+        }
         Offset = new(rotation, position);
     }
 

@@ -79,6 +79,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(InfiniteTurnHeadSmoothLabel))]
     private double infiniteTurnHeadSmoothSeconds;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InfiniteWalkingBoostLabel))]
+    private double infiniteWalkingBoostMultiplier = 1;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;
     [ObservableProperty]
@@ -116,6 +119,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string InfiniteDragSmoothLabel => $"Drag: {InfiniteDragSmoothSeconds:0.00} 秒";
     public string InfiniteTurnSmoothLabel => $"Turn: {InfiniteTurnSmoothSeconds:0.00} 秒";
     public string InfiniteTurnHeadSmoothLabel => $"Turn Head: {InfiniteTurnHeadSmoothSeconds:0.00} 秒";
+    public string InfiniteWalkingBoostLabel => $"補正値: {InfiniteWalkingBoostMultiplier:0.00} 倍";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
     public string ValveIndexPositionDeadZoneLabel => $"位置デッドゾーン: {ValveIndexPositionDeadZone:0.00}";
     public string ValveIndexForceThresholdLabel => $"Force 閾値: {ValveIndexForceThreshold:0.00}";
@@ -153,7 +157,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(DragDecelerationExemptionDurationRatio) or nameof(TurnDecelerationExemptionDurationRatio) or
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
             nameof(InfiniteDragSmoothSeconds) or nameof(InfiniteTurnSmoothSeconds) or
-            nameof(InfiniteTurnHeadSmoothSeconds) or
+            nameof(InfiniteTurnHeadSmoothSeconds) or nameof(InfiniteWalkingBoostMultiplier) or
             nameof(ValveIndexPositionDeadZone) or nameof(ValveIndexForceThreshold) or
             nameof(BrakeRampSeconds)))
             return;
@@ -187,6 +191,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InfiniteDragSmoothSeconds = Math.Round(root.InfiniteWalking.DragSmoothSeconds, 6);
         InfiniteTurnSmoothSeconds = Math.Round(root.InfiniteWalking.TurnSmoothSeconds, 6);
         InfiniteTurnHeadSmoothSeconds = Math.Round(root.InfiniteWalking.TurnHeadSmoothSeconds, 6);
+        InfiniteWalkingBoostMultiplier = Math.Round(root.InfiniteWalking.TurnMovementBoostMultiplier, 6);
         ValveIndexPositionDeadZone = Math.Round(root.ValveIndex.PositionDeadZone, 6);
         ValveIndexForceThreshold = Math.Round(root.ValveIndex.ForceThreshold, 6);
     }
@@ -218,6 +223,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
+    [RelayCommand] private void ResetInfiniteWalkingBoost() => InfiniteWalkingBoostMultiplier = InfiniteWalkingSettings.Default.TurnMovementBoostMultiplier;
     [RelayCommand] private void ResetValveIndexPositionDeadZone() => ValveIndexPositionDeadZone = ValveIndexInputSettings.Default.PositionDeadZone;
     [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = Math.Round(ValveIndexInputSettings.Default.ForceThreshold, 6);
     [RelayCommand] private void ResetMode() => Mode = FlightMode.InfiniteWalking;
@@ -325,7 +331,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             DragSmoothSeconds = (float)InfiniteDragSmoothSeconds,
             TurnSmoothSeconds = (float)InfiniteTurnSmoothSeconds,
-            TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds
+            TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds,
+            TurnMovementBoostMultiplier = (float)InfiniteWalkingBoostMultiplier
         },
         ValveIndex = CreateValveIndexSettings()
     };

@@ -62,12 +62,14 @@ public sealed record InfiniteWalkingSettings
     public float DragSmoothSeconds { get; init; }
     public float TurnSmoothSeconds { get; init; }
     public float TurnHeadSmoothSeconds { get; init; }
+    public float TurnMovementBoostMultiplier { get; init; } = 1;
 
     public InfiniteWalkingSettings Normalized() => this with
     {
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
-        TurnHeadSmoothSeconds = Math.Clamp(TurnHeadSmoothSeconds, 0, 1)
+        TurnHeadSmoothSeconds = Math.Clamp(TurnHeadSmoothSeconds, 0, 1),
+        TurnMovementBoostMultiplier = Math.Clamp(TurnMovementBoostMultiplier, 0, 2)
     };
 }
 
