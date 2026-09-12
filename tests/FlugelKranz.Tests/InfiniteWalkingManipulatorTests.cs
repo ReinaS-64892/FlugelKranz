@@ -77,7 +77,7 @@ public class InfiniteWalkingManipulatorTests
     }
 
     [Fact]
-    public void OneHandTurnUsesOnlyYawAndKeepsThatHandFixed()
+    public void OneHandTurnUsesOnlyYawAndKeepsHeadFixed()
     {
         var engine = Armed();
         engine.Update(Frame(leftTurn: 1), 0.1f, Direct);
@@ -89,7 +89,7 @@ public class InfiniteWalkingManipulatorTests
             0.1f,
             Direct);
         Near(Quaternion.Conjugate(yaw), yawed.Orientation);
-        Near(Left.Position, yawed.Transform(Left.Position));
+        Near(Head.Position, yawed.Transform(Head.Position));
 
         var pitchEngine = Armed();
         pitchEngine.Update(Frame(leftTurn: 1), 0.1f, Direct);

@@ -95,9 +95,7 @@ public sealed class InfiniteWalkingManipulator
         float alpha = FreeFlightManipulator.SmoothingAlpha(smoothSeconds, elapsedSeconds);
         Quaternion rotation = Quaternion.Normalize(
             Quaternion.Slerp(Offset.Orientation, target, alpha));
-        Vector3 pivot = turnHands == BothHands
-            ? frame.Head.Position
-            : HandPosition(frame, turnHands);
+        Vector3 pivot = frame.Head.Position;
         Vector3 pivotInRoot = Offset.Transform(pivot);
         Vector3 position = pivotInRoot - Vector3.Transform(pivot, rotation);
         Offset = new(rotation, position);
