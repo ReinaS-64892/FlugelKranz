@@ -12,7 +12,7 @@ public class FlightControllerTests
     {
         var runtime = new FakeRuntime();
         var progress = new Recorder();
-        var controller = new FlightController(() => runtime, progress);
+        var controller = new FlightController(() => runtime, progress, FreeFlightSettings);
         controller.SetEnabled(true);
         await Wait(() => progress.Statuses.Any(s => s.Connected));
         runtime.Frame = Frame(1, 0);
@@ -35,7 +35,7 @@ public class FlightControllerTests
     {
         var runtime = new FakeRuntime();
         var progress = new Recorder();
-        await using var controller = new FlightController(() => runtime, progress);
+        await using var controller = new FlightController(() => runtime, progress, FreeFlightSettings);
         controller.SetEnabled(true);
         await Wait(() => progress.Statuses.Any(s => s.Connected));
 
@@ -83,8 +83,62 @@ public class FlightControllerTests
         await Wait(() => progress.Statuses.Any(s => s.Message.Contains("lost")));
     }
 
+    [Fact]
+    public async Task BothModeButtonsHeldForOneSecondToggleOnceUntilReleased()
+    {
+        var runtime = new FakeRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        runtime.Frame = ModeFrame(1);
+        await Wait(() => progress.Statuses.Any(
+            s => s.Mode == FlightMode.FreeFlight && s.Message.Contains("切り替え")));
+        await Task.Delay(1100, TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(
+            progress.Statuses,
+            s => s.Mode == FlightMode.InfiniteWalking && s.Message.Contains("切り替え"));
+
+        await WaitForFrame(runtime, ModeFrame(0));
+        runtime.Frame = ModeFrame(1);
+        await Wait(() => progress.Statuses.Any(
+            s => s.Mode == FlightMode.InfiniteWalking && s.Message.Contains("切り替え")));
+    }
+
+    [Fact]
+    public async Task FreeFlightToInfiniteWalkingLevelsOverOneSecond()
+    {
+        var runtime = new FakeRuntime();
+        var current = new RigidPose(
+            Quaternion.CreateFromYawPitchRoll(0.4f, 0.7f, -0.3f),
+            new(1, 2, 3));
+        runtime.Apply(current);
+        var settings = FlugelKranzSettings.Default with { Mode = FlightMode.FreeFlight };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress, () => settings);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        settings = settings with { Mode = FlightMode.InfiniteWalking };
+        await Task.Delay(150, TestContext.Current.CancellationToken);
+        Assert.InRange(runtime.CurrentOffset.Position.Y, 0.01f, 1.99f);
+
+        var target = InfiniteWalkingTransition.CreateTarget(current, RigidPose.Identity);
+        await Wait(() => runtime.CurrentOffset.NearlyEquals(target, 0.001f));
+        Assert.Contains(progress.Statuses, s => s.Message.Contains("戻しています"));
+    }
+
     private static InputFrame Frame(float grip, float x) => new(RigidPose.Identity, true,
-        new(new(Quaternion.Identity, new(x, 0, 0)), grip, true), new(RigidPose.Identity, 0, true));
+        new(new(Quaternion.Identity, new(x, 0, 0)), grip, 0, 0, true),
+        new(RigidPose.Identity, 0, 0, 0, true));
+    private static FlugelKranzSettings FreeFlightSettings() =>
+        FlugelKranzSettings.Default with { Mode = FlightMode.FreeFlight };
+    private static InputFrame ModeFrame(float value) => new(
+        RigidPose.Identity,
+        true,
+        new(RigidPose.Identity, 0, 0, value, true),
+        new(RigidPose.Identity, 0, 0, value, true));
     private static async Task Wait(Func<bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

@@ -14,21 +14,46 @@ public sealed unsafe class OpenXrInput : IDisposable
     private XrSession session;
     private XrActionSet actionSet;
     private XrSpace stage, view;
-    private readonly Hand[] hands = [new(), new()];
+    private readonly Hand[] hands = [new(true), new(false)];
     private bool running;
+    private bool dpadBindingEnabled;
     private XrSessionState state;
     private delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult> convertTime;
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
     public string RuntimeName { get; private set; } = "";
 
-    private sealed class Hand
+    private sealed class Hand(bool isLeft)
     {
-        public XrAction Pose, Grip, Click;
+        public bool IsLeft { get; } = isLeft;
+        public XrAction Pose, DpadLeft, DpadRight, DpadDown, ThumbRestTouch, TriggerTouch;
         public XrSpace Space;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Timespec { public long Seconds, Nanoseconds; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BindingModifications
+    {
+        public XrStructureType Type;
+        public void* Next;
+        public uint Count;
+        public void** Modifications;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DpadBinding
+    {
+        public XrStructureType Type;
+        public void* Next;
+        public XrPath Binding;
+        public XrActionSet ActionSet;
+        public float ForceThreshold;
+        public float ForceThresholdReleased;
+        public float CenterRegion;
+        public float WedgeAngle;
+        public uint IsSticky;
+        public void* OnHaptic;
+        public void* OffHaptic;
+    }
     [DllImport("libc", SetLastError = true)] private static extern int clock_gettime(int clockId, out Timespec time);
 
     public OpenXrInput()
@@ -77,15 +102,20 @@ public sealed unsafe class OpenXrInput : IDisposable
         }
         foreach (var required in new[] { "XR_MND_headless", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
+        dpadBindingEnabled = extensions.Contains("XR_EXT_dpad_binding") &&
+            extensions.Contains("XR_KHR_binding_modification");
 
         fixed (byte* headless = "XR_MND_headless\0"u8)
         fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
+        fixed (byte* dpad = "XR_EXT_dpad_binding\0"u8)
+        fixed (byte* bindingModification = "XR_KHR_binding_modification\0"u8)
         {
-            byte** names = stackalloc byte*[2] { headless, time };
+            byte** names = stackalloc byte*[4] { headless, time, dpad, bindingModification };
+            uint extensionCount = dpadBindingEnabled ? 4u : 2u;
             var info = new XrInstanceCreateInfo
             {
                 type = XrStructureType.XR_TYPE_INSTANCE_CREATE_INFO,
-                enabledExtensionCount = 2, enabledExtensionNames = names,
+                enabledExtensionCount = extensionCount, enabledExtensionNames = names,
                 applicationInfo = new XrApplicationInfo { apiVersion = 1UL << 48, applicationVersion = 1 }
             };
             Copy(ApplicationName, info.applicationInfo.applicationName, 128);
@@ -108,13 +138,15 @@ public sealed unsafe class OpenXrInput : IDisposable
         {
             string side = i == 0 ? "left" : "right";
             hands[i].Pose = CreateAction($"{side}_pose", XrActionType.XR_ACTION_TYPE_POSE_INPUT);
-            hands[i].Grip = CreateAction($"{side}_grip", XrActionType.XR_ACTION_TYPE_FLOAT_INPUT);
-            hands[i].Click = CreateAction($"{side}_click", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].DpadLeft = CreateAction($"{side}_dpad_left", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].DpadRight = CreateAction($"{side}_dpad_right", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].DpadDown = CreateAction($"{side}_dpad_down", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].ThumbRestTouch = CreateAction($"{side}_thumb_rest", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].TriggerTouch = CreateAction($"{side}_trigger_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
         }
-        Suggest("/interaction_profiles/oculus/touch_controller", "squeeze/value", false);
-        Suggest("/interaction_profiles/valve/index_controller", "squeeze/value", false);
-        Suggest("/interaction_profiles/htc/vive_controller", "squeeze/click", true);
-        Suggest("/interaction_profiles/microsoft/motion_controller", "squeeze/click", true);
+        SuggestOculusTouch();
+        if (dpadBindingEnabled)
+            SuggestValveIndex();
         var set = actionSet;
         var attach = new XrSessionActionSetsAttachInfo
         { type = XrStructureType.XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO, countActionSets = 1, actionSets = &set };
@@ -139,20 +171,69 @@ public sealed unsafe class OpenXrInput : IDisposable
         return action;
     }
 
-    private void Suggest(string profile, string gripComponent, bool click)
+    private void SuggestOculusTouch()
     {
-        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[4];
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[6];
         for (int i = 0; i < hands.Length; i++)
         {
             string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
-            bindings[i * 2] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
-            bindings[i * 2 + 1] = new() { action = click ? hands[i].Click : hands[i].Grip, binding = Path(prefix + gripComponent) };
+            bindings[i * 3] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
+            bindings[i * 3 + 1] = new() { action = hands[i].ThumbRestTouch, binding = Path(prefix + "thumbrest/touch") };
+            bindings[i * 3 + 2] = new() { action = hands[i].TriggerTouch, binding = Path(prefix + "trigger/touch") };
         }
         var info = new XrInteractionProfileSuggestedBinding
-        { type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING, interactionProfile = Path(profile), countSuggestedBindings = 4, suggestedBindings = bindings };
+        {
+            type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
+            interactionProfile = Path("/interaction_profiles/oculus/touch_controller"),
+            countSuggestedBindings = 6,
+            suggestedBindings = bindings
+        };
         var result = xrSuggestInteractionProfileBindings(instance, &info);
-        // Runtimes may omit profiles; their supported profiles must still validate correctly.
-        if (result != XrResult.XR_ERROR_PATH_UNSUPPORTED) Check(result, $"{profile} の入力設定");
+        if (result != XrResult.XR_ERROR_PATH_UNSUPPORTED)
+            Check(result, "Oculus Touch の入力設定");
+    }
+
+    private void SuggestValveIndex()
+    {
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[8];
+        DpadBinding* dpadModifications = stackalloc DpadBinding[2];
+        void** modificationPointers = stackalloc void*[2];
+        for (int i = 0; i < hands.Length; i++)
+        {
+            string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
+            bindings[i * 4] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
+            bindings[i * 4 + 1] = new() { action = hands[i].DpadLeft, binding = Path(prefix + "trackpad/dpad_left") };
+            bindings[i * 4 + 2] = new() { action = hands[i].DpadRight, binding = Path(prefix + "trackpad/dpad_right") };
+            bindings[i * 4 + 3] = new() { action = hands[i].DpadDown, binding = Path(prefix + "trackpad/dpad_down") };
+            dpadModifications[i] = new()
+            {
+                Type = (XrStructureType)1000078000,
+                Binding = Path(prefix + "trackpad"),
+                ActionSet = actionSet,
+                ForceThreshold = 0.5f,
+                ForceThresholdReleased = 0.4f,
+                CenterRegion = 0.5f,
+                WedgeAngle = MathF.PI / 2
+            };
+            modificationPointers[i] = &dpadModifications[i];
+        }
+        var modifications = new BindingModifications
+        {
+            Type = (XrStructureType)1000120000,
+            Count = 2,
+            Modifications = modificationPointers
+        };
+        var info = new XrInteractionProfileSuggestedBinding
+        {
+            type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
+            next = &modifications,
+            interactionProfile = Path("/interaction_profiles/valve/index_controller"),
+            countSuggestedBindings = 8,
+            suggestedBindings = bindings
+        };
+        var result = xrSuggestInteractionProfileBindings(instance, &info);
+        if (result != XrResult.XR_ERROR_PATH_UNSUPPORTED)
+            Check(result, "Valve Index の D-pad 入力設定");
     }
 
     public InputFrame Read()
@@ -176,15 +257,44 @@ public sealed unsafe class OpenXrInput : IDisposable
         var get = new XrActionStateGetInfo { type = XrStructureType.XR_TYPE_ACTION_STATE_GET_INFO, action = hand.Pose };
         var poseState = new XrActionStatePose { type = XrStructureType.XR_TYPE_ACTION_STATE_POSE };
         Check(xrGetActionStatePose(session, &get, &poseState), "姿勢アクションの取得");
-        get.action = hand.Grip;
-        var grip = new XrActionStateFloat { type = XrStructureType.XR_TYPE_ACTION_STATE_FLOAT };
-        Check(xrGetActionStateFloat(session, &get, &grip), "グリップ値の取得");
-        get.action = hand.Click;
-        var click = new XrActionStateBoolean { type = XrStructureType.XR_TYPE_ACTION_STATE_BOOLEAN };
-        Check(xrGetActionStateBoolean(session, &get, &click), "グリップボタンの取得");
-        if (!poseState.isActive || (!grip.isActive && !click.isActive)) return default;
+        if (!poseState.isActive)
+            return default;
+        var dpadLeft = ReadBoolean(hand.DpadLeft);
+        var dpadRight = ReadBoolean(hand.DpadRight);
+        var dpadDown = ReadBoolean(hand.DpadDown);
+        var thumbRest = ReadBoolean(hand.ThumbRestTouch);
+        var triggerTouch = ReadBoolean(hand.TriggerTouch);
         var (pose, tracked) = Locate(hand.Space, time);
-        return new(pose, grip.isActive ? grip.currentState : click.currentState ? 1 : 0, tracked);
+        var actions = ControllerInputMapping.Map(
+            hand.IsLeft ? ControllerHand.Left : ControllerHand.Right,
+            new(
+                dpadLeft.Value,
+                dpadRight.Value,
+                dpadDown.Value,
+                thumbRest.Value,
+                triggerTouch.Value,
+                thumbRest.Active && triggerTouch.Active));
+        return new(
+            pose,
+            actions.Drag ? 1 : 0,
+            actions.Turn ? 1 : 0,
+            actions.ModeSwitch ? 1 : 0,
+            tracked);
+    }
+
+    private (bool Active, bool Value) ReadBoolean(XrAction action)
+    {
+        var get = new XrActionStateGetInfo
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_GET_INFO,
+            action = action
+        };
+        var state = new XrActionStateBoolean
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_BOOLEAN
+        };
+        Check(xrGetActionStateBoolean(session, &get, &state), "操作ボタンの取得");
+        return (state.isActive, state.isActive && state.currentState);
     }
 
     private (RigidPose, bool) Locate(XrSpace space, long time)

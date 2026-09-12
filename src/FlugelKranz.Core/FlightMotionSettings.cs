@@ -1,16 +1,22 @@
 namespace FlugelKranz.Core;
 
+public enum FlightMode
+{
+    InfiniteWalking,
+    FreeFlight
+}
+
+public enum TurnOrigin
+{
+    TrackedElementsMidpoint,
+    Head
+}
+
 public sealed record FlightMotionSettings
 {
     public static FlightMotionSettings Default { get; } = new();
-    public static FlightMotionSettings Step { get; } = new()
-    {
-        StepMode = true,
-        DragSmoothSeconds = 0,
-        TurnSmoothSeconds = 0
-    };
 
-    public bool StepMode { get; init; }
+    public TurnOrigin TurnOrigin { get; init; } = TurnOrigin.TrackedElementsMidpoint;
     public bool InertiaCutoffEnabled { get; init; } = true;
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
@@ -31,6 +37,7 @@ public sealed record FlightMotionSettings
 
     public FlightMotionSettings Normalized() => this with
     {
+        TurnOrigin = Enum.IsDefined(TurnOrigin) ? TurnOrigin : TurnOrigin.TrackedElementsMidpoint,
         DragCutoffMetresPerSecond = Math.Clamp(DragCutoffMetresPerSecond, 0, 5),
         TurnCutoffRadiansPerSecond = Math.Clamp(TurnCutoffRadiansPerSecond, 0, MathF.PI * 4),
         DragAccelerationMultiplier = Math.Clamp(DragAccelerationMultiplier, 0, 5),
@@ -45,5 +52,40 @@ public sealed record FlightMotionSettings
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
         BrakeRampSeconds = Math.Clamp(BrakeRampSeconds, 0, 1)
+    };
+}
+
+public sealed record InfiniteWalkingSettings
+{
+    public static InfiniteWalkingSettings Default { get; } = new();
+
+    public float DragSmoothSeconds { get; init; } = 0.01f;
+    public float TurnSmoothSeconds { get; init; } = 0.05f;
+    public float TurnHeadSmoothSeconds { get; init; } = 0.02f;
+
+    public InfiniteWalkingSettings Normalized() => this with
+    {
+        DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
+        TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
+        TurnHeadSmoothSeconds = Math.Clamp(TurnHeadSmoothSeconds, 0, 1)
+    };
+}
+
+public sealed record FlugelKranzSettings
+{
+    public const int CurrentSchemaVersion = 2;
+    public static FlugelKranzSettings Default { get; } = new();
+
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+    public FlightMode Mode { get; init; } = FlightMode.InfiniteWalking;
+    public FlightMotionSettings FreeFlight { get; init; } = FlightMotionSettings.Default;
+    public InfiniteWalkingSettings InfiniteWalking { get; init; } = InfiniteWalkingSettings.Default;
+
+    public FlugelKranzSettings Normalized() => this with
+    {
+        SchemaVersion = CurrentSchemaVersion,
+        Mode = Enum.IsDefined(Mode) ? Mode : FlightMode.InfiniteWalking,
+        FreeFlight = (FreeFlight ?? FlightMotionSettings.Default).Normalized(),
+        InfiniteWalking = (InfiniteWalking ?? InfiniteWalkingSettings.Default).Normalized()
     };
 }

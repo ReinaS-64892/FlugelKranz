@@ -1,0 +1,14 @@
+namespace FlugelKranz.Core;
+
+public readonly record struct HandSample(
+    RigidPose Pose,
+    float Drag,
+    float Turn,
+    float ModeSwitch,
+    bool IsTracked);
+
+public readonly record struct InputFrame(
+    RigidPose Head,
+    bool HeadTracked,
+    HandSample Left,
+    HandSample Right);

@@ -7,8 +7,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using FlugelKranz.Core;
 using FlugelKranz.ViewModels;
 using FlugelKranz.Views;
+using System.Text.Json;
 using Xunit;
 
 [assembly: AvaloniaTestApplication(typeof(FlugelKranz.Tests.TestAppBuilder))]
@@ -46,12 +48,17 @@ public class MainViewTests
         Assert.Equal(0.05, vm.TurnSmoothSeconds);
         Assert.Equal(1, vm.VectorRotationMultiplier);
         Assert.Equal(0.4, vm.BrakeRampSeconds);
+        Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
+        Assert.Equal(0.01, vm.InfiniteDragSmoothSeconds);
+        Assert.Equal(0.05, vm.InfiniteTurnSmoothSeconds);
+        Assert.Equal(0.02, vm.InfiniteTurnHeadSmoothSeconds);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
         {
             var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
             var toggle = Assert.Single(buttons, b => Equals(b.Content, "OFF"));
+            var mode = Assert.Single(buttons, b => Equals(b.Content, "I"));
             Assert.True(toggle.Bounds.Width > 0);
             Assert.True(toggle.Bounds.Height > 0);
             var settingsButton = Assert.Single(buttons, b => Equals(b.Content, "⚙"));
@@ -61,7 +68,11 @@ public class MainViewTests
             Assert.Equal(64, reset.Bounds.Height);
             Assert.False(reset.IsEnabled);
             Assert.Same(vm.ToggleCommand, toggle.Command);
+            Assert.Same(vm.ToggleModeCommand, mode.Command);
             Assert.Same(vm.ResetCommand, reset.Command);
+            Assert.Equal(64, mode.Bounds.Width);
+            Assert.Equal(64, mode.Bounds.Height);
+            Assert.Equal(new CornerRadius(32), mode.CornerRadius);
             var toggleLayoutCenter = toggle.TranslatePoint(
                 new Point(toggle.Bounds.Width / 2, toggle.Bounds.Height / 2),
                 window);
@@ -74,19 +85,27 @@ public class MainViewTests
             Assert.True(toggleLayoutCenter.HasValue);
             Assert.True(settingsLayoutCenter.HasValue);
             Assert.True(resetLayoutCenter.HasValue);
+            var modeLayoutCenter = mode.TranslatePoint(
+                new Point(mode.Bounds.Width / 2, mode.Bounds.Height / 2),
+                window);
+            Assert.True(modeLayoutCenter.HasValue);
+            Assert.True(modeLayoutCenter.Value.X < toggleLayoutCenter.Value.X);
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(14, sliders.Length);
+            Assert.Equal(17, sliders.Length);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
-            var stepMode = window.GetVisualDescendants().OfType<CheckBox>().First();
-            Assert.False(stepMode.IsChecked);
-            stepMode.IsChecked = true;
-            Assert.True(vm.StepMode);
+            var turnOrigin = window.GetVisualDescendants().OfType<CheckBox>().First();
+            Assert.False(turnOrigin.IsChecked);
+            turnOrigin.IsChecked = true;
+            Assert.True(vm.UseHeadTurnOrigin);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "倍率: 1.00");
+            vm.ToggleModeCommand.Execute(null);
+            Assert.Equal(FlightMode.FreeFlight, vm.Mode);
+            Assert.Equal("F", mode.Content);
             vm.IsEnabled = true;
             vm.Status = "テスト中";
             Assert.Equal("ON", toggle.Content);
@@ -164,23 +183,67 @@ public class MainViewTests
         {
             await using (var first = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
             {
-                first.StepMode = true;
+                first.Mode = FlugelKranz.Core.FlightMode.FreeFlight;
+                first.UseHeadTurnOrigin = true;
                 first.DragCutoffCentimetresPerSecond = 12.5;
                 first.TurnAccelerationMultiplier = 1.25;
                 first.ZAccelerationMultiplier = 4.25;
                 first.InertiaAccelerationBoostEnabled = false;
                 first.InertiaAccelerationBoostMaximumMultiplier = 3.25;
                 first.BrakeRampSeconds = 0.75;
+                first.InfiniteTurnHeadSmoothSeconds = 0.4;
             }
 
             await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
-            Assert.True(second.StepMode);
+            Assert.Equal(FlugelKranz.Core.FlightMode.FreeFlight, second.Mode);
+            Assert.True(second.UseHeadTurnOrigin);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
             Assert.Equal(4.25, second.ZAccelerationMultiplier);
             Assert.False(second.InertiaAccelerationBoostEnabled);
             Assert.Equal(3.25, second.InertiaAccelerationBoostMaximumMultiplier);
             Assert.Equal(0.75, second.BrakeRampSeconds);
+            Assert.Equal(0.4, second.InfiniteTurnHeadSmoothSeconds);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            Assert.Equal(FlugelKranzSettings.CurrentSchemaVersion,
+                document.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal(JsonValueKind.Object,
+                document.RootElement.GetProperty("freeFlight").ValueKind);
+            Assert.Equal(JsonValueKind.Object,
+                document.RootElement.GetProperty("infiniteWalking").ValueKind);
+        }
+        finally
+        {
+            File.Delete(settingsPath);
+        }
+    }
+
+    [Fact]
+    public async Task LegacyFlatSettingsAreReplacedByCurrentModeHierarchy()
+    {
+        string settingsPath = TemporarySettingsPath();
+        try
+        {
+            File.WriteAllText(settingsPath, """
+                {
+                  "stepMode": true,
+                  "dragAccelerationMultiplier": 4.5
+                }
+                """);
+
+            await using var vm = new MainViewModel(
+                "/nonexistent/flugelkranz-test.so",
+                settingsPath);
+
+            Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
+            Assert.Equal(1, vm.DragAccelerationMultiplier);
+            using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            Assert.Equal(FlugelKranzSettings.CurrentSchemaVersion,
+                document.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.True(document.RootElement.TryGetProperty("freeFlight", out _));
+            Assert.True(document.RootElement.TryGetProperty("infiniteWalking", out _));
+            Assert.False(document.RootElement.TryGetProperty("stepMode", out _));
         }
         finally
         {

@@ -43,6 +43,18 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                 UpdateToggleClass();
         };
         UpdateToggleClass();
+        var modeButton = new Button
+        {
+            Width = 64,
+            Height = 64,
+            FontSize = 28,
+            CornerRadius = new CornerRadius(32),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        }
+            .Content(model, x => x.ModeLabel)
+            .Command(model, x => x.ToggleModeCommand);
+        ToolTip.SetTip(modeButton, "I: 無限歩行 / F: 自由飛行");
         var settingsButton = new Button
         {
             Width = 64,
@@ -74,6 +86,7 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             .Child(new StackPanel().Orientation(Orientation.Horizontal).Spacing(16)
                 .HorizontalAlignment(HorizontalAlignment.Center)
                 .VerticalAlignment(VerticalAlignment.Center).Children(
+                    modeButton,
                     toggle,
                     new StackPanel
                     {
@@ -128,11 +141,27 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             new TextBlock().Text(model, x => x.LeftStatus),
             new TextBlock().Text(model, x => x.RightStatus),
             Divider(),
-            Header("基本モード"),
-            Row("ステップモード", new CheckBox().IsChecked(model, x => x.StepMode),
-                ResetButton(model, x => x.ResetStepModeCommand)),
+            Header("動作モード"),
+            Row(model, x => x.ModeDescription, new Button().Content("I / F 切替")
+                    .Command(model, x => x.ToggleModeCommand),
+                ResetButton(model, x => x.ResetModeCommand)),
             Divider(),
-            Header("慣性カットオフ"),
+            Header("無限歩行 — ドラグスムーズ"),
+            Row(model, x => x.InfiniteDragSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.InfiniteDragSmoothSeconds),
+                ResetButton(model, x => x.ResetInfiniteDragSmoothCommand)),
+            Row(model, x => x.InfiniteTurnSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.InfiniteTurnSmoothSeconds),
+                ResetButton(model, x => x.ResetInfiniteTurnSmoothCommand)),
+            Row(model, x => x.InfiniteTurnHeadSmoothLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.InfiniteTurnHeadSmoothSeconds),
+                ResetButton(model, x => x.ResetInfiniteTurnHeadSmoothCommand)),
+            Divider(),
+            Header("自由飛行 — Turn 原点"),
+            Row("頭を原点にする", new CheckBox().IsChecked(model, x => x.UseHeadTurnOrigin),
+                ResetButton(model, x => x.ResetTurnOriginCommand)),
+            Divider(),
+            Header("自由飛行 — 慣性カットオフ"),
             Row("有効", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),
                 ResetButton(model, x => x.ResetInertiaCutoffEnabledCommand)),
             Row(model, x => x.DragCutoffLabel, new Slider().Minimum(0).Maximum(50).TickFrequency(0.5)

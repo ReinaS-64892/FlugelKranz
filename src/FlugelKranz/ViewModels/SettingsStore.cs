@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FlugelKranz.Core;
 
 namespace FlugelKranz.ViewModels;
@@ -7,34 +8,48 @@ internal sealed class SettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        WriteIndented = true
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
     public SettingsStore(string? path = null) => Path = path ?? ResolvePath();
 
     public string Path { get; }
 
-    public FlightMotionSettings Load()
+    public FlugelKranzSettings Load()
     {
         try
         {
             if (!File.Exists(Path))
-                return FlightMotionSettings.Default;
+                return FlugelKranzSettings.Default;
 
-            return JsonSerializer.Deserialize<FlightMotionSettings>(File.ReadAllText(Path), JsonOptions)?.Normalized()
-                ?? FlightMotionSettings.Default;
+            string json = File.ReadAllText(Path);
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            bool current = root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("schemaVersion", out var version) &&
+                version.ValueKind == JsonValueKind.Number &&
+                version.TryGetInt32(out int schemaVersion) &&
+                schemaVersion == FlugelKranzSettings.CurrentSchemaVersion &&
+                root.TryGetProperty("freeFlight", out _) &&
+                root.TryGetProperty("infiniteWalking", out _);
+            if (!current)
+                return ResetToCurrentDefaults();
+
+            return JsonSerializer.Deserialize<FlugelKranzSettings>(json, JsonOptions)?.Normalized()
+                ?? ResetToCurrentDefaults();
         }
         catch (IOException)
         {
-            return FlightMotionSettings.Default;
+            return FlugelKranzSettings.Default;
         }
         catch (JsonException)
         {
-            return FlightMotionSettings.Default;
+            return ResetToCurrentDefaults();
         }
     }
 
-    public void Save(FlightMotionSettings settings)
+    public void Save(FlugelKranzSettings settings)
     {
         try
         {
@@ -54,6 +69,13 @@ internal sealed class SettingsStore
         {
             // Configuration persistence must not stop tracking or the UI.
         }
+    }
+
+    private FlugelKranzSettings ResetToCurrentDefaults()
+    {
+        var settings = FlugelKranzSettings.Default;
+        Save(settings);
+        return settings;
     }
 
     private static string ResolvePath()

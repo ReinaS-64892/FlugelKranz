@@ -10,6 +10,7 @@ public class InertiaTests
     private static readonly RigidPose Head = new(Quaternion.Identity, new(0, 1.7f, 0));
     private static readonly FlightMotionSettings Unfiltered = new()
     {
+        TurnOrigin = TurnOrigin.Head,
         InertiaCutoffEnabled = false,
         InertiaAccelerationBoostEnabled = false,
         InertiaDecelerationPerSecond = 0,
@@ -23,7 +24,6 @@ public class InertiaTests
     {
         var settings = FlightMotionSettings.Default;
 
-        Assert.False(settings.StepMode);
         Assert.True(settings.InertiaCutoffEnabled);
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
@@ -69,18 +69,6 @@ public class InertiaTests
         Near(new(-2, 0, 0), released.Position);
         Near(new(-3, 0, 0), continued.Position);
         Assert.True(engine.HasLinearInertia);
-    }
-
-    [Fact]
-    public void StepModeStopsAtRelease()
-    {
-        var settings = Unfiltered with { StepMode = true };
-        var engine = BeginDrag(settings);
-        var moved = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
-        var released = engine.Update(Frame(leftX: 1), 0.1f, settings);
-
-        Assert.Equal(moved, released);
-        Assert.False(engine.HasLinearInertia);
     }
 
     [Fact]
@@ -629,17 +617,17 @@ public class InertiaTests
         Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), regripped.Orientation);
     }
 
-    private static SpaceManipulator BeginDrag(FlightMotionSettings settings)
+    private static FreeFlightManipulator BeginDrag(FlightMotionSettings settings)
     {
-        var engine = new SpaceManipulator(Identity);
+        var engine = new FreeFlightManipulator(Identity);
         engine.Update(Frame(), 0.1f, settings);
         engine.Update(Frame(leftGrip: 1), 0.1f, settings);
         return engine;
     }
 
-    private static SpaceManipulator BeginTurn(FlightMotionSettings settings)
+    private static FreeFlightManipulator BeginTurn(FlightMotionSettings settings)
     {
-        var engine = new SpaceManipulator(Identity);
+        var engine = new FreeFlightManipulator(Identity);
         engine.Update(Frame(), 0.1f, settings);
         engine.Update(Frame(rightGrip: 1), 0.1f, settings);
         return engine;
@@ -659,8 +647,8 @@ public class InertiaTests
         Quaternion? rightRotation = null) => new(
             Head,
             true,
-            new(new(Quaternion.Identity, leftPosition), leftGrip, true),
-            new(new(rightRotation ?? Quaternion.Identity, Vector3.Zero), rightGrip, true));
+            new(new(Quaternion.Identity, leftPosition), leftGrip, 0, 0, true),
+            new(new(rightRotation ?? Quaternion.Identity, Vector3.Zero), 0, rightGrip, 0, true));
 
     private static void Near(Vector3 expected, Vector3 actual) =>
         Assert.True(Vector3.Distance(expected, actual) < 0.0001f, $"{expected} != {actual}");

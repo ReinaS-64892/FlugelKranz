@@ -4,27 +4,39 @@ using Xunit;
 
 namespace FlugelKranz.Tests;
 
-public class SpaceManipulatorTests
+public class FreeFlightManipulatorTests
 {
     private static readonly RigidPose Head = new(Quaternion.Identity, new(0, 1.7f, 0));
     private static readonly RigidPose Left = new(Quaternion.Identity, new(-0.3f, 1.2f, -0.4f));
     private static readonly RigidPose Right = new(Quaternion.Identity, new(0.3f, 1.2f, -0.4f));
-    private static InputFrame Frame(float left = 0, float right = 0) => new(Head, true, new(Left, left, true), new(Right, right, true));
-    private static SpaceManipulator Armed(RigidPose? offset = null)
+    private static InputFrame Frame(float left = 0, float right = 0) =>
+        new(Head, true, new(Left, left, 0, 0, true), new(Right, 0, right, 0, true));
+    private static FreeFlightManipulator Armed(RigidPose? offset = null)
     {
-        var engine = new SpaceManipulator(offset ?? RigidPose.Identity);
+        var engine = new FreeFlightManipulator(offset ?? RigidPose.Identity);
         engine.Update(Frame());
         return engine;
     }
     private static void Near(Vector3 expected, Vector3 actual) => Assert.True(Vector3.Distance(expected, actual) < 0.0001f, $"{expected} != {actual}");
     private static void Near(Quaternion expected, Quaternion actual) => Assert.True(1 - MathF.Abs(Quaternion.Dot(expected, actual)) < 0.0001f);
 
+    private static readonly FlightMotionSettings HeadOrigin = new()
+    {
+        TurnOrigin = TurnOrigin.Head,
+        InertiaCutoffEnabled = false,
+        InertiaAccelerationBoostEnabled = false,
+        DragAccelerationMultiplier = 0,
+        TurnAccelerationMultiplier = 0,
+        DragSmoothSeconds = 0,
+        TurnSmoothSeconds = 0
+    };
+
     [Fact]
     public void DragKeepsGrabbedPointFixedInWorld()
     {
         var engine = Armed();
         engine.Update(Frame(1));
-        var moved = Frame(1) with { Left = new(Left with { Position = Left.Position + new Vector3(1, 2, 3) }, 1, true) };
+        var moved = Frame(1) with { Left = new(Left with { Position = Left.Position + new Vector3(1, 2, 3) }, 1, 0, 0, true) };
         var offset = engine.Update(moved);
         Near(new(-1, -2, -3), offset.Position);
         Near(Left.Position, offset.Transform(moved.Left.Pose.Position));
@@ -35,14 +47,146 @@ public class SpaceManipulatorTests
     [InlineData(0, 1, 0)]
     [InlineData(0, 0, 1)]
     [InlineData(1, 2, 3)]
-    public void TurnInvertsRotationOnEveryAxisAndKeepsHeadFixed(float x, float y, float z)
+    public void TurnInvertsRotationOnEveryAxisAndKeepsTrackedMidpointFixed(float x, float y, float z)
     {
         var engine = Armed();
         engine.Update(Frame(right: 1));
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(x, y, z)), 1.1f);
-        var offset = engine.Update(Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 1, true) });
+        var offset = engine.Update(Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 0, 1, 0, true) });
         Near(Quaternion.Conjugate(rotation), offset.Orientation);
+        var midpoint = (Head.Position + Left.Position + Right.Position) / 3;
+        Near(midpoint, offset.Transform(midpoint));
+    }
+
+    [Fact]
+    public void HeadTurnOriginOptionKeepsHeadFixed()
+    {
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        engine.Update(Frame(), 0.1f, HeadOrigin);
+        engine.Update(Frame(right: 1), 0.1f, HeadOrigin);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.8f);
+
+        var offset = engine.Update(
+            Frame(right: 1) with
+            {
+                Right = new(Right with { Orientation = rotation }, 0, 1, 0, true)
+            },
+            0.1f,
+            HeadOrigin);
+
         Near(Head.Position, offset.Transform(Head.Position));
+    }
+
+    [Fact]
+    public void TrackedMidpointExcludesInvalidHands()
+    {
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        var initial = Frame() with { Left = default };
+        engine.Update(initial);
+        engine.Update(initial with { Right = new(Right, 0, 1, 0, true) });
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.6f);
+        var moved = initial with
+        {
+            Right = new(Right with { Orientation = rotation }, 0, 1, 0, true)
+        };
+
+        var offset = engine.Update(moved);
+
+        var midpoint = (Head.Position + Right.Position) * 0.5f;
+        Near(midpoint, offset.Transform(midpoint));
+    }
+
+    [Fact]
+    public void TwoHandDragUsesControllerMidpoint()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 1, 0, 0, true),
+            new(Right, 1, 0, 0, true));
+        engine.Update(both);
+        var spread = both with
+        {
+            Left = new(Left with { Position = Left.Position - Vector3.UnitX }, 1, 0, 0, true),
+            Right = new(Right with { Position = Right.Position + Vector3.UnitX }, 1, 0, 0, true)
+        };
+
+        var offset = engine.Update(spread);
+
+        Assert.True(RigidPose.Identity.NearlyEquals(offset));
+    }
+
+    [Fact]
+    public void AddingSecondDragHandRebasesWithoutJumpOrReleaseVelocity()
+    {
+        var settings = HeadOrigin with { DragAccelerationMultiplier = 1 };
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        engine.Update(Frame(), 0.1f, settings);
+        engine.Update(Frame(1), 0.1f, settings);
+        var moved = Frame(1) with
+        {
+            Left = new(Left with { Position = Left.Position + Vector3.UnitX }, 1, 0, 0, true)
+        };
+        var before = engine.Update(moved, 0.1f, settings);
+        var both = moved with { Right = new(Right, 1, 0, 0, true) };
+
+        var rebased = engine.Update(both, 0.1f, settings);
+        var released = engine.Update(Frame(), 0.1f, settings);
+
+        Assert.True(before.NearlyEquals(rebased));
+        Assert.True(rebased.NearlyEquals(released));
+        Assert.False(engine.HasLinearInertia);
+    }
+
+    [Fact]
+    public void TwoHandTurnIsConstrainedToControllerLine()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 0, 1, 0, true),
+            new(Right, 0, 1, 0, true));
+        engine.Update(both);
+        var aroundPole = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.7f);
+        var rotated = both with
+        {
+            Left = new(Left with { Orientation = aroundPole }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = aroundPole }, 0, 1, 0, true)
+        };
+
+        var offset = engine.Update(rotated);
+        Near(Quaternion.Conjugate(aroundPole), offset.Orientation);
+
+        var other = Armed();
+        other.Update(both);
+        var outsideAxis = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f);
+        var ignored = both with
+        {
+            Left = new(Left with { Orientation = outsideAxis }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = outsideAxis }, 0, 1, 0, true)
+        };
+        Near(Quaternion.Identity, other.Update(ignored).Orientation);
+    }
+
+    [Fact]
+    public void AddingSecondTurnHandRebasesWithoutJump()
+    {
+        var engine = Armed();
+        engine.Update(new(Head, true, new(Left, 0, 1, 0, true), new(Right, 0, 0, 0, true)));
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f);
+        var oneHand = new InputFrame(
+            Head,
+            true,
+            new(Left with { Orientation = rotation }, 0, 1, 0, true),
+            new(Right, 0, 0, 0, true));
+        var before = engine.Update(oneHand);
+        var both = oneHand with { Right = new(Right, 0, 1, 0, true) };
+
+        var rebased = engine.Update(both);
+
+        Assert.True(before.NearlyEquals(rebased));
     }
 
     [Fact]
@@ -52,16 +196,16 @@ public class SpaceManipulatorTests
         turnOnly.Update(Frame(1, 1));
         var rotation = Quaternion.CreateFromYawPitchRoll(0.4f, 0.6f, 0.8f);
         var turnOnlyOffset = turnOnly.Update(
-            Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 1, true) });
+            Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 0, 1, 0, true) });
 
         var engine = Armed();
         engine.Update(Frame(1, 1));
         var movedLeft = Left with { Position = new(-1, 1, -1) };
         var movedRight = Right with { Orientation = rotation };
-        var offset = engine.Update(new(Head, true, new(movedLeft, 1, true), new(movedRight, 1, true)));
+        var offset = engine.Update(new(Head, true, new(movedLeft, 1, 0, 0, true), new(movedRight, 0, 1, 0, true)));
 
         Near(turnOnlyOffset.Orientation, offset.Orientation);
-        Near(-(movedLeft.Position - Left.Position), offset.Position - turnOnlyOffset.Position);
+        Near(Left.Position, offset.Transform(movedLeft.Position));
     }
 
     [Fact]
@@ -71,7 +215,7 @@ public class SpaceManipulatorTests
         var engine = Armed(initial);
         engine.Update(Frame(1));
         var moved = Left with { Position = Left.Position + Vector3.UnitX };
-        var offset = engine.Update(Frame(1) with { Left = new(moved, 1, true) });
+        var offset = engine.Update(Frame(1) with { Left = new(moved, 1, 0, 0, true) });
         Near(initial.Transform(Left.Position), offset.Transform(moved.Position));
         Near(initial.Orientation, offset.Orientation);
     }
@@ -81,7 +225,7 @@ public class SpaceManipulatorTests
     {
         var engine = Armed();
         engine.Update(Frame(1));
-        var offset = engine.Update(Frame(1) with { Left = new(Left with { Position = Vector3.Zero }, 1, true) });
+        var offset = engine.Update(Frame(1) with { Left = new(Left with { Position = Vector3.Zero }, 1, 0, 0, true) });
         Assert.Equal(offset, engine.Update(Frame()));
         Assert.True(offset.NearlyEquals(engine.Update(Frame(1))));
     }
@@ -89,7 +233,7 @@ public class SpaceManipulatorTests
     [Fact]
     public void GripsHeldOnEnableMustBeReleasedBeforeManipulation()
     {
-        var engine = new SpaceManipulator(RigidPose.Identity);
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
         engine.Update(Frame(1, 1));
         Assert.False(engine.IsDragging);
         Assert.False(engine.IsTurning);
@@ -110,7 +254,7 @@ public class SpaceManipulatorTests
         Assert.True(engine.IsTurning);
 
         var movedLeft = Left with { Position = Left.Position + Vector3.UnitX };
-        var resumed = engine.Update(Frame(1, 1) with { Left = new(movedLeft, 1, true) });
+        var resumed = engine.Update(Frame(1, 1) with { Left = new(movedLeft, 1, 0, 0, true) });
         Assert.NotEqual(offset, resumed);
         Assert.True(engine.IsDragging);
         Assert.True(engine.IsTurning);
@@ -129,9 +273,9 @@ public class SpaceManipulatorTests
     public void InvalidPoseAndGripCannotAffectOffset()
     {
         var engine = Armed();
-        var frame = Frame(1) with { Left = new(Left with { Position = new(float.NaN, 0, 0) }, 1, true) };
+        var frame = Frame(1) with { Left = new(Left with { Position = new(float.NaN, 0, 0) }, 1, 0, 0, true) };
         Assert.Equal(RigidPose.Identity, engine.Update(frame));
-        frame = Frame(1) with { Left = new(Left, float.NaN, true) };
+        frame = Frame(1) with { Left = new(Left, float.NaN, 0, 0, true) };
         Assert.Equal(RigidPose.Identity, engine.Update(frame));
     }
 
@@ -154,7 +298,7 @@ public class SpaceManipulatorTests
     {
         var engine = Armed();
         engine.Update(Frame(right: 1));
-        var frame = Frame(right: 1) with { Right = new(Right with { Orientation = Quaternion.CreateFromYawPitchRoll(0.3f, 0.7f, 1.4f) }, 1, true) };
+        var frame = Frame(right: 1) with { Right = new(Right with { Orientation = Quaternion.CreateFromYawPitchRoll(0.3f, 0.7f, 1.4f) }, 0, 1, 0, true) };
         var initial = engine.Update(frame);
         for (int i = 0; i < 10000; i++) engine.Update(frame);
         Assert.True(initial.NearlyEquals(engine.Offset));

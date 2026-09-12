@@ -17,7 +17,7 @@ FlugelKranz は、Reina_Sakiria が実現した VRChat 上の「自由飛行」�
 - `src/MonadoXrApi/` は libmonado の汎用相互運用ライブラリです。`LibMonadoLibrary` がネイティブライブラリのロードと ABI バージョン確認を担い、`MonadoRoot` が公開 libmonado API を型付きでラップします。このプロジェクトは `FlugelKranz.Core` を参照せず、FlugelKranz 固有の座標・入力・操作方針、および OpenXR 実装を含めません。
 - `src/FlugelKranz.OpenXR/` は Evergine.Bindings.OpenXR による入力取得と、OpenXR 姿勢を FlugelKranz の物理座標系へ変換する実装を担当します。`FlugelKranz.Core` と `MonadoXrApi` を参照し、両者を結び付ける FlugelKranz 固有のランタイム実装を置きます。
 - `src/MonadoXrApi/monado/` は、ネイティブコードとテストを含む上流の Git サブモジュールです。以下の読み取り専用規則に従ってください。
-- `src/FlugelKranz.Core/` は座標変換・グリップ操作・実行制御を担当し、UI やネイティブ API に依存しません。
+- `src/FlugelKranz.Core/` は座標変換・論理 Drag / Turn 操作・モード移行・実行制御を担当し、UI やネイティブ API に依存しません。
 - `tests/FlugelKranz.Tests/` には xUnit v3 と Avalonia.Headless.XUnit によるテストがあります。
 
 ## Monado サブモジュールの読み取り専用規則
@@ -32,19 +32,19 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 
 ## 仕様の参照先
 
-つかみ操作（左手 Drag・右手全軸 Turn）、慣性パラメーターの意味・既定値・範囲、トラッキング喪失とリセット時の状態は `README.md` を唯一の権威として参照してください。設定保存と UI の仕様はこのファイルの該当セクションを参照してください。これらを変更するときは、対応する仕様書と実装・テストを同時に更新します。
+コントローラー別の入力割当、片手・両手の Drag / Turn、自由飛行・無限歩行の挙動、モード移行、慣性パラメーター、トラッキング喪失とリセット時の状態は `README.md` を唯一の権威として参照してください。設定保存と UI の仕様はこのファイルの該当セクションを参照してください。これらを変更するときは、対応する仕様書と実装・テストを同時に更新します。
 
 実装では Drag の線速度と Turn の角速度を分離し、物理座標の復元と参照空間の適用順序を README の説明に合わせてください。削除済みの機能を再導入する場合や、README の仕様で判断できない挙動を変更する場合は、先に Reina_Sakiria へ確認します。
 
 ## 設定保存
 
-設定値は変更時に JSON へ保存し、次回起動時に復元します。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。保存形式や `SettingsStore` を変更した場合は、既存設定の読み込みと保存をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
+設定値は変更時に JSON へ保存し、次回起動時に復元します。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。設定は `schemaVersion`、`mode`、`freeFlight`、`infiniteWalking` の階層を持ち、両モードの値を混在させません。今回のモード導入以前の平坦な設定は互換読み込みせず、現在の既定値で初期化して上書きします。保存形式や `SettingsStore` を変更した場合は、現行形式の読み書きと旧形式の移行をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
 
 ## UI 方針
 
 [Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) は `UseWayland()` を明示的に選択し、XWayland へ自動フォールバックしません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm を使い、View とバインディングは基本的に C# で記述します。FluentTheme の Light / Dark テーマ辞書を使い、既定は白い Light テーマにします。状態色はテーマリソースから取得し、個別の固定色を場当たり的に追加しません。
 
-メイン画面は大きな ON/OFF ボタンと、円形の設定 `⚙`・位置姿勢リセット `↻` ボタンを中央線の上下に縦配置します。初期ウィンドウは横長（1100×650）とし、設定パネルはメイン領域を左へ押し出して幅の約80%を占め、幅720px以下では全幅にします。設定項目は区切りとグループを明示し、ラベル・操作部・小さな正方形の初期値リセットを同じ行で揃えます。設定スクロールバーは常時表示（`AllowAutoHide = false`）とし、操作部と重ならない右マージンを確保します。
+メイン画面は大きな ON/OFF ボタン、その左の現在モードを示す円形 `I` / `F` 切替ボタン、その右の円形の設定 `⚙`・位置姿勢リセット `↻` ボタンを配置します。設定と位置姿勢リセットは中央線の上下に縦配置します。初期ウィンドウは横長（1100×650）とし、設定パネルはメイン領域を左へ押し出して幅の約80%を占め、幅720px以下では全幅にします。設定項目はモードごとの区切りとグループを明示し、ラベル・操作部・小さな正方形の初期値リセットを同じ行で揃えます。設定スクロールバーは常時表示（`AllowAutoHide = false`）とし、操作部と重ならない右マージンを確保します。
 
 ## ビルド・開発コマンド
 
@@ -65,11 +65,13 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 
 `MonadoXrApi` に OpenXR・Avalonia・`FlugelKranz.Core` への依存を追加してはいけません。libmonado のロードは `LibMonadoLibrary` に閉じ込め、API 呼び出しは `MonadoRoot` などのラッパーを経由します。FlugelKranz 固有の座標変換・飛行制御・libmonado と OpenXR の協調処理は `FlugelKranz.Core` または `FlugelKranz.OpenXR` に実装してください。使用されない生成済み ABI バインディングは保持しません。
 
+物理ボタンを操作器へ直結せず、`FlugelKranz.OpenXR` で手ごとの論理 Drag / Turn / モード切替へ変換してから Core へ渡してください。入力割当は `ControllerInputMapping` に集約し、将来 Drag と Turn が同じ物理ボタンへ割り当てられても操作器を変更せずに済む構成を保ちます。
+
 C# 用のフォーマッターやリンターの設定は登録されていません。スペルチェック用の辞書は `cspell.json` にあります。
 
 ## テスト方針
 
-変更後はソリューションをビルドし、`dotnet test FlugelKranz.slnx` を実行してください。テスト名は検証する振る舞いが分かる名前にします。カバレッジの数値基準は未設定ですが、回転の全軸・座標変換の適用順序・入力への変換の混入・トラッキング喪失・オフと復元を検証してください。実機確認の手順と対応条件は `README.md` を参照し、自動テストと実機検証の結果を区別してください。上流のネイティブテストは `src/MonadoXrApi/monado/tests/` にあり、参照に利用できます。検証時もサブモジュールへの書き込みは禁止です。
+変更後はソリューションをビルドし、`dotnet test FlugelKranz.slnx` を実行してください。テスト名は検証する振る舞いが分かる名前にします。カバレッジの数値基準は未設定ですが、論理入力割当、片手・両手の切替時の再基準化、両モードの軸制約、Turn 原点、モード移行、座標変換の適用順序、トラッキング喪失、オフと復元を検証してください。実機確認の手順と対応条件は `README.md` を参照し、自動テストと実機検証の結果を区別してください。上流のネイティブテストは `src/MonadoXrApi/monado/tests/` にあり、参照に利用できます。検証時もサブモジュールへの書き込みは禁止です。
 
 ## コミット・プルリクエスト
 

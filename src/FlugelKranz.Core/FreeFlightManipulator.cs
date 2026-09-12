@@ -2,38 +2,51 @@ using System.Numerics;
 
 namespace FlugelKranz.Core;
 
-public readonly record struct HandSample(RigidPose Pose, float Grip, bool IsTracked);
-public readonly record struct InputFrame(RigidPose Head, bool HeadTracked, HandSample Left, HandSample Right);
-
 /// <summary>Consumes poses in the unmodified physical tracking origin, never transformed XR poses.</summary>
-public sealed class SpaceManipulator
+public sealed class FreeFlightManipulator
 {
+    private static readonly FlightMotionSettings DirectManipulationSettings =
+        FlightMotionSettings.Default with
+        {
+            InertiaCutoffEnabled = false,
+            InertiaAccelerationBoostEnabled = false,
+            DragAccelerationMultiplier = 0,
+            TurnAccelerationMultiplier = 0,
+            DragSmoothSeconds = 0,
+            TurnSmoothSeconds = 0
+        };
+    private const byte LeftHand = 1;
+    private const byte RightHand = 2;
+    private const byte BothHands = LeftHand | RightHand;
     private const float MaximumStepSeconds = 0.1f;
-    private bool leftArmed, rightArmed;
+    private bool leftDragArmed, rightDragArmed, leftTurnArmed, rightTurnArmed;
+    private byte dragHands, turnHands;
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
-    private Vector3 previousDragControllerPosition, currentDragDelta, smoothedDragDelta;
+    private Vector3 previousDragPosition, currentDragDelta, smoothedDragDelta;
     private bool dragAccelerationBoostActive;
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
-    private Quaternion turnAnchor;
+    private Quaternion turnAnchor, turnStartOrientation, turnStartOffsetOrientation;
+    private Vector3 twoHandTurnAxis;
     private Vector3 angularInertia, turnVelocity;
     private RigidPose previousTurnTarget;
     private float linearExemptionSeconds, angularExemptionSeconds;
-    public bool IsDragging { get; private set; }
-    public bool IsTurning { get; private set; }
+    public bool IsDragging => dragHands != 0;
+    public bool IsTurning => turnHands != 0;
     public bool HasLinearInertia => linearInertia.LengthSquared() > 0;
     public bool HasAngularInertia => angularInertia.LengthSquared() > 0;
     public RigidPose Offset { get; private set; }
 
-    public SpaceManipulator(RigidPose offset) => SetOffset(offset);
+    public FreeFlightManipulator(RigidPose offset) => SetOffset(offset);
 
     public void Release()
     {
-        IsDragging = IsTurning = leftArmed = rightArmed = false;
+        dragHands = turnHands = 0;
+        leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
-        dragReferenceOrientation = Quaternion.Identity;
-        previousDragControllerPosition = currentDragDelta = smoothedDragDelta = Vector3.Zero;
+        dragReferenceOrientation = turnStartOrientation = turnStartOffsetOrientation = Quaternion.Identity;
+        previousDragPosition = currentDragDelta = smoothedDragDelta = twoHandTurnAxis = Vector3.Zero;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = turnBrakeElapsed = 0;
         dragBrakeFactor = turnBrakeFactor = 1;
@@ -49,8 +62,7 @@ public sealed class SpaceManipulator
         Release();
     }
 
-    /// <summary>Compatibility overload for deterministic step-mode updates.</summary>
-    public RigidPose Update(InputFrame frame) => Update(frame, 0.01f, FlightMotionSettings.Step);
+    public RigidPose Update(InputFrame frame) => Update(frame, 0.01f, DirectManipulationSettings);
 
     public RigidPose Update(InputFrame frame, float elapsedSeconds, FlightMotionSettings settings)
     {
@@ -60,12 +72,29 @@ public sealed class SpaceManipulator
         if (!frame.HeadTracked || !frame.Head.IsValid)
             return Offset;
 
-        bool wasDragging = IsDragging;
-        bool wasTurning = IsTurning;
-        IsDragging = Held(frame.Left, ref leftArmed, wasDragging);
-        IsTurning = Held(frame.Right, ref rightArmed, wasTurning);
-        bool beganDrag = IsDragging && !wasDragging;
-        bool beganTurn = IsTurning && !wasTurning;
+        byte previousDragHands = dragHands;
+        byte previousTurnHands = turnHands;
+        dragHands = ActiveHands(frame, true, previousDragHands);
+        turnHands = ActiveHands(frame, false, previousTurnHands);
+        bool dragHandsChanged = dragHands != previousDragHands;
+        bool turnHandsChanged = turnHands != previousTurnHands;
+        bool beganDrag = previousDragHands == 0 && dragHands != 0;
+        bool beganTurn = previousTurnHands == 0 && turnHands != 0;
+
+        if (previousDragHands != 0 && dragHands == 0)
+        {
+            if (HandsUsable(frame, previousDragHands))
+                FinishDrag(frame.Head, settings);
+            else
+                CancelDrag();
+        }
+        if (previousTurnHands != 0 && turnHands == 0)
+        {
+            if (HandsUsable(frame, previousTurnHands))
+                FinishTurn(settings);
+            else
+                CancelTurn();
+        }
 
         if (beganDrag)
         {
@@ -81,48 +110,23 @@ public sealed class SpaceManipulator
             turnBrakeFactor = 1;
         }
 
-        if (beganDrag)
-        {
-            dragReferenceOrientation = Offset.Orientation;
-            previousDragControllerPosition = frame.Left.Pose.Position;
-            currentDragDelta = smoothedDragDelta = Vector3.Zero;
-        }
-        if (beganTurn)
-            turnAnchor = Quaternion.Normalize(Offset.Orientation * frame.Right.Pose.Orientation);
-
-        if (wasDragging && !IsDragging)
-        {
-            if (Usable(frame.Left))
-                FinishDrag(frame.Head, settings);
-            else
-                CancelDrag();
-        }
-        if (wasTurning && !IsTurning)
-        {
-            if (Usable(frame.Right))
-                FinishTurn(settings);
-            else
-                CancelTurn();
-        }
-
-        if (settings.StepMode)
-        {
-            linearInertia = angularInertia = Vector3.Zero;
-            linearExemptionSeconds = angularExemptionSeconds = 0;
-        }
+        if (dragHandsChanged && dragHands != 0)
+            RebaseDrag(frame);
+        if (turnHandsChanged && turnHands != 0)
+            RebaseTurn(frame);
 
         var orientationBefore = Offset.Orientation;
-        AdvanceFreeInertia(frame.Head.Position, dt, !IsDragging, !IsTurning, settings);
+        AdvanceFreeInertia(frame, dt, !IsDragging, !IsTurning, settings);
         Vector3 dragInertiaStep = Vector3.Zero;
         if (IsDragging)
         {
             currentDragDelta = Vector3.Zero;
             float controllerSpeed = ControllerMovementSpeed(frame, sampleSeconds);
-            dragAccelerationBoostActive = !settings.StepMode &&
+            dragAccelerationBoostActive =
                 settings.InertiaAccelerationBoostEnabled &&
                 controllerSpeed > settings.DragCutoffMetresPerSecond;
             if (!dragAccelerationBoostActive)
-                ApplyGripBrake(
+                ApplyGrabBrake(
                     ref linearInertia,
                     ref dragBrakeElapsed,
                     ref dragBrakeFactor,
@@ -137,13 +141,16 @@ public sealed class SpaceManipulator
         }
         if (IsTurning)
         {
-            ApplyGripBrake(
+            ApplyGrabBrake(
                 ref angularInertia,
                 ref turnBrakeElapsed,
                 ref turnBrakeFactor,
                 dt,
                 settings.BrakeRampSeconds);
-            turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
+            if (turnHands == BothHands)
+                turnStartOffsetOrientation = IntegrateRotation(turnStartOffsetOrientation, angularInertia, dt);
+            else
+                turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
             ApplyDeceleration(
                 ref angularInertia,
                 ref angularExemptionSeconds,
@@ -151,76 +158,92 @@ public sealed class SpaceManipulator
                 settings);
         }
 
-        // Build a base target before measuring this frame's controller movement. This
-        // gives turn measurement a stable target while drag is refreshed independently
-        // of any turn-induced translation.
         var target = GrabTarget(
             frame,
-            IsDragging,
-            IsTurning,
             dragInertiaStep,
             sampleSeconds,
             settings,
             includeCurrentDragDelta: false);
-        if (beganDrag || beganTurn)
-        {
-            if (beganDrag)
-            {
-                dragVelocity = Vector3.Zero;
-            }
-            if (beganTurn)
-            {
-                turnVelocity = Vector3.Zero;
-                previousTurnTarget = target;
-            }
-        }
+        if (turnHandsChanged && IsTurning)
+            previousTurnTarget = target;
         UpdateRawVelocities(
             frame,
             target,
-            IsDragging && !beganDrag,
-            IsTurning && !beganTurn,
+            IsDragging && !dragHandsChanged,
+            IsTurning && !turnHandsChanged,
             sampleSeconds);
         target = GrabTarget(
             frame,
-            IsDragging,
-            IsTurning,
             dragInertiaStep,
             sampleSeconds,
             settings,
             includeCurrentDragDelta: true);
-        ApplySmoothedTarget(frame, target, IsDragging, IsTurning, dt, settings);
+        ApplySmoothedTarget(frame, target, dt, settings);
         RotateLinearInertia(orientationBefore, Offset.Orientation, settings.VectorRotationMultiplier);
         return Offset;
+    }
+
+    private byte ActiveHands(InputFrame frame, bool drag, byte previous)
+    {
+        byte result = 0;
+        bool leftHeld = (previous & LeftHand) != 0;
+        bool rightHeld = (previous & RightHand) != 0;
+        bool left = drag
+            ? Held(frame.Left, frame.Left.Drag, ref leftDragArmed, leftHeld)
+            : Held(frame.Left, frame.Left.Turn, ref leftTurnArmed, leftHeld);
+        bool right = drag
+            ? Held(frame.Right, frame.Right.Drag, ref rightDragArmed, rightHeld)
+            : Held(frame.Right, frame.Right.Turn, ref rightTurnArmed, rightHeld);
+        if (left)
+            result |= LeftHand;
+        if (right)
+            result |= RightHand;
+        return result;
+    }
+
+    private void RebaseDrag(InputFrame frame)
+    {
+        dragReferenceOrientation = Offset.Orientation;
+        previousDragPosition = HandPosition(frame, dragHands);
+        currentDragDelta = smoothedDragDelta = dragVelocity = Vector3.Zero;
+    }
+
+    private void RebaseTurn(InputFrame frame)
+    {
+        turnStartOrientation = HandOrientation(frame, turnHands);
+        turnStartOffsetOrientation = Offset.Orientation;
+        turnAnchor = Quaternion.Normalize(Offset.Orientation * turnStartOrientation);
+        twoHandTurnAxis = turnHands == BothHands
+            ? SafeDirection(frame.Right.Pose.Position - frame.Left.Pose.Position)
+            : Vector3.Zero;
+        turnVelocity = Vector3.Zero;
+        previousTurnTarget = Offset;
     }
 
     private void ApplySmoothedTarget(
         InputFrame frame,
         RigidPose target,
-        bool dragging,
-        bool turning,
         float elapsedSeconds,
         FlightMotionSettings settings)
     {
         float turnAlpha = SmoothingAlpha(settings.TurnSmoothSeconds, elapsedSeconds);
-        var smoothedRotation = Quaternion.Normalize(
-            Quaternion.Slerp(Offset.Orientation, target.Orientation, turnAlpha));
+        var smoothedRotation = IsTurning
+            ? Quaternion.Normalize(Quaternion.Slerp(Offset.Orientation, target.Orientation, turnAlpha))
+            : Offset.Orientation;
         var smoothedPosition = Offset.Position;
-        if (turning)
+        if (IsTurning)
         {
-            var headInRoot = Offset.Transform(frame.Head.Position);
-            smoothedPosition = headInRoot - Vector3.Transform(frame.Head.Position, smoothedRotation);
-            if (dragging)
-            {
-                var turnTargetPosition = headInRoot -
-                    Vector3.Transform(frame.Head.Position, target.Orientation);
-                smoothedPosition += target.Position - turnTargetPosition;
-            }
+            Vector3 pivot = TurnPivot(frame, settings);
+            Vector3 pivotInRoot = Offset.Transform(pivot);
+            Vector3 fullTurnPosition = pivotInRoot - Vector3.Transform(pivot, target.Orientation);
+            Vector3 dragAndInertiaTranslation = target.Position - fullTurnPosition;
+            smoothedPosition = pivotInRoot - Vector3.Transform(pivot, smoothedRotation) +
+                dragAndInertiaTranslation;
         }
-        else if (dragging)
+        else if (IsDragging)
         {
-            // The drag position follows the complete controller displacement. Smoothing
-            // is applied to the movement direction in GrabTarget, while release velocity
-            // remains based on the unsmoothed displacement.
+            // The complete controller displacement is retained. Smoothing only changes
+            // its direction; release velocity always uses the unsmoothed sample.
             smoothedPosition = target.Position;
         }
 
@@ -236,10 +259,11 @@ public sealed class SpaceManipulator
     {
         if (dragging && sampleSeconds > 0)
         {
-            var controllerDelta = frame.Left.Pose.Position - previousDragControllerPosition;
+            Vector3 current = HandPosition(frame, dragHands);
+            var controllerDelta = current - previousDragPosition;
             currentDragDelta = -Vector3.Transform(controllerDelta, dragReferenceOrientation);
             dragVelocity = currentDragDelta / sampleSeconds;
-            previousDragControllerPosition = frame.Left.Pose.Position;
+            previousDragPosition = current;
         }
         else if (!dragging)
             currentDragDelta = Vector3.Zero;
@@ -256,18 +280,18 @@ public sealed class SpaceManipulator
 
     private float ControllerMovementSpeed(InputFrame frame, float sampleSeconds)
     {
-        if (sampleSeconds <= 0 || !frame.Left.Pose.IsValid)
+        if (sampleSeconds <= 0)
             return dragVelocity.Length();
 
-        return Vector3.Distance(frame.Left.Pose.Position, previousDragControllerPosition) / sampleSeconds;
+        return Vector3.Distance(HandPosition(frame, dragHands), previousDragPosition) / sampleSeconds;
     }
 
-    private static float SmoothingAlpha(float smoothSeconds, float elapsedSeconds) =>
+    internal static float SmoothingAlpha(float smoothSeconds, float elapsedSeconds) =>
         smoothSeconds <= 0 || elapsedSeconds <= 0
             ? 1
             : 1 - MathF.Exp(-elapsedSeconds / smoothSeconds);
 
-    private static void ApplyGripBrake(
+    private static void ApplyGrabBrake(
         ref Vector3 velocity,
         ref float elapsed,
         ref float previousFactor,
@@ -279,10 +303,8 @@ public sealed class SpaceManipulator
 
         if (rampSeconds <= 0)
         {
-            float immediateFactor = 0;
-            if (previousFactor > 0)
-                velocity *= immediateFactor / previousFactor;
-            previousFactor = immediateFactor;
+            velocity = Vector3.Zero;
+            previousFactor = 0;
             elapsed = 0;
             return;
         }
@@ -290,12 +312,9 @@ public sealed class SpaceManipulator
         elapsed = MathF.Min(rampSeconds, elapsed + deltaSeconds);
         float progress = elapsed / rampSeconds;
         float easedProgress = progress * progress * (3 - 2 * progress);
-        float targetFactor = 1 - easedProgress;
-        targetFactor = MathF.Min(previousFactor, MathF.Max(0, targetFactor));
-
+        float targetFactor = MathF.Min(previousFactor, MathF.Max(0, 1 - easedProgress));
         if (previousFactor > 0)
             velocity *= targetFactor / previousFactor;
-
         previousFactor = targetFactor;
     }
 
@@ -314,8 +333,6 @@ public sealed class SpaceManipulator
 
     private RigidPose GrabTarget(
         InputFrame frame,
-        bool dragging,
-        bool turning,
         Vector3 dragInertiaStep,
         float elapsedSeconds,
         FlightMotionSettings settings,
@@ -323,13 +340,14 @@ public sealed class SpaceManipulator
     {
         var rotation = Offset.Orientation;
         var translation = Offset.Position;
-        if (turning)
+        if (IsTurning)
         {
-            rotation = Quaternion.Normalize(turnAnchor * Quaternion.Conjugate(frame.Right.Pose.Orientation));
-            translation = Offset.Transform(frame.Head.Position) - Vector3.Transform(frame.Head.Position, rotation);
+            rotation = TurnTargetOrientation(frame);
+            Vector3 pivot = TurnPivot(frame, settings);
+            translation = Offset.Transform(pivot) - Vector3.Transform(pivot, rotation);
         }
 
-        if (dragging)
+        if (IsDragging)
         {
             translation += dragInertiaStep;
             if (includeCurrentDragDelta)
@@ -337,6 +355,44 @@ public sealed class SpaceManipulator
         }
 
         return new(rotation, translation);
+    }
+
+    private Quaternion TurnTargetOrientation(InputFrame frame)
+    {
+        Quaternion current = HandOrientation(frame, turnHands);
+        if (turnHands != BothHands)
+            return Quaternion.Normalize(turnAnchor * Quaternion.Conjugate(current));
+
+        Vector3 currentAxis = SafeDirection(frame.Right.Pose.Position - frame.Left.Pose.Position);
+        Vector3 axis = currentAxis.LengthSquared() > 0 ? currentAxis : twoHandTurnAxis;
+        if (axis.LengthSquared() <= 0)
+            return turnStartOffsetOrientation;
+
+        Quaternion controllerDelta = Quaternion.Normalize(current * Quaternion.Conjugate(turnStartOrientation));
+        Quaternion twist = TwistAroundAxis(controllerDelta, axis);
+        return Quaternion.Normalize(turnStartOffsetOrientation * Quaternion.Conjugate(twist));
+    }
+
+    private Vector3 TurnPivot(InputFrame frame, FlightMotionSettings settings)
+    {
+        if (IsDragging)
+            return HandPosition(frame, dragHands);
+        if (settings.TurnOrigin == TurnOrigin.Head)
+            return frame.Head.Position;
+
+        Vector3 sum = frame.Head.Position;
+        int count = 1;
+        if (Usable(frame.Left))
+        {
+            sum += frame.Left.Pose.Position;
+            count++;
+        }
+        if (Usable(frame.Right))
+        {
+            sum += frame.Right.Pose.Position;
+            count++;
+        }
+        return sum / count;
     }
 
     private Vector3 SmoothDragDelta(Vector3 rawDelta, float elapsedSeconds, float smoothSeconds)
@@ -356,7 +412,7 @@ public sealed class SpaceManipulator
     }
 
     private void AdvanceFreeInertia(
-        Vector3 head,
+        InputFrame frame,
         float dt,
         bool move,
         bool turn,
@@ -369,9 +425,10 @@ public sealed class SpaceManipulator
         var translation = Offset.Position;
         if (turn && angularInertia.LengthSquared() > 0)
         {
-            var headInRoot = Offset.Transform(head);
+            Vector3 pivot = TurnPivot(frame, settings);
+            var pivotInRoot = Offset.Transform(pivot);
             rotation = IntegrateRotation(rotation, angularInertia, dt);
-            translation = headInRoot - Vector3.Transform(head, rotation);
+            translation = pivotInRoot - Vector3.Transform(pivot, rotation);
         }
 
         if (move)
@@ -394,21 +451,13 @@ public sealed class SpaceManipulator
 
     private void FinishDrag(RigidPose head, FlightMotionSettings settings)
     {
-        if (settings.StepMode)
-        {
-            linearInertia = dragVelocity = Vector3.Zero;
-            linearExemptionSeconds = 0;
-            return;
-        }
-
         bool hasUsableAcceleration = dragVelocity.LengthSquared() > 0.0000000001f &&
             (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
         if (hasUsableAcceleration)
         {
             var acceleration = ApplyDragAcceleration(dragVelocity, head.Orientation, settings);
             float speedBeforeBoost = linearInertia.Length();
-            if (dragAccelerationBoostActive &&
-                speedBeforeBoost > 0.0000000001f)
+            if (dragAccelerationBoostActive && speedBeforeBoost > 0.0000000001f)
             {
                 var boosted = linearInertia + acceleration;
                 float boostReferenceSpeed = MathF.Max(speedBeforeBoost, acceleration.Length());
@@ -428,8 +477,6 @@ public sealed class SpaceManipulator
         }
         else if (linearInertia.LengthSquared() <= 0.0000000001f)
         {
-            // A release below the cutoff must not erase inertia that is still being
-            // braked. It is only safe to clear the state once it has actually stopped.
             linearInertia = Vector3.Zero;
             linearExemptionSeconds = 0;
         }
@@ -458,13 +505,6 @@ public sealed class SpaceManipulator
 
     private void FinishTurn(FlightMotionSettings settings)
     {
-        if (settings.StepMode)
-        {
-            angularInertia = turnVelocity = Vector3.Zero;
-            angularExemptionSeconds = 0;
-            return;
-        }
-
         if (settings.InertiaCutoffEnabled && turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond)
             angularInertia = Vector3.Zero;
         else
@@ -531,7 +571,7 @@ public sealed class SpaceManipulator
         angularExemptionSeconds = 0;
     }
 
-    private static Quaternion IntegrateRotation(Quaternion rotation, Vector3 velocity, float dt)
+    internal static Quaternion IntegrateRotation(Quaternion rotation, Vector3 velocity, float dt)
     {
         float speed = velocity.Length();
         if (speed <= 0 || dt <= 0)
@@ -540,7 +580,7 @@ public sealed class SpaceManipulator
         return Quaternion.Normalize(Quaternion.CreateFromAxisAngle(velocity / speed, speed * dt) * rotation);
     }
 
-    private static Vector3 RotationVelocity(Quaternion from, Quaternion to, float dt)
+    internal static Vector3 RotationVelocity(Quaternion from, Quaternion to, float dt)
     {
         var delta = Quaternion.Normalize(to * Quaternion.Conjugate(from));
         if (delta.W < 0)
@@ -553,23 +593,66 @@ public sealed class SpaceManipulator
             : new Vector3(delta.X, delta.Y, delta.Z) / sine * (angle / dt);
     }
 
-    private static bool Held(HandSample hand, ref bool armed, bool held)
+    internal static Quaternion TwistAroundAxis(Quaternion rotation, Vector3 axis)
     {
-        if (!Usable(hand))
+        axis = SafeDirection(axis);
+        if (axis.LengthSquared() <= 0)
+            return Quaternion.Identity;
+
+        var imaginary = new Vector3(rotation.X, rotation.Y, rotation.Z);
+        var projected = axis * Vector3.Dot(imaginary, axis);
+        var twist = new Quaternion(projected, rotation.W);
+        return twist.LengthSquared() <= 0.0000000001f
+            ? Quaternion.Identity
+            : Quaternion.Normalize(twist);
+    }
+
+    private static Quaternion HandOrientation(InputFrame frame, byte hands) => hands switch
+    {
+        LeftHand => frame.Left.Pose.Orientation,
+        RightHand => frame.Right.Pose.Orientation,
+        BothHands => Average(frame.Left.Pose.Orientation, frame.Right.Pose.Orientation),
+        _ => Quaternion.Identity
+    };
+
+    private static Vector3 HandPosition(InputFrame frame, byte hands) => hands switch
+    {
+        LeftHand => frame.Left.Pose.Position,
+        RightHand => frame.Right.Pose.Position,
+        BothHands => (frame.Left.Pose.Position + frame.Right.Pose.Position) * 0.5f,
+        _ => Vector3.Zero
+    };
+
+    private static Quaternion Average(Quaternion left, Quaternion right)
+    {
+        if (Quaternion.Dot(left, right) < 0)
+            right = -right;
+        return Quaternion.Normalize(Quaternion.Slerp(left, right, 0.5f));
+    }
+
+    private static Vector3 SafeDirection(Vector3 value) =>
+        value.LengthSquared() <= 0.0000000001f ? Vector3.Zero : Vector3.Normalize(value);
+
+    private static bool HandsUsable(InputFrame frame, byte hands) =>
+        ((hands & LeftHand) == 0 || Usable(frame.Left)) &&
+        ((hands & RightHand) == 0 || Usable(frame.Right));
+
+    private static bool Held(HandSample hand, float value, ref bool armed, bool held)
+    {
+        if (!Usable(hand) || !float.IsFinite(value))
         {
             armed = false;
             return false;
         }
 
-        if (hand.Grip <= 0.35f)
+        if (value <= 0.35f)
         {
             armed = true;
             return false;
         }
 
-        return armed && hand.Grip >= (held ? 0.35f : 0.65f);
+        return armed && value >= (held ? 0.35f : 0.65f);
     }
 
-    private static bool Usable(HandSample hand) =>
-        hand.IsTracked && hand.Pose.IsValid && float.IsFinite(hand.Grip);
+    private static bool Usable(HandSample hand) => hand.IsTracked && hand.Pose.IsValid;
 }

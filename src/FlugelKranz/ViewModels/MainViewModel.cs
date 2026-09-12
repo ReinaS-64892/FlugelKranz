@@ -20,9 +20,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private double settingsPanelWidth;
     [ObservableProperty] private bool isConnected;
     [ObservableProperty] private string status = "オフ — オンにするとランタイムへ接続します。";
-    [ObservableProperty] private string leftStatus = "左手グリップを握って移動";
-    [ObservableProperty] private string rightStatus = "右手グリップを握って全軸回転";
-    [ObservableProperty] private bool stepMode;
+    [ObservableProperty] private string leftStatus = "左右の操作入力から Drag";
+    [ObservableProperty] private string rightStatus = "左右の操作入力から Turn";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModeLabel))]
+    [NotifyPropertyChangedFor(nameof(ModeDescription))]
+    private FlightMode mode = FlightMode.InfiniteWalking;
+    [ObservableProperty] private bool useHeadTurnOrigin;
     [ObservableProperty] private bool inertiaCutoffEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
@@ -66,9 +70,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(TurnSmoothLabel))]
     private double turnSmoothSeconds = 0.05;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InfiniteDragSmoothLabel))]
+    private double infiniteDragSmoothSeconds = 0.01;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InfiniteTurnSmoothLabel))]
+    private double infiniteTurnSmoothSeconds = 0.05;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InfiniteTurnHeadSmoothLabel))]
+    private double infiniteTurnHeadSmoothSeconds = 0.02;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
+    public string ModeLabel => Mode == FlightMode.InfiniteWalking ? "I" : "F";
+    public string ModeDescription => Mode == FlightMode.InfiniteWalking ? "無限歩行モード" : "自由飛行モード";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
@@ -85,6 +100,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string DecelerationExemptionStrengthLabel => $"免除割合: {DecelerationExemptionStrength:0.00}";
     public string DragSmoothLabel => $"Drag: {DragSmoothSeconds:0.00} 秒";
     public string TurnSmoothLabel => $"Turn: {TurnSmoothSeconds:0.00} 秒";
+    public string InfiniteDragSmoothLabel => $"Drag: {InfiniteDragSmoothSeconds:0.00} 秒";
+    public string InfiniteTurnSmoothLabel => $"Turn: {InfiniteTurnSmoothSeconds:0.00} 秒";
+    public string InfiniteTurnHeadSmoothLabel => $"Turn Head: {InfiniteTurnHeadSmoothSeconds:0.00} 秒";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
 
     public MainViewModel(string libraryPath, string? settingsPath = null)
@@ -95,13 +113,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         controller = new(
             () => new MonadoFlightRuntime(libraryPath),
             new UiProgress(Update),
-            CreateMotionSettings);
+            CreateSettings);
+        if (File.Exists(libraryPath))
+        {
+            Mode = FlightMode.InfiniteWalking;
+            IsEnabled = true;
+            Status = "無限歩行モードで接続・入力を準備しています…";
+            controller.SetEnabled(true);
+        }
     }
 
     private void SettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (
-            nameof(StepMode) or nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
+            nameof(Mode) or nameof(UseHeadTurnOrigin) or
+            nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
             nameof(TurnCutoffDegreesPerSecond) or nameof(DragAccelerationMultiplier) or
             nameof(TurnAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
             nameof(InertiaAccelerationBoostEnabled) or nameof(InertiaAccelerationBoostMaximumMultiplier) or
@@ -109,16 +135,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(InertiaDecelerationPerSecond) or nameof(DecelerationExemptionEnabled) or
             nameof(DragDecelerationExemptionDurationRatio) or nameof(TurnDecelerationExemptionDurationRatio) or
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
+            nameof(InfiniteDragSmoothSeconds) or nameof(InfiniteTurnSmoothSeconds) or
+            nameof(InfiniteTurnHeadSmoothSeconds) or
             nameof(BrakeRampSeconds)))
             return;
 
-        settingsStore.Save(CreateMotionSettings());
+        settingsStore.Save(CreateSettings());
     }
 
-    private void ApplySettings(FlightMotionSettings settings)
+    private void ApplySettings(FlugelKranzSettings root)
     {
-        settings = settings.Normalized();
-        StepMode = settings.StepMode;
+        root = root.Normalized();
+        Mode = root.Mode;
+        var settings = root.FreeFlight;
+        UseHeadTurnOrigin = settings.TurnOrigin == TurnOrigin.Head;
         InertiaCutoffEnabled = settings.InertiaCutoffEnabled;
         DragCutoffCentimetresPerSecond = Math.Round(settings.DragCutoffMetresPerSecond * 100, 6);
         TurnCutoffDegreesPerSecond = Math.Round(settings.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4);
@@ -136,6 +166,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DragSmoothSeconds = Math.Round(settings.DragSmoothSeconds, 6);
         TurnSmoothSeconds = Math.Round(settings.TurnSmoothSeconds, 6);
         BrakeRampSeconds = Math.Round(settings.BrakeRampSeconds, 6);
+        InfiniteDragSmoothSeconds = Math.Round(root.InfiniteWalking.DragSmoothSeconds, 6);
+        InfiniteTurnSmoothSeconds = Math.Round(root.InfiniteWalking.TurnSmoothSeconds, 6);
+        InfiniteTurnHeadSmoothSeconds = Math.Round(root.InfiniteWalking.TurnHeadSmoothSeconds, 6);
     }
 
     private void ResetToDefaults(Action<FlightMotionSettings> apply)
@@ -144,7 +177,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         apply(FlightMotionSettings.Default);
     }
 
-    [RelayCommand] private void ResetStepMode() => ResetToDefaults(s => StepMode = s.StepMode);
+    [RelayCommand] private void ResetTurnOrigin() => ResetToDefaults(s => UseHeadTurnOrigin = s.TurnOrigin == TurnOrigin.Head);
     [RelayCommand] private void ResetInertiaCutoffEnabled() => ResetToDefaults(s => InertiaCutoffEnabled = s.InertiaCutoffEnabled);
     [RelayCommand] private void ResetDragCutoff() => ResetToDefaults(s => DragCutoffCentimetresPerSecond = s.DragCutoffMetresPerSecond * 100);
     [RelayCommand] private void ResetTurnCutoff() => ResetToDefaults(s => TurnCutoffDegreesPerSecond = Math.Round(s.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4));
@@ -162,6 +195,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetDragSmooth() => ResetToDefaults(s => DragSmoothSeconds = s.DragSmoothSeconds);
     [RelayCommand] private void ResetTurnSmooth() => ResetToDefaults(s => TurnSmoothSeconds = s.TurnSmoothSeconds);
     [RelayCommand] private void ResetBrakeRamp() => ResetToDefaults(s => BrakeRampSeconds = s.BrakeRampSeconds);
+    [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
+    [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
+    [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
+    [RelayCommand] private void ResetMode() => Mode = FlightMode.InfiniteWalking;
+
+    [RelayCommand]
+    private void ToggleMode()
+    {
+        if (closing) return;
+        Mode = Mode == FlightMode.InfiniteWalking ? FlightMode.FreeFlight : FlightMode.InfiniteWalking;
+        Status = $"{ModeDescription}へ切り替えました。操作入力を離してから使用してください。";
+    }
 
     [RelayCommand]
     private void Toggle()
@@ -221,31 +266,42 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (closing) { Console.Error.WriteLine(state.Message); return; }
         IsEnabled = state.Enabled;
         IsConnected = state.Connected;
+        Mode = state.Mode;
         Status = state.Message;
-        LeftStatus = state.Dragging ? "Space Drag — 操作中" : "左手グリップを握って移動";
-        RightStatus = state.Turning ? "Space Turn — 操作中" : "右手グリップを握って全軸回転";
+        LeftStatus = state.Dragging ? "Space Drag — 操作中" : "左右の操作入力から Drag";
+        RightStatus = state.Turning ? "Space Turn — 操作中" : "左右の操作入力から Turn";
     }
 
-    private FlightMotionSettings CreateMotionSettings() => new()
+    private FlugelKranzSettings CreateSettings() => new()
     {
-        StepMode = StepMode,
-        InertiaCutoffEnabled = InertiaCutoffEnabled,
-        DragCutoffMetresPerSecond = (float)(DragCutoffCentimetresPerSecond / 100),
-        TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
-        DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
-        TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
-        ZAccelerationMultiplier = (float)ZAccelerationMultiplier,
-        InertiaAccelerationBoostEnabled = InertiaAccelerationBoostEnabled,
-        InertiaAccelerationBoostMaximumMultiplier = (float)InertiaAccelerationBoostMaximumMultiplier,
-        VectorRotationMultiplier = (float)VectorRotationMultiplier,
-        InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
-        DecelerationExemptionEnabled = DecelerationExemptionEnabled,
-        DragDecelerationExemptionDurationRatio = (float)DragDecelerationExemptionDurationRatio,
-        TurnDecelerationExemptionDurationRatio = (float)TurnDecelerationExemptionDurationRatio,
-        DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
-        DragSmoothSeconds = (float)DragSmoothSeconds,
-        TurnSmoothSeconds = (float)TurnSmoothSeconds,
-        BrakeRampSeconds = (float)BrakeRampSeconds
+        Mode = Mode,
+        FreeFlight = new()
+        {
+            TurnOrigin = UseHeadTurnOrigin ? TurnOrigin.Head : TurnOrigin.TrackedElementsMidpoint,
+            InertiaCutoffEnabled = InertiaCutoffEnabled,
+            DragCutoffMetresPerSecond = (float)(DragCutoffCentimetresPerSecond / 100),
+            TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
+            DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
+            TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
+            ZAccelerationMultiplier = (float)ZAccelerationMultiplier,
+            InertiaAccelerationBoostEnabled = InertiaAccelerationBoostEnabled,
+            InertiaAccelerationBoostMaximumMultiplier = (float)InertiaAccelerationBoostMaximumMultiplier,
+            VectorRotationMultiplier = (float)VectorRotationMultiplier,
+            InertiaDecelerationPerSecond = (float)InertiaDecelerationPerSecond,
+            DecelerationExemptionEnabled = DecelerationExemptionEnabled,
+            DragDecelerationExemptionDurationRatio = (float)DragDecelerationExemptionDurationRatio,
+            TurnDecelerationExemptionDurationRatio = (float)TurnDecelerationExemptionDurationRatio,
+            DecelerationExemptionStrength = (float)DecelerationExemptionStrength,
+            DragSmoothSeconds = (float)DragSmoothSeconds,
+            TurnSmoothSeconds = (float)TurnSmoothSeconds,
+            BrakeRampSeconds = (float)BrakeRampSeconds
+        },
+        InfiniteWalking = new()
+        {
+            DragSmoothSeconds = (float)InfiniteDragSmoothSeconds,
+            TurnSmoothSeconds = (float)InfiniteTurnSmoothSeconds,
+            TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds
+        }
     };
 
     public async ValueTask DisposeAsync()
@@ -253,7 +309,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         closing = true;
         settingsAnimation?.Cancel();
         settingsAnimation?.Dispose();
-        settingsStore.Save(CreateMotionSettings());
+        settingsStore.Save(CreateSettings());
         IsEnabled = false;
         Status = "接続時の位置・姿勢に戻しています…";
         await controller.DisposeAsync();

@@ -28,7 +28,7 @@ internal static class Program
         {
             Description = "UI を開かず接続・入力を確認（空間の書き込みなし）"
         };
-        var root = new RootCommand("FlugelKranz — Space Drag / Space Turn。Linux Wayland セッションで起動してください。");
+        var root = new RootCommand("FlugelKranz — 自由飛行 / 無限歩行の Space Drag・Space Turn。Linux Wayland セッションで起動してください。");
         root.Options.Add(libraryOption);
         root.Options.Add(diagnoseOption);
         root.SetAction(result =>
