@@ -1,6 +1,6 @@
 # FlugelKranz
 
-Reina_Sakiria が実現した VRChat の「自由飛行」を、Monado / WiVRn の空間操作 API で発展させるためのツールです。アバターギミックではありません。
+Monado / WiVRn と Linux Wayland 環境向けの、自由飛行 / 無限歩行ツールです。
 
 ## 起動
 
