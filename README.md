@@ -28,7 +28,7 @@ OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/
 
 操作はコントローラーごとの論理 Drag / Turn に割り当てます。ON にした後やモード変更・位置姿勢リセットの後は、操作入力を一度離してから掴み直してください。
 
-- **Valve Index**: 左手トラックパッド左／右手トラックパッド右が Drag、左手トラックパッド右／右手トラックパッド左が Turn です。OpenXR の D-pad 判定を使います。両手のトラックパッド下を同時に 1 秒押すとモードを切り替えます。
+- **Valve Index**: 左手トラックパッド左／右手トラックパッド右が Drag、左手トラックパッド右／右手トラックパッド左が Turn です。OpenXR からトラックパッドの touch と座標を読み、中央のデッドゾーン外を D-pad として判定します。両手のトラックパッド下を同時に 1 秒押すとモードを切り替えます。
 - **Oculus Touch 系**: Thumb Rest に触れ、同時にトリガーへ指が触れていれば Drag、触れていなければ Turn です。
 - UI の丸い `I` / `F` ボタンでも、無限歩行（Infinite Walking）と自由飛行（Free Flight）を切り替えられます。
 
@@ -65,7 +65,7 @@ Space Drag は物理空間の Y 軸だけを直接移動し、慣性を使いま
 ## 対応条件と制約
 
 - libmonado API **1.4 以降の 1.x**。公開 API のみを使用し、Monado サブモジュールは変更しません。
-- OpenXR の `XR_MND_headless` と `XR_KHR_convert_timespec_time`、STAGE / VIEW 空間が必要です。Valve Index では `XR_EXT_dpad_binding` と `XR_KHR_binding_modification` も使用します。描画なしセッションを使い、VRChat からプライマリー・フォーカスを奪う操作は行いません。
+- OpenXR の `XR_MND_headless` と `XR_KHR_convert_timespec_time`、STAGE / VIEW 空間が必要です。描画なしセッションを使い、VRChat からプライマリー・フォーカスを奪う操作は行いません。
 - HMD・左右コントローラーは別々のトラッキング原点でも使用できます。各原点のオフセットを読み取り、飛行の変換は `mnd_root_set_reference_space_offset` で STAGE 参照空間へ一度だけ適用します。トラッキング原点自体は書き換えないため、スペースキャリブレーターや HMD 再接続による原点更新と共存できます。固定 STAGE オフセットを libmonado から読める構成が必要です。ドライバーが動的に提供する STAGE は起動時に理由を表示して操作を開始しません。
 - 入力割当は Valve Index と Oculus Touch 系に対応します。他のコントローラーへグリップや select の代替割当は行いません。
 - STAGE 参照空間のオフセットは、その空間を使う他の XR クライアントにも作用します。HMD・左右手が共有する原点を使うフルボディトラッカーなども同じ変換を受けます。専用の別原点は変更しません。

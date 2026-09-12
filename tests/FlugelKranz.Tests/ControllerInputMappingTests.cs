@@ -1,3 +1,4 @@
+using System.Numerics;
 using FlugelKranz.OpenXR;
 using Xunit;
 
@@ -6,20 +7,20 @@ namespace FlugelKranz.Tests;
 public class ControllerInputMappingTests
 {
     [Theory]
-    [InlineData(ControllerHand.Left, true, false, true, false)]
-    [InlineData(ControllerHand.Left, false, true, false, true)]
-    [InlineData(ControllerHand.Right, true, false, false, true)]
-    [InlineData(ControllerHand.Right, false, true, true, false)]
+    [InlineData(ControllerHand.Left, -1, 0, true, false)]
+    [InlineData(ControllerHand.Left, 1, 0, false, true)]
+    [InlineData(ControllerHand.Right, -1, 0, false, true)]
+    [InlineData(ControllerHand.Right, 1, 0, true, false)]
     public void IndexDpadDirectionsMapToHandSpecificActions(
         ControllerHand hand,
-        bool left,
-        bool right,
+        float x,
+        float y,
         bool drag,
         bool turn)
     {
         var result = ControllerInputMapping.Map(
             hand,
-            new(left, right, false, false, false, false));
+            new(new(x, y), true, false, false, false));
 
         Assert.Equal(drag, result.Drag);
         Assert.Equal(turn, result.Turn);
@@ -35,7 +36,7 @@ public class ControllerInputMappingTests
     {
         var result = ControllerInputMapping.Map(
             ControllerHand.Left,
-            new(false, false, false, true, triggerTouched, true));
+            new(Vector2.Zero, false, true, triggerTouched, true));
 
         Assert.Equal(drag, result.Drag);
         Assert.Equal(turn, result.Turn);
@@ -46,10 +47,35 @@ public class ControllerInputMappingTests
     {
         var result = ControllerInputMapping.Map(
             ControllerHand.Right,
-            new(false, false, true, false, false, false));
+            new(new(0, -1), true, false, false, false));
 
         Assert.True(result.ModeSwitch);
         Assert.False(result.Drag);
         Assert.False(result.Turn);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0.2, 0)]
+    [InlineData(0, 1)]
+    public void CenterAndUpDoNotActivateFlightActions(float x, float y)
+    {
+        var result = ControllerInputMapping.Map(
+            ControllerHand.Left,
+            new(new(x, y), true, false, false, false));
+
+        Assert.False(result.Drag);
+        Assert.False(result.Turn);
+        Assert.False(result.ModeSwitch);
+    }
+
+    [Fact]
+    public void TrackpadPositionRequiresTouch()
+    {
+        var result = ControllerInputMapping.Map(
+            ControllerHand.Left,
+            new(new(-1, 0), false, false, false, false));
+
+        Assert.Equal(default, result);
     }
 }

@@ -16,7 +16,6 @@ public sealed unsafe class OpenXrInput : IDisposable
     private XrSpace stage, view;
     private readonly Hand[] hands = [new(true), new(false)];
     private bool running;
-    private bool dpadBindingEnabled;
     private XrSessionState state;
     private delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult> convertTime;
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
@@ -25,35 +24,12 @@ public sealed unsafe class OpenXrInput : IDisposable
     private sealed class Hand(bool isLeft)
     {
         public bool IsLeft { get; } = isLeft;
-        public XrAction Pose, DpadLeft, DpadRight, DpadDown, ThumbRestTouch, TriggerTouch;
+        public XrAction Pose, TrackpadPosition, TrackpadTouch, ThumbRestTouch, TriggerTouch;
         public XrSpace Space;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Timespec { public long Seconds, Nanoseconds; }
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BindingModifications
-    {
-        public XrStructureType Type;
-        public void* Next;
-        public uint Count;
-        public void** Modifications;
-    }
-    [StructLayout(LayoutKind.Sequential)]
-    private struct DpadBinding
-    {
-        public XrStructureType Type;
-        public void* Next;
-        public XrPath Binding;
-        public XrActionSet ActionSet;
-        public float ForceThreshold;
-        public float ForceThresholdReleased;
-        public float CenterRegion;
-        public float WedgeAngle;
-        public uint IsSticky;
-        public void* OnHaptic;
-        public void* OffHaptic;
-    }
     [DllImport("libc", SetLastError = true)] private static extern int clock_gettime(int clockId, out Timespec time);
 
     public OpenXrInput()
@@ -102,20 +78,14 @@ public sealed unsafe class OpenXrInput : IDisposable
         }
         foreach (var required in new[] { "XR_MND_headless", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
-        dpadBindingEnabled = extensions.Contains("XR_EXT_dpad_binding") &&
-            extensions.Contains("XR_KHR_binding_modification");
-
         fixed (byte* headless = "XR_MND_headless\0"u8)
         fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
-        fixed (byte* dpad = "XR_EXT_dpad_binding\0"u8)
-        fixed (byte* bindingModification = "XR_KHR_binding_modification\0"u8)
         {
-            byte** names = stackalloc byte*[4] { headless, time, dpad, bindingModification };
-            uint extensionCount = dpadBindingEnabled ? 4u : 2u;
+            byte** names = stackalloc byte*[2] { headless, time };
             var info = new XrInstanceCreateInfo
             {
                 type = XrStructureType.XR_TYPE_INSTANCE_CREATE_INFO,
-                enabledExtensionCount = extensionCount, enabledExtensionNames = names,
+                enabledExtensionCount = 2, enabledExtensionNames = names,
                 applicationInfo = new XrApplicationInfo { apiVersion = 1UL << 48, applicationVersion = 1 }
             };
             Copy(ApplicationName, info.applicationInfo.applicationName, 128);
@@ -138,15 +108,13 @@ public sealed unsafe class OpenXrInput : IDisposable
         {
             string side = i == 0 ? "left" : "right";
             hands[i].Pose = CreateAction($"{side}_pose", XrActionType.XR_ACTION_TYPE_POSE_INPUT);
-            hands[i].DpadLeft = CreateAction($"{side}_dpad_left", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
-            hands[i].DpadRight = CreateAction($"{side}_dpad_right", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
-            hands[i].DpadDown = CreateAction($"{side}_dpad_down", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].TrackpadPosition = CreateAction($"{side}_trackpad", XrActionType.XR_ACTION_TYPE_VECTOR2F_INPUT);
+            hands[i].TrackpadTouch = CreateAction($"{side}_trackpad_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].ThumbRestTouch = CreateAction($"{side}_thumb_rest", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].TriggerTouch = CreateAction($"{side}_trigger_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
         }
         SuggestOculusTouch();
-        if (dpadBindingEnabled)
-            SuggestValveIndex();
+        SuggestValveIndex();
         var set = actionSet;
         var attach = new XrSessionActionSetsAttachInfo
         { type = XrStructureType.XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO, countActionSets = 1, actionSets = &set };
@@ -195,40 +163,19 @@ public sealed unsafe class OpenXrInput : IDisposable
 
     private void SuggestValveIndex()
     {
-        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[8];
-        DpadBinding* dpadModifications = stackalloc DpadBinding[2];
-        void** modificationPointers = stackalloc void*[2];
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[6];
         for (int i = 0; i < hands.Length; i++)
         {
             string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
-            bindings[i * 4] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
-            bindings[i * 4 + 1] = new() { action = hands[i].DpadLeft, binding = Path(prefix + "trackpad/dpad_left") };
-            bindings[i * 4 + 2] = new() { action = hands[i].DpadRight, binding = Path(prefix + "trackpad/dpad_right") };
-            bindings[i * 4 + 3] = new() { action = hands[i].DpadDown, binding = Path(prefix + "trackpad/dpad_down") };
-            dpadModifications[i] = new()
-            {
-                Type = (XrStructureType)1000078000,
-                Binding = Path(prefix + "trackpad"),
-                ActionSet = actionSet,
-                ForceThreshold = 0.5f,
-                ForceThresholdReleased = 0.4f,
-                CenterRegion = 0.5f,
-                WedgeAngle = MathF.PI / 2
-            };
-            modificationPointers[i] = &dpadModifications[i];
+            bindings[i * 3] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
+            bindings[i * 3 + 1] = new() { action = hands[i].TrackpadPosition, binding = Path(prefix + "trackpad") };
+            bindings[i * 3 + 2] = new() { action = hands[i].TrackpadTouch, binding = Path(prefix + "trackpad/touch") };
         }
-        var modifications = new BindingModifications
-        {
-            Type = (XrStructureType)1000120000,
-            Count = 2,
-            Modifications = modificationPointers
-        };
         var info = new XrInteractionProfileSuggestedBinding
         {
             type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
-            next = &modifications,
             interactionProfile = Path("/interaction_profiles/valve/index_controller"),
-            countSuggestedBindings = 8,
+            countSuggestedBindings = 6,
             suggestedBindings = bindings
         };
         var result = xrSuggestInteractionProfileBindings(instance, &info);
@@ -259,18 +206,16 @@ public sealed unsafe class OpenXrInput : IDisposable
         Check(xrGetActionStatePose(session, &get, &poseState), "姿勢アクションの取得");
         if (!poseState.isActive)
             return default;
-        var dpadLeft = ReadBoolean(hand.DpadLeft);
-        var dpadRight = ReadBoolean(hand.DpadRight);
-        var dpadDown = ReadBoolean(hand.DpadDown);
+        var trackpad = ReadVector2(hand.TrackpadPosition);
+        var trackpadTouch = ReadBoolean(hand.TrackpadTouch);
         var thumbRest = ReadBoolean(hand.ThumbRestTouch);
         var triggerTouch = ReadBoolean(hand.TriggerTouch);
         var (pose, tracked) = Locate(hand.Space, time);
         var actions = ControllerInputMapping.Map(
             hand.IsLeft ? ControllerHand.Left : ControllerHand.Right,
             new(
-                dpadLeft.Value,
-                dpadRight.Value,
-                dpadDown.Value,
+                trackpad.Value,
+                trackpadTouch.Value,
                 thumbRest.Value,
                 triggerTouch.Value,
                 thumbRest.Active && triggerTouch.Active));
@@ -280,6 +225,23 @@ public sealed unsafe class OpenXrInput : IDisposable
             actions.Turn ? 1 : 0,
             actions.ModeSwitch ? 1 : 0,
             tracked);
+    }
+
+    private (bool Active, Vector2 Value) ReadVector2(XrAction action)
+    {
+        var get = new XrActionStateGetInfo
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_GET_INFO,
+            action = action
+        };
+        var state = new XrActionStateVector2f
+        {
+            type = XrStructureType.XR_TYPE_ACTION_STATE_VECTOR2F
+        };
+        Check(xrGetActionStateVector2f(session, &get, &state), "トラックパッド座標の取得");
+        return (state.isActive, state.isActive
+            ? new Vector2(state.currentState.x, state.currentState.y)
+            : Vector2.Zero);
     }
 
     private (bool Active, bool Value) ReadBoolean(XrAction action)
