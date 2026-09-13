@@ -80,7 +80,9 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var vm = new MainViewModel(Program.MonadoLibraryPath);
+            var vm = new MainViewModel(
+                Program.MonadoLibraryPath,
+                libraryPathResolver: Program.MonadoLibraryPathResolver);
             var window = new Window
             {
                 Title = "FlugelKranz", Width = 1100, Height = 650, MinWidth = 420, MinHeight = 520,

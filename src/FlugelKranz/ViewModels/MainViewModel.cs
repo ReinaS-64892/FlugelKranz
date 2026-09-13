@@ -11,6 +11,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly FlightController controller;
     private readonly SettingsStore settingsStore;
+    private readonly Func<string> libraryPathResolver;
     private CancellationTokenSource? settingsAnimation;
     private double settingsPanelTargetWidth = 430;
     private bool closing;
@@ -132,16 +133,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string ValveIndexForceStatus =>
         $"Valve Index force — 左: {LeftValveIndexForce:0.00} / 右: {RightValveIndexForce:0.00}";
 
-    public MainViewModel(string libraryPath, string? settingsPath = null)
+    public MainViewModel(
+        string libraryPath,
+        string? settingsPath = null,
+        Func<string>? libraryPathResolver = null)
     {
+        this.libraryPathResolver = libraryPathResolver ?? (() => libraryPath);
         settingsStore = new(settingsPath);
         ApplySettings(settingsStore.Load());
         PropertyChanged += SettingsChanged;
         controller = new(
-            () => new MonadoFlightRuntime(libraryPath, CreateValveIndexSettings),
+            () => new MonadoFlightRuntime(this.libraryPathResolver(), CreateValveIndexSettings),
             new UiProgress(Update),
-            CreateSettings);
-        if (File.Exists(libraryPath))
+            CreateSettings,
+            retryRuntimeConnection: libraryPathResolver is not null);
+        if (libraryPathResolver is not null || File.Exists(libraryPath))
         {
             Mode = FlightMode.InfiniteWalking;
             IsEnabled = true;

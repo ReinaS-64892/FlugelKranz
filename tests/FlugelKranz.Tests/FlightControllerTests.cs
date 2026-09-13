@@ -70,6 +70,26 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task RetryConnectionKeepsEnabledUntilRuntimeBecomesAvailable()
+    {
+        var runtime = new FakeRuntime();
+        var progress = new Recorder();
+        int attempts = 0;
+        await using var controller = new FlightController(
+            () => Interlocked.Increment(ref attempts) == 1
+                ? throw new InvalidOperationException("not started")
+                : runtime,
+            progress,
+            retryRuntimeConnection: true);
+
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        Assert.True(attempts >= 2);
+        Assert.Contains(progress.Statuses, s => s.Enabled && !s.Connected);
+    }
+
+    [Fact]
     public async Task ReadFailureRestoresOwnedOffsetAndDisposes()
     {
         var runtime = new FakeRuntime();

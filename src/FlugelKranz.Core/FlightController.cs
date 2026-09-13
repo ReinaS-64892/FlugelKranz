@@ -38,7 +38,8 @@ public sealed record FlightStatus(
 public sealed class FlightController(
     Func<IFlightRuntime> createRuntime,
     IProgress<FlightStatus> progress,
-    Func<FlugelKranzSettings>? getSettings = null) : IAsyncDisposable
+    Func<FlugelKranzSettings>? getSettings = null,
+    bool retryRuntimeConnection = false) : IAsyncDisposable
 {
     private readonly object gate = new();
     private readonly CancellationTokenSource shutdown = new();
@@ -77,7 +78,32 @@ public sealed class FlightController(
             reportedMode = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized().Mode;
             lock (gate)
                 progress.Report(new(enabled, false, "ランタイムに接続しています…", Mode: reportedMode));
-            runtime = createRuntime();
+            while (!shutdown.IsCancellationRequested)
+            {
+                try
+                {
+                    runtime = createRuntime();
+                    break;
+                }
+                catch (Exception exception) when (retryRuntimeConnection)
+                {
+                    lock (gate)
+                    {
+                        if (!enabled)
+                            return;
+                    }
+
+                    progress.Report(new(
+                        true,
+                        false,
+                        $"Monado / WiVRn を待っています。再接続時に OpenXR の設定を再探索します。({exception.Message})",
+                        Mode: reportedMode));
+                    await Task.Delay(TimeSpan.FromSeconds(1), shutdown.Token).ConfigureAwait(false);
+                }
+            }
+
+            if (runtime is null)
+                return;
             var freeFlight = new FreeFlightManipulator(runtime.CurrentOffset);
             var infiniteWalking = new InfiniteWalkingManipulator(runtime.CurrentOffset);
             long previousTimestamp = Stopwatch.GetTimestamp();

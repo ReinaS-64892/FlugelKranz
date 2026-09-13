@@ -7,6 +7,7 @@ namespace FlugelKranz;
 internal static class Program
 {
     public static string MonadoLibraryPath { get; private set; } = MonadoRuntimeLocator.Resolve();
+    public static Func<string> MonadoLibraryPathResolver { get; private set; } = static () => MonadoRuntimeLocator.Resolve();
 
     [STAThread]
     public static int Main(string[] args)
@@ -34,6 +35,12 @@ internal static class Program
         root.SetAction(result =>
         {
             MonadoLibraryPath = result.GetValue(libraryOption)!;
+            bool explicitLibraryPath = args.Any(static argument =>
+                argument is "lib" or "LibMonadoPath" or "--lib-monado" ||
+                argument.StartsWith("--lib-monado=", StringComparison.Ordinal));
+            MonadoLibraryPathResolver = explicitLibraryPath
+                ? static () => MonadoLibraryPath
+                : static () => MonadoRuntimeLocator.Resolve();
             return Run(result.GetValue(diagnoseOption));
         });
 
