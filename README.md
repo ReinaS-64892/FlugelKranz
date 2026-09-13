@@ -22,6 +22,8 @@ dotnet run --project src/FlugelKranz -- --lib-monado /path/to/libmonado.so
 
 OpenXR ローダー（`libopenxr_loader.so.1`）が同じ Monado / WiVRn サービスを使用するよう設定してください。必要に応じて `XR_RUNTIME_JSON=/path/to/runtime.json` を起動時に指定します。FlugelKranz はシステムのランタイム設定を変更しません。
 
+WayVR と併用する場合は、WayVR 側の Space Drag または Space Turn が開始されると FlugelKranz 側が停止するため、WayVR 側の Space Drag と Space Turn のバインディングを外してください。
+
 OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/OpenXR.NET) を使用します。
 
 ## 操作
