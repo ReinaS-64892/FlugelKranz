@@ -36,7 +36,7 @@ public class MainViewTests
         await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
-        Assert.Equal(0.4, vm.TurnAccelerationMultiplier);
+        Assert.Equal(0.3, vm.TurnAccelerationMultiplier);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
@@ -52,7 +52,7 @@ public class MainViewTests
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
-        Assert.Equal(0.6, vm.InfiniteWalkingBoostMultiplier);
+        Assert.Equal(0.4, vm.InfiniteWalkingBoostMultiplier);
         Assert.Equal(0.3, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
@@ -106,7 +106,7 @@ public class MainViewTests
             Assert.True(vm.UseHeadTurnOrigin);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "倍率: 1.00");
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "補正値: 0.60 倍");
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "補正値: 0.40 倍");
             vm.IsValveIndexDetected = true;
             vm.LeftValveIndexForce = 0.42;
             vm.RightValveIndexForce = 0.87;
@@ -308,7 +308,7 @@ public class MainViewTests
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
-        Assert.Equal(0.6, vm.InfiniteWalkingBoostMultiplier);
+        Assert.Equal(0.4, vm.InfiniteWalkingBoostMultiplier);
         Assert.Equal(0.8, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
     }

@@ -25,7 +25,7 @@ public class InfiniteWalkingManipulatorTests
         Assert.Equal(0, settings.DragSmoothSeconds);
         Assert.Equal(0, settings.TurnSmoothSeconds);
         Assert.Equal(0, settings.TurnHeadSmoothSeconds);
-        Assert.Equal(0.6f, settings.TurnMovementBoostMultiplier);
+        Assert.Equal(0.4f, settings.TurnMovementBoostMultiplier);
         Assert.Equal(0, (settings with { TurnMovementBoostMultiplier = -1 }).Normalized().TurnMovementBoostMultiplier);
         Assert.Equal(2, (settings with { TurnMovementBoostMultiplier = 3 }).Normalized().TurnMovementBoostMultiplier);
         Assert.Equal(FlightMode.InfiniteWalking, FlugelKranzSettings.Default.Mode);

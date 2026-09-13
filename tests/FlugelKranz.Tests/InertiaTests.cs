@@ -28,7 +28,7 @@ public class InertiaTests
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
-        Assert.Equal(0.4f, settings.TurnAccelerationMultiplier);
+        Assert.Equal(0.3f, settings.TurnAccelerationMultiplier);
         Assert.Equal(2, settings.ZAccelerationMultiplier);
         Assert.True(settings.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, settings.InertiaAccelerationBoostMaximumMultiplier);
