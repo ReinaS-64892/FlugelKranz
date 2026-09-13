@@ -176,7 +176,7 @@ public class FreeFlightManipulatorTests
     }
 
     [Fact]
-    public void TwoHandTurnIsConstrainedToControllerLine()
+    public void TwoHandTurnUsesGrabStartAxisAndPivot()
     {
         var engine = Armed();
         var both = new InputFrame(
@@ -188,12 +188,22 @@ public class FreeFlightManipulatorTests
         var aroundPole = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.7f);
         var rotated = both with
         {
-            Left = new(Left with { Orientation = aroundPole }, 0, 1, 0, true),
-            Right = new(Right with { Orientation = aroundPole }, 0, 1, 0, true)
+            Left = new(Left with
+            {
+                Position = Left.Position + new Vector3(0.2f, 0, 0),
+                Orientation = aroundPole
+            }, 0, 1, 0, true),
+            Right = new(Right with
+            {
+                Position = Right.Position + new Vector3(0.2f, 0, 0),
+                Orientation = aroundPole
+            }, 0, 1, 0, true)
         };
 
         var offset = engine.Update(rotated);
         Near(Quaternion.Conjugate(aroundPole), offset.Orientation);
+        var handMidpoint = (Left.Position + Right.Position) * 0.5f;
+        Near(handMidpoint, offset.Transform(handMidpoint));
 
         var other = Armed();
         other.Update(both);
@@ -204,6 +214,131 @@ public class FreeFlightManipulatorTests
             Right = new(Right with { Orientation = outsideAxis }, 0, 1, 0, true)
         };
         Near(Quaternion.Identity, other.Update(ignored).Orientation);
+    }
+
+    [Fact]
+    public void TwoHandTurnIgnoresNearHalfTurnAroundPerpendicularAxis()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 0, 1, 0, true),
+            new(Right, 0, 1, 0, true));
+        engine.Update(both);
+
+        var foldedAxis = Vector3.Normalize(new Vector3(0.001f, 1, 0));
+        var foldedRotation = Quaternion.CreateFromAxisAngle(
+            foldedAxis,
+            MathF.PI - 0.0001f);
+        var moved = both with
+        {
+            Left = new(Left with { Orientation = foldedRotation }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = foldedRotation }, 0, 1, 0, true)
+        };
+
+        var offset = engine.Update(moved);
+
+        Assert.True(
+            1 - MathF.Abs(Quaternion.Dot(Quaternion.Identity, offset.Orientation)) < 0.01f,
+            $"Unexpected rotation: {offset.Orientation}");
+    }
+
+    [Fact]
+    public void TwoHandTurnDoesNotReprojectPastRotationWhenTheHandAxisMoves()
+    {
+        var engine = Armed();
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 0, 1, 0, true),
+            new(Right, 0, 1, 0, true));
+        engine.Update(both);
+
+        var firstRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f);
+        var rotated = both with
+        {
+            Left = new(Left with { Orientation = firstRotation }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = firstRotation }, 0, 1, 0, true)
+        };
+        var beforeAxisMove = engine.Update(rotated);
+
+        var movedAxis = rotated with
+        {
+            Left = new(rotated.Left.Pose with { Position = new(0, 1.2f, -0.7f) }, 0, 1, 0, true),
+            Right = new(rotated.Right.Pose with { Position = new(0, 1.2f, -0.1f) }, 0, 1, 0, true)
+        };
+        var afterAxisMove = engine.Update(movedAxis);
+
+        var secondRotation = Quaternion.Normalize(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f) * firstRotation);
+        var movedAroundNewAxis = movedAxis with
+        {
+            Left = new(Left with
+            {
+                Position = new(0, 1.2f, -0.7f),
+                Orientation = secondRotation
+            }, 0, 1, 0, true),
+            Right = new(Right with
+            {
+                Position = new(0, 1.2f, -0.1f),
+                Orientation = secondRotation
+            }, 0, 1, 0, true)
+        };
+        var afterNewAxisRotation = engine.Update(movedAroundNewAxis);
+
+        Near(beforeAxisMove.Orientation, afterAxisMove.Orientation);
+        Near(afterAxisMove.Orientation, afterNewAxisRotation.Orientation);
+    }
+
+    [Fact]
+    public void TwoHandTurnAxisMovementDoesNotCreateReleaseAngularInertia()
+    {
+        var settings = HeadOrigin with { TurnAccelerationMultiplier = 1 };
+        var engine = new FreeFlightManipulator(RigidPose.Identity);
+        var both = new InputFrame(
+            Head,
+            true,
+            new(Left, 0, 1, 0, true),
+            new(Right, 0, 1, 0, true));
+        engine.Update(Frame(), 0.1f, settings);
+        engine.Update(both, 0.1f, settings);
+
+        var firstRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f);
+        var rotated = both with
+        {
+            Left = new(Left with { Orientation = firstRotation }, 0, 1, 0, true),
+            Right = new(Right with { Orientation = firstRotation }, 0, 1, 0, true)
+        };
+        engine.Update(rotated, 0.1f, settings);
+
+        var movedAxis = rotated with
+        {
+            Left = new(rotated.Left.Pose with { Position = new(0, 1.2f, -0.7f) }, 0, 1, 0, true),
+            Right = new(rotated.Right.Pose with { Position = new(0, 1.2f, -0.1f) }, 0, 1, 0, true)
+        };
+        engine.Update(movedAxis, 0.1f, settings);
+        var secondRotation = Quaternion.Normalize(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f) * firstRotation);
+        var movedAroundNewAxis = movedAxis with
+        {
+            Left = new(movedAxis.Left.Pose with
+            {
+                Orientation = secondRotation
+            }, 0, 1, 0, true),
+            Right = new(movedAxis.Right.Pose with
+            {
+                Orientation = secondRotation
+            }, 0, 1, 0, true)
+        };
+        engine.Update(movedAroundNewAxis, 0.1f, settings);
+        engine.Update(movedAroundNewAxis with
+        {
+            Left = new(movedAroundNewAxis.Left.Pose, 0, 0, 0, true),
+            Right = new(movedAroundNewAxis.Right.Pose, 0, 0, 0, true)
+        }, 0.1f, settings);
+
+        Assert.False(engine.HasAngularInertia);
     }
 
     [Fact]
