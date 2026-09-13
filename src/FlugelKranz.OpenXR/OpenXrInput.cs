@@ -26,6 +26,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     {
         public bool IsLeft { get; } = isLeft;
         public XrAction Pose, TrackpadPosition, TrackpadTouch, TrackpadForce, ThumbRestTouch, TriggerTouch;
+        public XrAction Haptic;
         public XrSpace Space;
     }
 
@@ -115,6 +116,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             hands[i].TrackpadForce = CreateAction($"{side}_trackpad_force", XrActionType.XR_ACTION_TYPE_FLOAT_INPUT);
             hands[i].ThumbRestTouch = CreateAction($"{side}_thumb_rest", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].TriggerTouch = CreateAction($"{side}_trigger_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            hands[i].Haptic = CreateAction($"{side}_haptic", XrActionType.XR_ACTION_TYPE_VIBRATION_OUTPUT);
         }
         SuggestOculusTouch();
         SuggestValveIndex();
@@ -144,19 +146,20 @@ public sealed unsafe class OpenXrInput : IDisposable
 
     private void SuggestOculusTouch()
     {
-        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[6];
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[8];
         for (int i = 0; i < hands.Length; i++)
         {
             string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
             bindings[i * 3] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
             bindings[i * 3 + 1] = new() { action = hands[i].ThumbRestTouch, binding = Path(prefix + "thumbrest/touch") };
             bindings[i * 3 + 2] = new() { action = hands[i].TriggerTouch, binding = Path(prefix + "trigger/touch") };
+            bindings[6 + i] = new() { action = hands[i].Haptic, binding = Path(i == 0 ? "/user/hand/left/output/haptic" : "/user/hand/right/output/haptic") };
         }
         var info = new XrInteractionProfileSuggestedBinding
         {
             type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
             interactionProfile = Path("/interaction_profiles/oculus/touch_controller"),
-            countSuggestedBindings = 6,
+            countSuggestedBindings = 8,
             suggestedBindings = bindings
         };
         var result = xrSuggestInteractionProfileBindings(instance, &info);
@@ -166,20 +169,21 @@ public sealed unsafe class OpenXrInput : IDisposable
 
     private void SuggestValveIndex()
     {
-        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[8];
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[10];
         for (int i = 0; i < hands.Length; i++)
         {
             string prefix = i == 0 ? "/user/hand/left/input/" : "/user/hand/right/input/";
-            bindings[i * 4] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
-            bindings[i * 4 + 1] = new() { action = hands[i].TrackpadPosition, binding = Path(prefix + "trackpad") };
-            bindings[i * 4 + 2] = new() { action = hands[i].TrackpadTouch, binding = Path(prefix + "trackpad/touch") };
-            bindings[i * 4 + 3] = new() { action = hands[i].TrackpadForce, binding = Path(prefix + "trackpad/force") };
+            bindings[i * 5] = new() { action = hands[i].Pose, binding = Path(prefix + "grip/pose") };
+            bindings[i * 5 + 1] = new() { action = hands[i].TrackpadPosition, binding = Path(prefix + "trackpad") };
+            bindings[i * 5 + 2] = new() { action = hands[i].TrackpadTouch, binding = Path(prefix + "trackpad/touch") };
+            bindings[i * 5 + 3] = new() { action = hands[i].TrackpadForce, binding = Path(prefix + "trackpad/force") };
+            bindings[i * 5 + 4] = new() { action = hands[i].Haptic, binding = Path(i == 0 ? "/user/hand/left/output/haptic" : "/user/hand/right/output/haptic") };
         }
         var info = new XrInteractionProfileSuggestedBinding
         {
             type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
             interactionProfile = Path("/interaction_profiles/valve/index_controller"),
-            countSuggestedBindings = 8,
+            countSuggestedBindings = 10,
             suggestedBindings = bindings
         };
         var result = xrSuggestInteractionProfileBindings(instance, &info);
@@ -206,6 +210,41 @@ public sealed unsafe class OpenXrInput : IDisposable
             tracked,
             ReadHand(hands[0], time, valveIndexSettings),
             ReadHand(hands[1], time, valveIndexSettings));
+    }
+
+    public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude)
+    {
+        if (!running || state != XrSessionState.XR_SESSION_STATE_FOCUSED)
+            return;
+
+        long duration = (long)(Math.Clamp(durationSeconds, 0, 1) * 1_000_000_000L);
+        if (duration <= 0)
+            return;
+
+        var vibration = new XrHapticVibration
+        {
+            type = XrStructureType.XR_TYPE_HAPTIC_VIBRATION,
+            duration = duration,
+            frequency = float.IsFinite(frequencyHz) ? MathF.Max(0, frequencyHz) : 0,
+            amplitude = float.IsFinite(amplitude) ? Math.Clamp(amplitude, 0, 1) : 0
+        };
+        foreach (var hand in hands)
+        {
+            var actionInfo = new XrHapticActionInfo
+            {
+                type = XrStructureType.XR_TYPE_HAPTIC_ACTION_INFO,
+                action = hand.Haptic
+            };
+            var result = xrApplyHapticFeedback(
+                session,
+                &actionInfo,
+                (XrHapticBaseHeader*)&vibration);
+            if (result is XrResult.XR_SESSION_NOT_FOCUSED or
+                XrResult.XR_ERROR_SESSION_NOT_RUNNING or
+                XrResult.XR_ERROR_PATH_UNSUPPORTED)
+                continue;
+            Check(result, "ハプティクスの送信");
+        }
     }
 
     private HandSample ReadHand(Hand hand, long time, ValveIndexInputSettings valveIndexSettings)

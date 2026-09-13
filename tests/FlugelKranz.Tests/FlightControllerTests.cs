@@ -107,6 +107,24 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task StaggeredDpadDownPressesToggleWhenBothAreDownAtOneSecondCheck()
+    {
+        var runtime = new FakeRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+
+        runtime.Frame = DpadFrame(1, 0);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        runtime.Frame = DpadFrame(1, 1);
+
+        await Wait(() => progress.Statuses.Any(
+            s => s.Mode == FlightMode.FreeFlight && s.Message.Contains("切り替え")));
+        Assert.Equal(1, runtime.HapticPulses);
+    }
+
+    [Fact]
     public async Task OneDpadDownHeldForOneSecondLevelsFreeFlightWithoutChangingMode()
     {
         var runtime = new FakeRuntime();
@@ -250,7 +268,7 @@ public class FlightControllerTests
         public ConcurrentQueue<FlightStatus> Statuses { get; } = new();
         public void Report(FlightStatus value) => Statuses.Enqueue(value);
     }
-    private sealed class FakeRuntime : IFlightRuntime
+    private sealed class FakeRuntime : IFlightRuntime, IHapticFeedback
     {
         private readonly object gate = new();
         private InputFrame frame = FlightControllerTests.Frame(0, 0);
@@ -261,7 +279,9 @@ public class FlightControllerTests
         public RigidPose CurrentOffset { get { lock (gate) return offset; } }
         public volatile bool Disposed, ThrowOnRead;
         public int Restores;
+        public int HapticPulses => Volatile.Read(ref hapticPulses);
         private int reads;
+        private int hapticPulses;
         public InputFrame ReadPhysical()
         {
             Interlocked.Increment(ref reads);
@@ -269,6 +289,8 @@ public class FlightControllerTests
         }
         public void Apply(RigidPose value) { lock (gate) offset = value; }
         public void Restore() { Restores++; Apply(OriginalOffset); }
+        public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude) =>
+            Interlocked.Increment(ref hapticPulses);
         public void Dispose() => Disposed = true;
     }
 }

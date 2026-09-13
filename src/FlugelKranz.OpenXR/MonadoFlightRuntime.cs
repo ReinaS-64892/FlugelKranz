@@ -3,7 +3,7 @@ using MonadoXrApi;
 
 namespace FlugelKranz.OpenXR;
 
-public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetProvider
+public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetProvider, IHapticFeedback
 {
     private readonly MonadoFlightConnection monado;
     private readonly OpenXrInput input;
@@ -33,5 +33,7 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
     }
     public void Apply(RigidPose offset) => monado.Apply(offset);
     public void Restore() => monado.Restore();
+    public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude) =>
+        input.SendHapticPulse(durationSeconds, frequencyHz, amplitude);
     public void Dispose() { input.Dispose(); monado.Dispose(); }
 }

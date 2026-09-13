@@ -17,6 +17,11 @@ public interface IReferenceSpaceOffsetProvider
     RigidPose ReferenceSpaceOffset { get; }
 }
 
+public interface IHapticFeedback
+{
+    void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude);
+}
+
 public sealed record FlightStatus(
     bool Enabled,
     bool Connected,
@@ -81,9 +86,9 @@ public sealed class FlightController(
             InfiniteWalkingTransition? modeTransition = null;
             SpaceResetTransition? spaceResetTransition = null;
             FlightMode? inputModeOverride = null;
-            DpadHold dpadHold = DpadHold.None;
-            float dpadHoldSeconds = 0;
-            bool dpadHoldTriggered = false;
+            bool previousDpadLeft = false, previousDpadRight = false;
+            float leftDpadSeconds = 0, rightDpadSeconds = 0, singleDpadSeconds = 0;
+            bool modeDpadTriggered = false, singleDpadTriggered = false;
             RigidPose? previousReferenceSpaceOffset = null;
             int tick = 0;
             while (!shutdown.IsCancellationRequested)
@@ -98,35 +103,51 @@ public sealed class FlightController(
                 FlightMode selectedMode = inputModeOverride ?? settings.Mode;
                 reportedMode = selectedMode;
 
-                DpadHold currentDpadHold = GetDpadHold(frame);
-                if (currentDpadHold != dpadHold)
+                bool dpadLeft = DpadDownHeld(frame.Left);
+                bool dpadRight = DpadDownHeld(frame.Right);
+                bool dpadBoth = dpadLeft && dpadRight;
+                leftDpadSeconds = dpadLeft ? leftDpadSeconds + elapsedSeconds : 0;
+                rightDpadSeconds = dpadRight ? rightDpadSeconds + elapsedSeconds : 0;
+                if (dpadBoth || dpadLeft != previousDpadLeft || dpadRight != previousDpadRight)
                 {
-                    dpadHold = currentDpadHold;
-                    dpadHoldSeconds = 0;
-                    dpadHoldTriggered = false;
+                    singleDpadSeconds = 0;
+                    singleDpadTriggered = false;
                 }
-                bool spaceResetRequested = false;
-                if (dpadHold != DpadHold.None && !dpadHoldTriggered)
+                else if (dpadLeft || dpadRight)
                 {
-                    dpadHoldSeconds += elapsedSeconds;
-                    if (dpadHoldSeconds >= 1 && dpadHold == DpadHold.Both)
-                    {
-                        selectedMode = selectedMode == FlightMode.InfiniteWalking
-                            ? FlightMode.FreeFlight
-                            : FlightMode.InfiniteWalking;
-                        inputModeOverride = selectedMode;
-                        reportedMode = selectedMode;
-                        dpadHoldTriggered = true;
-                        progress.Report(new(enabled, true, ModeChangedMessage(selectedMode),
-                            Mode: selectedMode));
-                    }
-                    else if (dpadHoldSeconds >= 1 &&
-                        (selectedMode == FlightMode.InfiniteWalking ||
-                            frame.HeadTracked && frame.Head.IsValid))
-                    {
-                        spaceResetRequested = true;
-                        dpadHoldTriggered = true;
-                    }
+                    singleDpadSeconds += elapsedSeconds;
+                }
+                else
+                {
+                    singleDpadSeconds = 0;
+                    singleDpadTriggered = false;
+                }
+                if (dpadBoth && !(previousDpadLeft && previousDpadRight))
+                    modeDpadTriggered = false;
+                else if (!dpadBoth)
+                    modeDpadTriggered = false;
+                previousDpadLeft = dpadLeft;
+                previousDpadRight = dpadRight;
+
+                bool spaceResetRequested = false;
+                if (dpadBoth && !modeDpadTriggered &&
+                    (leftDpadSeconds >= 1 || rightDpadSeconds >= 1))
+                {
+                    selectedMode = selectedMode == FlightMode.InfiniteWalking
+                        ? FlightMode.FreeFlight
+                        : FlightMode.InfiniteWalking;
+                    inputModeOverride = selectedMode;
+                    reportedMode = selectedMode;
+                    modeDpadTriggered = true;
+                    progress.Report(new(enabled, true, ModeChangedMessage(selectedMode),
+                        Mode: selectedMode));
+                }
+                else if (!dpadBoth && !singleDpadTriggered && singleDpadSeconds >= 1 &&
+                    (selectedMode == FlightMode.InfiniteWalking ||
+                        frame.HeadTracked && frame.Head.IsValid))
+                {
+                    spaceResetRequested = true;
+                    singleDpadTriggered = true;
                 }
                 lock (gate)
                 {
@@ -165,6 +186,7 @@ public sealed class FlightController(
                         }
                         if (modeTransition is null && appliedMode != selectedMode)
                         {
+                            bool modeWasAlreadyApplied = appliedMode is not null;
                             if (appliedMode == FlightMode.FreeFlight &&
                                 selectedMode == FlightMode.InfiniteWalking)
                             {
@@ -172,12 +194,15 @@ public sealed class FlightController(
                                 spaceResetTransition = null;
                                 freeFlight.Release();
                                 infiniteWalking.Release();
+                                SendModeChangeHaptic(runtime);
                             }
                             else
                             {
                                 freeFlight.SetOffset(runtime.CurrentOffset);
                                 infiniteWalking.SetOffset(runtime.CurrentOffset);
                                 appliedMode = selectedMode;
+                                if (modeWasAlreadyApplied)
+                                    SendModeChangeHaptic(runtime);
                             }
                         }
 
@@ -304,27 +329,6 @@ public sealed class FlightController(
         }
     }
 
-    private enum DpadHold
-    {
-        None,
-        Left,
-        Right,
-        Both
-    }
-
-    private static DpadHold GetDpadHold(InputFrame frame)
-    {
-        bool left = DpadDownHeld(frame.Left);
-        bool right = DpadDownHeld(frame.Right);
-        return (left, right) switch
-        {
-            (true, true) => DpadHold.Both,
-            (true, false) => DpadHold.Left,
-            (false, true) => DpadHold.Right,
-            _ => DpadHold.None
-        };
-    }
-
     private static bool DpadDownHeld(HandSample hand) =>
         hand.IsTracked && hand.Pose.IsValid &&
         float.IsFinite(hand.DpadDown) && hand.DpadDown >= 0.65f;
@@ -337,6 +341,15 @@ public sealed class FlightController(
     private static string ModeChangedMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
         ? "無限歩行モードへ切り替えました。操作入力を離してから使用してください。"
         : "自由飛行モードへ切り替えました。操作入力を離してから使用してください。";
+
+    private static void SendModeChangeHaptic(IFlightRuntime runtime)
+    {
+        if (runtime is not IHapticFeedback haptics)
+            return;
+
+        try { haptics.SendHapticPulse(0.08f, 0, 0.35f); }
+        catch { }
+    }
 
     private static string SpaceResetMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
         ? "無限歩行の高さを戻しています…"
