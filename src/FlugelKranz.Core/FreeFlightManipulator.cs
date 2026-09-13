@@ -146,6 +146,14 @@ public sealed class FreeFlightManipulator
             turnBrakeFactor = 1;
         }
 
+        if (!IsDragging && !IsTurning)
+        {
+            // Smoothing may leave the presented offset behind targetOffset when
+            // a grip is released. Start inertia from what is actually visible
+            // instead of snapping to the unapplied target first.
+            targetOffset = Offset;
+        }
+
         bool activeHandsChanged =
             (dragHandsChanged && dragHands != 0) ||
             (turnHandsChanged && turnHands != 0);
