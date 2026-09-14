@@ -114,7 +114,7 @@ dotnet run --project src/FlugelKranz -- --diagnose --lib-monado /path/to/libmona
 Linux 再配布物は次のように作成できます。`THIRD-PARTY-NOTICES.txt` は publish 出力へ自動的に同梱されます。
 
 ```sh
-dotnet publish src/FlugelKranz/FlugelKranz.csproj -c Release -r linux-x64 --self-contained false -o dist/FlugelKranz-v1.0.0
+dotnet publish src/FlugelKranz/FlugelKranz.csproj -c Release -r linux-x64 --self-contained false -o dist/FlugelKranz-VERSION
 ```
 
 `--diagnose` は UI を開かず、接続先の一致・基準空間・HMD と両手の入力を確認します。検出した各トラッキング原点について、接続時と現在のオフセットも表示します。参照空間オフセットは書き込みません。接続できても有効な入力が揃わなければ非ゼロで終了します。
