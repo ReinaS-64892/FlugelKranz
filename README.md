@@ -111,6 +111,12 @@ dotnet test FlugelKranz.slnx
 dotnet run --project src/FlugelKranz -- --diagnose --lib-monado /path/to/libmonado.so
 ```
 
+Linux 再配布物は次のように作成できます。`THIRD-PARTY-NOTICES.txt` は publish 出力へ自動的に同梱されます。
+
+```sh
+dotnet publish src/FlugelKranz/FlugelKranz.csproj -c Release -r linux-x64 --self-contained false -o dist/FlugelKranz-v1.0.0
+```
+
 `--diagnose` は UI を開かず、接続先の一致・基準空間・HMD と両手の入力を確認します。検出した各トラッキング原点について、接続時と現在のオフセットも表示します。参照空間オフセットは書き込みません。接続できても有効な入力が揃わなければ非ゼロで終了します。
 
 自動テストは入力割当、片手・両手の切替、両モードの軸制約、回転支点、慣性、トラッキング喪失、オン・オフ、復元、UI、設定保存を対象にします。実機では VRChat を動かしたまま、Index / Touch の入力、片手・両手の切替、両モード、各回転軸、操作解放、オフ、復元、終了を確認してください。自動テストだけではランタイム・コントローラー・VRChat の組み合わせを保証できません。

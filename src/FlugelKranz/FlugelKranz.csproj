@@ -21,4 +21,11 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../THIRD-PARTY-NOTICES.txt"
+          Link="THIRD-PARTY-NOTICES.txt"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

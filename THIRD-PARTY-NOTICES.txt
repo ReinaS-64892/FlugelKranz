@@ -1,0 +1,150 @@
+FlugelKranz v1.0.0 — Third-party notices
+============================================================
+
+This file lists the NuGet packages used by the FlugelKranz application and
+their declared package licenses. Package versions are pinned in the project
+files and the transitive dependency graph restored for net10.0.
+
+The license text below applies to every package marked “MIT”. The package
+marked “BSD-3-Clause” is distributed under its own BSD license text below.
+Each package's copyright notice is listed explicitly so it is retained when
+this file is redistributed with the application.
+
+NuGet packages
+------------------------------------------------------------
+
+MIT
+
+  Avalonia 12.1.1
+  Avalonia.BuildServices 11.3.2
+  Avalonia.Desktop 12.1.1
+  Avalonia.FreeDesktop 12.1.1
+  Avalonia.FreeDesktop.AtSpi 12.1.1
+  Avalonia.HarfBuzz 12.1.1
+  Avalonia.Markup.Declarative 12.1.1
+  Avalonia.Native 12.1.1
+  Avalonia.Remote.Protocol 12.1.1
+  Avalonia.Skia 12.1.1
+  Avalonia.Themes.Fluent 12.1.1
+  Avalonia.Wayland 12.1.1
+  Avalonia.Win32 12.1.1
+  Avalonia.X11 12.1.1
+  CommunityToolkit.Mvvm 8.4.2
+  Evergine.Bindings.OpenXR 2026.9.1.18
+  HarfBuzzSharp 8.3.1.3
+  HarfBuzzSharp.NativeAssets.Linux 8.3.1.3
+  HarfBuzzSharp.NativeAssets.macOS 8.3.1.3
+  HarfBuzzSharp.NativeAssets.WebAssembly 8.3.1.3
+  HarfBuzzSharp.NativeAssets.Win32 8.3.1.3
+  MicroCom.Runtime 0.11.6
+  NWayland 0.11.0
+  SkiaSharp 3.119.4
+  SkiaSharp.NativeAssets.Linux 3.119.4
+  SkiaSharp.NativeAssets.macOS 3.119.4
+  SkiaSharp.NativeAssets.WebAssembly 3.119.4
+  SkiaSharp.NativeAssets.Win32 3.119.4
+  System.CommandLine 2.0.8
+  Tmds.DBus.Protocol 0.94.1
+
+BSD-3-Clause
+
+  Avalonia.Angle.Windows.Natives 2.1.27548.20260419
+
+Package project and license references
+------------------------------------------------------------
+
+  Avalonia                         https://github.com/AvaloniaUI/Avalonia
+  Avalonia.Markup.Declarative      https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative
+  CommunityToolkit.Mvvm            https://github.com/CommunityToolkit/dotnet
+  Evergine.Bindings.OpenXR         https://github.com/EvergineTeam/OpenXR.NET
+  HarfBuzzSharp / SkiaSharp         https://github.com/mono/SkiaSharp
+  MicroCom.Runtime / NWayland       https://github.com/kekekeks
+  System.CommandLine                https://github.com/dotnet/command-line-api
+  Tmds.DBus.Protocol                https://github.com/tmds/Tmds.DBus
+  ANGLE                             https://github.com/google/angle
+
+The HarfBuzzSharp and SkiaSharp native packages contain additional third-party
+software. Their package-level notices and license files are distributed with
+the corresponding NuGet packages; consult those notices when redistributing
+their native assets.
+
+Copyright notices
+------------------------------------------------------------
+
+  Avalonia packages (except Avalonia.BuildServices): Copyright (c) AvaloniaUI OÜ All Rights Reserved (NuGet metadata: Copyright 2013-2026 © The AvaloniaUI Project).
+  Avalonia.BuildServices: Copyright 2023-2025 © The AvaloniaUI Project.
+  Avalonia.Markup.Declarative: Copyright (c) 2025 gritsenko, Avalonia UI.
+  CommunityToolkit.Mvvm: Copyright © .NET Foundation and Contributors.
+  Evergine.Bindings.OpenXR: Copyright (c) Evergine 2026.
+  HarfBuzzSharp and SkiaSharp: Copyright (c) 2015-2016 Xamarin, Inc.; Copyright (c) 2017-2018 Microsoft Corporation.
+  MicroCom.Runtime: Copyright 2021 © Nikita Tsukanov.
+  NWayland: Copyright (c) 2014 Steven Kirk.
+  System.CommandLine: Copyright © .NET Foundation and Contributors (NuGet metadata: © Microsoft Corporation. All rights reserved.).
+  Tmds.DBus.Protocol: Copyright Tom Deseyn.
+
+The Avalonia.Angle.Windows.Natives package contains ANGLE under BSD-3-Clause:
+
+  Copyright 2018 The ANGLE Project Authors.
+
+MIT License
+------------------------------------------------------------
+
+Copyright notices for each MIT package are retained by its respective author
+or copyright holder. The following license applies to the packages listed
+above under MIT:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+BSD-3-Clause License
+------------------------------------------------------------
+
+Copyright notices for ANGLE are retained by the ANGLE Project Authors and
+other contributors. The following terms apply to the BSD-3-Clause package
+listed above:
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+Runtime dependency
+------------------------------------------------------------
+
+libmonado is supplied by the user's Monado / WiVRn installation and is not
+bundled in this application artifact. Its license and notices are provided by
+that installation (the source checkout contains src/MonadoXrApi/monado/LICENSE).
