@@ -565,7 +565,10 @@ public sealed class FreeFlightManipulator
             (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
         if (hasUsableAcceleration)
         {
-            var acceleration = ApplyDragAcceleration(dragVelocity, head.Orientation, settings);
+            // dragVelocity is in root space. Apply the reference-space rotation
+            // to the physical HMD orientation before comparing their directions.
+            var headInRoot = Quaternion.Normalize(Offset.Orientation * head.Orientation);
+            var acceleration = ApplyDragAcceleration(dragVelocity, headInRoot, settings);
             float speedBeforeBoost = linearInertia.Length();
             if (dragAccelerationBoostActive && speedBeforeBoost > 0.0000000001f)
             {

@@ -137,6 +137,32 @@ public class InertiaTests
     }
 
     [Fact]
+    public void ZAccelerationFollowsHeadForwardAfterTurn()
+    {
+        var settings = Unfiltered with
+        {
+            TurnAccelerationMultiplier = 0,
+            ZAccelerationMultiplier = 2
+        };
+        var engine = BeginTurn(settings);
+        var controllerTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2);
+        engine.Update(Frame(rightGrip: 1, rightRotation: controllerTurn), 0.1f, settings);
+        engine.Update(Frame(rightRotation: controllerTurn), 0.1f, settings);
+        engine.Update(Frame(leftGrip: 1, rightRotation: controllerTurn), 0.1f, settings);
+
+        var moved = engine.Update(
+            Frame(new Vector3(0, 0, -1), leftGrip: 1, rightRotation: controllerTurn),
+            0.1f,
+            settings);
+        var released = engine.Update(
+            Frame(new Vector3(0, 0, -1), rightRotation: controllerTurn),
+            0.1f,
+            settings);
+
+        Near(Vector3.UnitX * 2, released.Position - moved.Position);
+    }
+
+    [Fact]
     public void InertiaDecelerationReducesVelocityEveryFreeStep()
     {
         var settings = Unfiltered with
