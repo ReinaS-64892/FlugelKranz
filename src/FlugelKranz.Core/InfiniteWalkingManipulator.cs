@@ -73,12 +73,12 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         turnStartOffsetOrientation = targetOffset.Orientation;
         previousTurnHeadPosition = frame.Head.Position;
         hasPreviousTurnHeadPosition = true;
-        turnFollowerUsesHeadSmoothing = turnHands == BothHands;
+        turnFollowerUsesHeadSmoothing = turnHands == ManipulationHands.Both;
     }
 
     private void ApplyDrag(InputFrame frame)
     {
-        float amount = dragHands == BothHands ? 2 : 1;
+        float amount = dragHands == ManipulationHands.Both ? 2 : 1;
         float targetY = dragStartOffsetY -
             (HandPosition(frame, dragHands).Y - dragStartY) * amount;
         var position = targetOffset.Position;
@@ -111,7 +111,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
             position += boost * settings.TurnMovementBoostMultiplier;
         }
         targetOffset = new(target, position);
-        turnFollowerUsesHeadSmoothing = turnHands == BothHands;
+        turnFollowerUsesHeadSmoothing = turnHands == ManipulationHands.Both;
     }
 
     private void FollowTarget(float elapsedSeconds, InfiniteWalkingSettings settings)
@@ -150,7 +150,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
             position));
     }
 
-    private Quaternion TurnInputOrientation(InputFrame frame) => turnHands == BothHands
+    private Quaternion TurnInputOrientation(InputFrame frame) => turnHands == ManipulationHands.Both
         ? frame.Head.Orientation
         : HandOrientation(frame, turnHands);
 

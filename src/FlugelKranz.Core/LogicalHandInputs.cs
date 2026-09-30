@@ -7,27 +7,30 @@ internal sealed class LogicalHandInputs
 
     public void Release() => leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
 
-    public void DisarmDrag(byte hands)
+    public void DisarmDrag(ManipulationHands hands)
     {
-        if ((hands & 1) != 0) leftDragArmed = false;
-        if ((hands & 2) != 0) rightDragArmed = false;
+        if (hands.HasFlag(ManipulationHands.Left)) leftDragArmed = false;
+        if (hands.HasFlag(ManipulationHands.Right)) rightDragArmed = false;
     }
 
-    public void DisarmTurn(byte hands)
+    public void DisarmTurn(ManipulationHands hands)
     {
-        if ((hands & 1) != 0) leftTurnArmed = false;
-        if ((hands & 2) != 0) rightTurnArmed = false;
+        if (hands.HasFlag(ManipulationHands.Left)) leftTurnArmed = false;
+        if (hands.HasFlag(ManipulationHands.Right)) rightTurnArmed = false;
     }
 
-    public byte ActiveHands(InputFrame frame, bool drag, byte previous)
+    public ManipulationHands ActiveHands(InputFrame frame, bool drag, ManipulationHands previous)
     {
+        bool leftWasHeld = previous.HasFlag(ManipulationHands.Left);
+        bool rightWasHeld = previous.HasFlag(ManipulationHands.Right);
         bool left = drag
-            ? Held(frame.Left, frame.Left.Drag, ref leftDragArmed, (previous & 1) != 0)
-            : Held(frame.Left, frame.Left.Turn, ref leftTurnArmed, (previous & 1) != 0);
+            ? Held(frame.Left, frame.Left.Drag, ref leftDragArmed, leftWasHeld)
+            : Held(frame.Left, frame.Left.Turn, ref leftTurnArmed, leftWasHeld);
         bool right = drag
-            ? Held(frame.Right, frame.Right.Drag, ref rightDragArmed, (previous & 2) != 0)
-            : Held(frame.Right, frame.Right.Turn, ref rightTurnArmed, (previous & 2) != 0);
-        return (byte)((left ? 1 : 0) | (right ? 2 : 0));
+            ? Held(frame.Right, frame.Right.Drag, ref rightDragArmed, rightWasHeld)
+            : Held(frame.Right, frame.Right.Turn, ref rightTurnArmed, rightWasHeld);
+        return (left ? ManipulationHands.Left : ManipulationHands.None) |
+            (right ? ManipulationHands.Right : ManipulationHands.None);
     }
 
     private static bool Held(HandSample hand, float value, ref bool armed, bool held)

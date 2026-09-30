@@ -111,7 +111,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         }
         if (hands.Turn.Ended)
         {
-            useTwoHandTurnPivotForInertia = hands.Turn.Previous == BothHands;
+            useTwoHandTurnPivotForInertia = hands.Turn.Previous == ManipulationHands.Both;
             if (HandsUsable(frame, hands.Turn.Previous))
                 FinishTurn(settings);
             else
@@ -154,7 +154,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     private void AdvanceMotion(InputFrame frame, float dt, float sampleSeconds, FlightMotionSettings settings)
     {
-        bool brakingAngularInertia = IsTurning || dragHands == BothHands;
+        bool brakingAngularInertia = IsTurning || dragHands == ManipulationHands.Both;
         AdvanceFreeInertia(frame, dt, !IsDragging, !brakingAngularInertia, settings);
         if (IsDragging)
         {
@@ -186,7 +186,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
                 ref turnBrakeFactor,
                 dt,
                 settings.BrakeRampSeconds);
-            if (turnHands == BothHands)
+            if (turnHands == ManipulationHands.Both)
                 turnStartOffsetOrientation = IntegrateRotation(turnStartOffsetOrientation, angularInertia, dt);
             else
                 turnAnchor = IntegrateRotation(turnAnchor, angularInertia, dt);
@@ -197,7 +197,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
                 settings,
                 settings.InertiaStopDisplacementMetres);
         }
-        else if (dragHands == BothHands)
+        else if (dragHands == ManipulationHands.Both)
         {
             ApplyGrabBrake(
                 ref angularInertia,
@@ -228,16 +228,16 @@ public sealed class FreeFlightManipulator : ManipulationMode
         turnStartOrientation = HandOrientation(frame, turnHands);
         turnStartOffsetOrientation = targetOffset.Orientation;
         turnAnchor = Quaternion.Normalize(targetOffset.Orientation * turnStartOrientation);
-        twoHandTurnAxis = turnHands == BothHands
+        twoHandTurnAxis = turnHands == ManipulationHands.Both
             ? SafeDirection(frame.Right.Pose.Position - frame.Left.Pose.Position)
             : Vector3.Zero;
-        twoHandTurnPivot = turnHands == BothHands
-            ? HandPosition(frame, BothHands)
+        twoHandTurnPivot = turnHands == ManipulationHands.Both
+            ? HandPosition(frame, ManipulationHands.Both)
             : Vector3.Zero;
-        previousTwoHandOrientation = turnHands == BothHands
-            ? HandOrientation(frame, BothHands)
+        previousTwoHandOrientation = turnHands == ManipulationHands.Both
+            ? HandOrientation(frame, ManipulationHands.Both)
             : Quaternion.Identity;
-        useTwoHandTurnPivotForInertia = turnHands == BothHands;
+        useTwoHandTurnPivotForInertia = turnHands == ManipulationHands.Both;
         turnVelocity = Vector3.Zero;
         previousTurnTarget = targetOffset;
     }
@@ -385,13 +385,13 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     private Quaternion TurnTargetOrientation(InputFrame frame)
     {
-        if (turnHands != BothHands)
+        if (turnHands != ManipulationHands.Both)
         {
             Quaternion singleHandOrientation = HandOrientation(frame, turnHands);
             return Quaternion.Normalize(turnAnchor * Quaternion.Conjugate(singleHandOrientation));
         }
 
-        Quaternion current = HandOrientation(frame, BothHands);
+        Quaternion current = HandOrientation(frame, ManipulationHands.Both);
         if (Quaternion.Dot(current, previousTwoHandOrientation) < 0)
             current = -current;
 
@@ -421,8 +421,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
     {
         if (IsDragging)
             return HandPosition(frame, dragHands);
-        if (turnHands == BothHands ||
-            (turnHands == 0 && useTwoHandTurnPivotForInertia && angularInertia.LengthSquared() > 0))
+        if (turnHands == ManipulationHands.Both ||
+            (turnHands == ManipulationHands.None && useTwoHandTurnPivotForInertia && angularInertia.LengthSquared() > 0))
             return twoHandTurnPivot;
         if (settings.TurnOrigin == TurnOrigin.Head)
             return frame.Head.Position;
@@ -654,9 +654,9 @@ public sealed class FreeFlightManipulator : ManipulationMode
     private static Vector3 SafeDirection(Vector3 value) =>
         value.LengthSquared() <= 0.0000000001f ? Vector3.Zero : Vector3.Normalize(value);
 
-    private static bool HandsUsable(InputFrame frame, byte hands) =>
-        ((hands & LeftHand) == 0 || Usable(frame.Left)) &&
-        ((hands & RightHand) == 0 || Usable(frame.Right));
+    private static bool HandsUsable(InputFrame frame, ManipulationHands hands) =>
+        (!hands.HasFlag(ManipulationHands.Left) || Usable(frame.Left)) &&
+        (!hands.HasFlag(ManipulationHands.Right) || Usable(frame.Right));
 
 
     private static bool Usable(HandSample hand) => hand.IsTracked && hand.Pose.IsValid;

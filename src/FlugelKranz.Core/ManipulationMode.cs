@@ -5,17 +5,14 @@ namespace FlugelKranz.Core;
 /// <summary>Common lifecycle and logical hand input for user-controlled movement modes.</summary>
 public abstract class ManipulationMode : MovementMode
 {
-    protected const byte LeftHand = 1;
-    protected const byte RightHand = 2;
-    protected const byte BothHands = LeftHand | RightHand;
     private readonly LogicalHandInputs inputs = new();
-    protected byte dragHands, turnHands;
+    protected ManipulationHands dragHands, turnHands;
     protected RigidPose targetOffset;
     private RigidPose offset;
 
     public override RigidPose Offset => offset;
-    public override bool IsDragging => dragHands != 0;
-    public override bool IsTurning => turnHands != 0;
+    public override bool IsDragging => dragHands != ManipulationHands.None;
+    public override bool IsTurning => turnHands != ManipulationHands.None;
     public abstract string ResetMessage { get; }
     public abstract ManipulationMode CreateAlternate(RigidPose current);
 
@@ -31,7 +28,7 @@ public abstract class ManipulationMode : MovementMode
 
     public sealed override void Release()
     {
-        dragHands = turnHands = 0;
+        dragHands = turnHands = ManipulationHands.None;
         inputs.Release();
         targetOffset = Offset;
         ReleaseMotion();
@@ -49,13 +46,13 @@ public abstract class ManipulationMode : MovementMode
 
     public abstract MovementMode CreateReset(InputFrame frame, RigidPose original, FlugelKranzSettings settings);
 
-    protected readonly record struct HandChange(byte Previous, byte Current)
+    protected readonly record struct HandChange(ManipulationHands Previous, ManipulationHands Current)
     {
         public bool Changed => Previous != Current;
-        public bool Began => Previous == 0 && Current != 0;
-        public bool Ended => Previous != 0 && Current == 0;
-        public bool BecameTwoHanded => Previous != BothHands && Current == BothHands;
-        public bool NeedsRebase => Changed && Current != 0;
+        public bool Began => Previous == ManipulationHands.None && Current != ManipulationHands.None;
+        public bool Ended => Previous != ManipulationHands.None && Current == ManipulationHands.None;
+        public bool BecameTwoHanded => Previous != ManipulationHands.Both && Current == ManipulationHands.Both;
+        public bool NeedsRebase => Changed && Current != ManipulationHands.None;
     }
 
     protected readonly record struct HandChanges(HandChange Drag, HandChange Turn)
@@ -65,36 +62,38 @@ public abstract class ManipulationMode : MovementMode
 
     protected HandChanges ReadHands(InputFrame frame, bool endTwoHandOnRelease = false)
     {
-        byte previousDrag = dragHands;
-        byte previousTurn = turnHands;
+        ManipulationHands previousDrag = dragHands;
+        ManipulationHands previousTurn = turnHands;
         dragHands = inputs.ActiveHands(frame, true, previousDrag);
         turnHands = inputs.ActiveHands(frame, false, previousTurn);
-        if (endTwoHandOnRelease && previousDrag == BothHands && dragHands is LeftHand or RightHand)
+        if (endTwoHandOnRelease && previousDrag == ManipulationHands.Both &&
+            dragHands is ManipulationHands.Left or ManipulationHands.Right)
         {
             inputs.DisarmDrag(dragHands);
-            dragHands = 0;
+            dragHands = ManipulationHands.None;
         }
-        if (endTwoHandOnRelease && previousTurn == BothHands && turnHands is LeftHand or RightHand)
+        if (endTwoHandOnRelease && previousTurn == ManipulationHands.Both &&
+            turnHands is ManipulationHands.Left or ManipulationHands.Right)
         {
             inputs.DisarmTurn(turnHands);
-            turnHands = 0;
+            turnHands = ManipulationHands.None;
         }
         return new(new(previousDrag, dragHands), new(previousTurn, turnHands));
     }
 
-    protected static Vector3 HandPosition(InputFrame frame, byte hands) => hands switch
+    protected static Vector3 HandPosition(InputFrame frame, ManipulationHands hands) => hands switch
     {
-        LeftHand => frame.Left.Pose.Position,
-        RightHand => frame.Right.Pose.Position,
-        BothHands => (frame.Left.Pose.Position + frame.Right.Pose.Position) * 0.5f,
+        ManipulationHands.Left => frame.Left.Pose.Position,
+        ManipulationHands.Right => frame.Right.Pose.Position,
+        ManipulationHands.Both => (frame.Left.Pose.Position + frame.Right.Pose.Position) * 0.5f,
         _ => Vector3.Zero
     };
 
-    protected static Quaternion HandOrientation(InputFrame frame, byte hands) => hands switch
+    protected static Quaternion HandOrientation(InputFrame frame, ManipulationHands hands) => hands switch
     {
-        LeftHand => frame.Left.Pose.Orientation,
-        RightHand => frame.Right.Pose.Orientation,
-        BothHands => Average(frame.Left.Pose.Orientation, frame.Right.Pose.Orientation),
+        ManipulationHands.Left => frame.Left.Pose.Orientation,
+        ManipulationHands.Right => frame.Right.Pose.Orientation,
+        ManipulationHands.Both => Average(frame.Left.Pose.Orientation, frame.Right.Pose.Orientation),
         _ => Quaternion.Identity
     };
 
