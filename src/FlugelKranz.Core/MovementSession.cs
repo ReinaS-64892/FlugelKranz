@@ -17,12 +17,14 @@ public sealed class MovementSession
     public MovementMode ActiveMode { get; private set; }
     public bool IsTransitioning => ActiveMode is MovementTransition;
 
-    public void Select(ManipulationMode destination, RigidPose appliedOffset)
+    public void Select(ManipulationMode destination, RigidPose appliedOffset, InputFrame frame, FlugelKranzSettings settings)
     {
         var previous = SelectedMode;
+        // Entry may need the previous grip's pivot; capture it before releasing the source.
+        var next = destination.EnterFrom(previous, new(appliedOffset, original, frame, settings));
         ActiveMode.Release();
         SelectedMode = destination;
-        ActiveMode = destination.EnterFrom(previous, appliedOffset, original);
+        ActiveMode = next;
     }
 
     public void Release(RigidPose appliedOffset)

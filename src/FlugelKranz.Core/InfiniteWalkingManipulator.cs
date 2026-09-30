@@ -27,9 +27,11 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
     public override ManipulationMode CreateAlternate(RigidPose current) => new FreeFlightManipulator(current);
     public override RigidPose Update(InputFrame frame, float elapsedSeconds, FlugelKranzSettings settings) =>
         Update(frame, elapsedSeconds, settings.InfiniteWalking);
-    public override MovementMode EnterFrom(ManipulationMode previous, RigidPose current, RigidPose original) =>
-        previous is FreeFlightManipulator ? new InfiniteWalkingTransition(current, original, this)
-            : base.EnterFrom(previous, current, original);
+    public override MovementMode EnterFrom(ManipulationMode previous, ModeEntryContext context) =>
+        previous is FreeFlightManipulator flight
+            ? new InfiniteWalkingTransition(context.CurrentOffset, context.OriginalOffset, this,
+                flight.GetSingleHandTurnPivot(context.Frame, context.Settings.FreeFlight))
+            : base.EnterFrom(previous, context);
     public override MovementMode CreateReset(InputFrame frame, RigidPose original, FlugelKranzSettings settings) =>
         SpaceResetTransition.CreateInfiniteWalking(Offset, original, this);
 

@@ -33,11 +33,11 @@ internal sealed class FlightSession
     {
         if (inputModeOverride == settings.Mode)
             inputModeOverride = null;
-        Select(inputModeOverride ?? settings.Mode, enabled);
+        Select(inputModeOverride ?? settings.Mode, enabled, frame, settings);
         var gesture = gestures.Update(frame, elapsedSeconds, movement.SelectedMode.CanReset(frame));
         if (gesture.ToggleMode)
         {
-            movement.Select(movement.SelectedMode.CreateAlternate(runtime.CurrentOffset), runtime.CurrentOffset);
+            movement.Select(movement.SelectedMode.CreateAlternate(runtime.CurrentOffset), runtime.CurrentOffset, frame, settings);
             inputModeOverride = Mode;
             if (enabled)
                 SendModeChangeHaptic();
@@ -58,11 +58,11 @@ internal sealed class FlightSession
             ReportStatus(frame, enabled);
     }
 
-    private void Select(FlightMode selection, bool enabled)
+    private void Select(FlightMode selection, bool enabled, InputFrame frame, FlugelKranzSettings settings)
     {
         if (MovementModes.Matches(movement.SelectedMode, selection))
             return;
-        movement.Select(MovementModes.Create(selection, runtime.CurrentOffset), runtime.CurrentOffset);
+        movement.Select(MovementModes.Create(selection, runtime.CurrentOffset), runtime.CurrentOffset, frame, settings);
         if (enabled)
             SendModeChangeHaptic();
     }

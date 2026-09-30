@@ -36,9 +36,9 @@ public abstract class ManipulationMode : MovementMode
 
     protected abstract void ReleaseMotion();
 
-    public virtual MovementMode EnterFrom(ManipulationMode previous, RigidPose current, RigidPose original)
+    public virtual MovementMode EnterFrom(ManipulationMode previous, ModeEntryContext context)
     {
-        SetOffset(current);
+        SetOffset(context.CurrentOffset);
         return this;
     }
 

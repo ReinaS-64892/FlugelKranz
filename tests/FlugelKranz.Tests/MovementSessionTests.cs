@@ -29,7 +29,7 @@ public class MovementSessionTests
         Assert.True(walking.IsDragging);
 
         var flight = new FreeFlightManipulator(RigidPose.Identity);
-        session.Select(flight, applied);
+        session.Select(flight, applied, Frame(), Settings);
 
         Assert.Same(flight, session.ActiveMode);
         Assert.Equal(applied, flight.Offset);
@@ -44,15 +44,16 @@ public class MovementSessionTests
         var current = TiltedOffset();
         var session = CreateFlight(current);
         var walking = new InfiniteWalkingManipulator(RigidPose.Identity);
-        session.Select(walking, current);
+        session.Select(walking, current, Frame(), Settings);
         Assert.IsType<InfiniteWalkingTransition>(session.ActiveMode);
         Assert.False(session.ActiveMode.IsDragging);
 
         var halfway = session.Update(Frame(1, 0), 0.5f, Settings);
-        Assert.InRange(halfway.Position.Y, 0.01f, current.Position.Y - 0.01f);
+        Assert.InRange(halfway.Transform(DefaultPivot).Y,
+            RigidPose.Identity.Transform(DefaultPivot).Y, current.Transform(DefaultPivot).Y);
         var applied = session.Update(Frame(1, 1), 0.5f, Settings);
         Assert.Same(walking, session.ActiveMode);
-        Assert.Equal(InfiniteWalkingTransition.CreateTarget(current, RigidPose.Identity), applied);
+        Assert.Equal(InfiniteWalkingTransition.CreateTarget(current, RigidPose.Identity, DefaultPivot), applied);
         Assert.Equal(applied, walking.Offset);
         Assert.Equal(applied, session.Update(Frame(1, 2), 0.01f, Settings));
         Assert.False(walking.IsDragging);
@@ -70,11 +71,11 @@ public class MovementSessionTests
     {
         var current = TiltedOffset();
         var session = CreateFlight(current);
-        session.Select(new InfiniteWalkingManipulator(current), current);
+        session.Select(new InfiniteWalkingManipulator(current), current, Frame(), Settings);
         var intermediate = session.Update(Frame(), 0.3f, Settings);
 
         var flight = new FreeFlightManipulator(RigidPose.Identity);
-        session.Select(flight, intermediate);
+        session.Select(flight, intermediate, Frame(), Settings);
 
         Assert.Same(flight, session.ActiveMode);
         Assert.Equal(intermediate, session.Update(Frame(), 0.1f, Settings));
@@ -104,7 +105,7 @@ public class MovementSessionTests
     {
         var current = TiltedOffset();
         var session = CreateFlight(current);
-        session.Select(new InfiniteWalkingManipulator(current), current);
+        session.Select(new InfiniteWalkingManipulator(current), current, Frame(), Settings);
         var intermediate = session.Update(Frame(), 0.3f, Settings);
 
         session.Release(intermediate);
@@ -112,7 +113,7 @@ public class MovementSessionTests
         Assert.Equal(intermediate, session.ActiveMode.Offset);
         Assert.Equal(intermediate, session.Update(Frame(), 0, Settings));
         var completed = session.Update(Frame(), 1, Settings);
-        Assert.Equal(InfiniteWalkingTransition.CreateTarget(intermediate, RigidPose.Identity), completed);
+        Assert.Equal(InfiniteWalkingTransition.CreateTarget(intermediate, RigidPose.Identity, DefaultPivot), completed);
         Assert.IsType<InfiniteWalkingManipulator>(session.ActiveMode);
     }
 
@@ -122,7 +123,7 @@ public class MovementSessionTests
         var current = TiltedOffset();
         var session = CreateFlight(current);
         var walking = new InfiniteWalkingManipulator(current);
-        session.Select(walking, current);
+        session.Select(walking, current, Frame(), Settings);
         session.Update(Frame(), 0.3f, Settings);
 
         session.Reset(RigidPose.Identity);
@@ -155,11 +156,11 @@ public class MovementSessionTests
         Assert.True(session.StartSpaceReset(Frame(), Settings));
         var intermediate = session.Update(Frame(), 0.25f, Settings);
 
-        session.Select(new InfiniteWalkingManipulator(current), intermediate);
+        session.Select(new InfiniteWalkingManipulator(current), intermediate, Frame(), Settings);
 
         Assert.IsType<InfiniteWalkingTransition>(session.ActiveMode);
         Assert.Equal(intermediate, session.ActiveMode.Offset);
-        Assert.Equal(InfiniteWalkingTransition.CreateTarget(intermediate, RigidPose.Identity),
+        Assert.Equal(InfiniteWalkingTransition.CreateTarget(intermediate, RigidPose.Identity, DefaultPivot),
             session.Update(Frame(), 1, Settings));
     }
 
@@ -179,7 +180,7 @@ public class MovementSessionTests
     {
         var session = CreateFlight(TiltedOffset());
         var destination = new AdditionalMode();
-        session.Select(destination, TiltedOffset());
+        session.Select(destination, TiltedOffset(), Frame(), Settings);
         var intermediate = session.Update(Frame(), 0.5f, Settings);
         Assert.Equal(4, intermediate.Position.Y, 4);
 
@@ -190,6 +191,70 @@ public class MovementSessionTests
         Assert.Equal(complete, destination.Offset);
         Assert.Equal(complete, session.Update(Frame(), 0.1f, Settings));
     }
+
+    [Theory]
+    [InlineData(TurnOrigin.Head)]
+    [InlineData(TurnOrigin.TrackedElementsMidpoint)]
+    public void EntryUsesTheConfiguredSingleHandTurnPivot(TurnOrigin origin)
+    {
+        var current = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 2.9f, -0.3f), new(1, 5, 3));
+        var frame = EntryFrame(ManipulationHands.None);
+        var settings = Settings with { FreeFlight = Settings.FreeFlight with { TurnOrigin = origin } };
+        Vector3 pivot = origin == TurnOrigin.Head ? frame.Head.Position
+            : (frame.Head.Position + frame.Left.Pose.Position + frame.Right.Pose.Position) / 3;
+        Vector3 startPoint = current.Transform(pivot);
+        var session = CreateFlight(current);
+
+        session.Select(new InfiniteWalkingManipulator(current), current, frame, settings);
+        // Subsequent physical movement must not replace the pivot captured at entry.
+        var laterFrame = frame with { Head = frame.Head with { Position = new(2, 3, 4) } };
+        Vector3 halfwayPoint = session.Update(laterFrame, 0.5f, settings).Transform(pivot);
+        Vector3 landingPoint = session.Update(laterFrame, 0.5f, settings).Transform(pivot);
+
+        Assert.Equal(startPoint.X, halfwayPoint.X, 4);
+        Assert.Equal(startPoint.Z, halfwayPoint.Z, 4);
+        Assert.Equal((startPoint.Y + pivot.Y) / 2, halfwayPoint.Y, 4);
+        Assert.Equal(startPoint.X, landingPoint.X, 4);
+        Assert.Equal(startPoint.Z, landingPoint.Z, 4);
+        Assert.Equal(pivot.Y, landingPoint.Y, 4);
+    }
+
+    [Theory]
+    [InlineData(ManipulationHands.Left)]
+    [InlineData(ManipulationHands.Right)]
+    [InlineData(ManipulationHands.Both)]
+    public void EntryCapturesTheDragPivotBeforeReleasingThePreviousMode(ManipulationHands hands)
+    {
+        var current = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.4f, 2.9f, -0.3f), new(1, 5, 3));
+        var session = CreateFlight(current);
+        session.Update(EntryFrame(ManipulationHands.None), 0.01f, Settings);
+        var frame = EntryFrame(hands);
+        session.Update(frame, 0.01f, Settings);
+        Vector3 pivot = hands switch
+        {
+            ManipulationHands.Left => frame.Left.Pose.Position,
+            ManipulationHands.Right => frame.Right.Pose.Position,
+            _ => (frame.Left.Pose.Position + frame.Right.Pose.Position) / 2
+        };
+        Vector3 startPoint = current.Transform(pivot);
+        var flight = session.SelectedMode;
+        Assert.True(flight.IsDragging);
+
+        session.Select(new InfiniteWalkingManipulator(current), current, frame, Settings);
+        Assert.False(flight.IsDragging);
+        Vector3 landingPoint = session.Update(frame, 1, Settings).Transform(pivot);
+
+        Assert.Equal(startPoint.X, landingPoint.X, 4);
+        Assert.Equal(startPoint.Z, landingPoint.Z, 4);
+        Assert.Equal(pivot.Y, landingPoint.Y, 4);
+    }
+
+    private static InputFrame EntryFrame(ManipulationHands dragHands) => new(
+        new(Quaternion.Identity, new(0.4f, 1.7f, -0.2f)), true,
+        new(new(Quaternion.Identity, new(-0.3f, 1.2f, 0.1f)), dragHands.HasFlag(ManipulationHands.Left) ? 1 : 0, 0, 0, true),
+        new(new(Quaternion.Identity, new(0.6f, 1.1f, 0.4f)), dragHands.HasFlag(ManipulationHands.Right) ? 1 : 0, 0, 0, true));
+
+    private static readonly Vector3 DefaultPivot = new(0, 1.7f / 3, 0);
 
     private static MovementSession CreateFlight(RigidPose current) =>
         new(new FreeFlightManipulator(current), current, RigidPose.Identity);
@@ -207,8 +272,8 @@ public class MovementSessionTests
         public override ManipulationMode CreateAlternate(RigidPose current) => new FreeFlightManipulator(current);
         protected override void ReleaseMotion() { }
         public override RigidPose Update(InputFrame frame, float elapsedSeconds, FlugelKranzSettings settings) => Offset;
-        public override MovementMode EnterFrom(ManipulationMode previous, RigidPose current, RigidPose original) =>
-            new AdditionalTransition(current, current with { Position = new(1, 6, 3) }, this);
+        public override MovementMode EnterFrom(ManipulationMode previous, ModeEntryContext context) =>
+            new AdditionalTransition(context.CurrentOffset, context.CurrentOffset with { Position = new(1, 6, 3) }, this);
         public override MovementMode CreateReset(InputFrame frame, RigidPose original, FlugelKranzSettings settings) =>
             new AdditionalTransition(Offset, original, this);
     }

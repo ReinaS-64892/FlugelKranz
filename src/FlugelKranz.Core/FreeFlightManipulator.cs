@@ -424,6 +424,13 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (turnHands == ManipulationHands.Both ||
             (turnHands == ManipulationHands.None && useTwoHandTurnPivotForInertia && angularInertia.LengthSquared() > 0))
             return twoHandTurnPivot;
+        return GetSingleHandTurnPivot(frame, settings);
+    }
+
+    internal Vector3 GetSingleHandTurnPivot(InputFrame frame, FlightMotionSettings settings)
+    {
+        if (IsDragging)
+            return HandPosition(frame, dragHands);
         if (settings.TurnOrigin == TurnOrigin.Head)
             return frame.Head.Position;
 

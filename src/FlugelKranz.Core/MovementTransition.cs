@@ -9,7 +9,8 @@ public abstract class MovementTransition : MovementMode
     private readonly RigidPose start;
     private readonly RigidPose target;
     private readonly Vector3? pivot;
-    private readonly Vector3 pivotInRoot;
+    private readonly Vector3 startPivotInRoot;
+    private readonly Vector3 targetPivotInRoot;
     private RigidPose current;
     private float elapsed;
     private bool handedOff;
@@ -21,7 +22,8 @@ public abstract class MovementTransition : MovementMode
         this.start = current = start;
         this.target = target;
         this.pivot = pivot;
-        pivotInRoot = pivot is { } point ? start.Transform(point) : default;
+        startPivotInRoot = pivot is { } startPoint ? start.Transform(startPoint) : default;
+        targetPivotInRoot = pivot is { } targetPoint ? target.Transform(targetPoint) : default;
         Destination = destination;
         destination.SetOffset(start);
     }
@@ -60,7 +62,7 @@ public abstract class MovementTransition : MovementMode
         float eased = progress * progress * (3 - 2 * progress);
         Quaternion orientation = Quaternion.Normalize(Quaternion.Slerp(start.Orientation, target.Orientation, eased));
         Vector3 position = pivot is { } point
-            ? pivotInRoot - Vector3.Transform(point, orientation)
+            ? Vector3.Lerp(startPivotInRoot, targetPivotInRoot, eased) - Vector3.Transform(point, orientation)
             : Vector3.Lerp(start.Position, target.Position, eased);
         return current = new(orientation, position);
     }
