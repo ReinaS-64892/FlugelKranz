@@ -3,14 +3,8 @@ using System.Numerics;
 namespace FlugelKranz.Core;
 
 /// <summary>Direct Y translation and yaw-only rotation for room-scale recentering.</summary>
-public sealed class InfiniteWalkingManipulator
+public sealed class InfiniteWalkingManipulator : ManipulationMode
 {
-    private const byte LeftHand = 1;
-    private const byte RightHand = 2;
-    private const byte BothHands = LeftHand | RightHand;
-    private bool leftDragArmed, rightDragArmed, leftTurnArmed, rightTurnArmed;
-    private byte dragHands, turnHands;
-    private RigidPose targetOffset;
     private float dragStartY, dragStartOffsetY;
     private Quaternion turnStartInputOrientation, turnStartOffsetOrientation;
     private Vector3 previousTurnHeadPosition;
@@ -19,15 +13,9 @@ public sealed class InfiniteWalkingManipulator
 
     public InfiniteWalkingManipulator(RigidPose offset) => SetOffset(offset);
 
-    public bool IsDragging => dragHands != 0;
-    public bool IsTurning => turnHands != 0;
-    public RigidPose Offset { get; private set; }
 
-    public void Release()
+    protected override void ReleaseMotion()
     {
-        dragHands = turnHands = 0;
-        leftDragArmed = rightDragArmed = leftTurnArmed = rightTurnArmed = false;
-        targetOffset = Offset;
         turnStartInputOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragStartY = dragStartOffsetY = 0;
         previousTurnHeadPosition = Vector3.Zero;
@@ -35,13 +23,15 @@ public sealed class InfiniteWalkingManipulator
         turnFollowerUsesHeadSmoothing = false;
     }
 
-    public void SetOffset(RigidPose offset)
-    {
-        if (!offset.IsValid)
-            throw new ArgumentException("Invalid space offset.", nameof(offset));
-        Offset = targetOffset = offset;
-        Release();
-    }
+    public override string ResetMessage => "無限歩行の高さを戻しています…";
+    public override ManipulationMode CreateAlternate(RigidPose current) => new FreeFlightManipulator(current);
+    public override RigidPose Update(InputFrame frame, float elapsedSeconds, FlugelKranzSettings settings) =>
+        Update(frame, elapsedSeconds, settings.InfiniteWalking);
+    public override MovementMode EnterFrom(ManipulationMode previous, RigidPose current, RigidPose original) =>
+        previous is FreeFlightManipulator ? new InfiniteWalkingTransition(current, original, this)
+            : base.EnterFrom(previous, current, original);
+    public override MovementMode CreateReset(InputFrame frame, RigidPose original, FlugelKranzSettings settings) =>
+        SpaceResetTransition.CreateInfiniteWalking(Offset, original, this);
 
     public RigidPose Update(InputFrame frame, float elapsedSeconds, InfiniteWalkingSettings settings)
     {
@@ -53,16 +43,8 @@ public sealed class InfiniteWalkingManipulator
             return Offset;
         }
 
-        byte previousDragHands = dragHands;
-        byte previousTurnHands = turnHands;
-        dragHands = ActiveHands(frame, true, previousDragHands);
-        turnHands = ActiveHands(frame, false, previousTurnHands);
-        bool dragHandsChanged = dragHands != previousDragHands;
-        bool turnHandsChanged = turnHands != previousTurnHands;
-        bool activeHandsChanged =
-            (dragHandsChanged && dragHands != 0) ||
-            (turnHandsChanged && turnHands != 0);
-        if (activeHandsChanged)
+        var hands = ReadHands(frame);
+        if (hands.NeedsRebase)
         {
             targetOffset = Offset;
             if (IsDragging)
@@ -115,7 +97,7 @@ public sealed class InfiniteWalkingManipulator
         Quaternion currentInput = TurnInputOrientation(frame);
         Quaternion inputDelta = Quaternion.Normalize(
             currentInput * Quaternion.Conjugate(turnStartInputOrientation));
-        Quaternion yaw = FreeFlightManipulator.TwistAroundAxis(inputDelta, Vector3.UnitY);
+        Quaternion yaw = RotationMath.TwistAroundAxis(inputDelta, Vector3.UnitY);
         Quaternion target = Quaternion.Normalize(
             turnStartOffsetOrientation * Quaternion.Conjugate(yaw));
         bool rotated = 1 - MathF.Abs(Quaternion.Dot(targetOffset.Orientation, target)) > 0.0000001f;
@@ -136,7 +118,7 @@ public sealed class InfiniteWalkingManipulator
     {
         if (!IsDragging && !IsTurning)
         {
-            Offset = targetOffset;
+            ApplyOffset(targetOffset);
             return;
         }
 
@@ -159,64 +141,17 @@ public sealed class InfiniteWalkingManipulator
                 targetOffset.Position.Z,
                 turnSmoothSeconds,
                 elapsedSeconds));
-        Offset = new(
+        ApplyOffset(new(
             MotionSmoothing.Follow(
                 Offset.Orientation,
                 targetOffset.Orientation,
                 turnSmoothSeconds,
                 elapsedSeconds),
-            position);
+            position));
     }
-
-    private byte ActiveHands(InputFrame frame, bool drag, byte previous)
-    {
-        byte result = 0;
-        bool leftWasHeld = (previous & LeftHand) != 0;
-        bool rightWasHeld = (previous & RightHand) != 0;
-        bool left = drag
-            ? Held(frame.Left, frame.Left.Drag, ref leftDragArmed, leftWasHeld)
-            : Held(frame.Left, frame.Left.Turn, ref leftTurnArmed, leftWasHeld);
-        bool right = drag
-            ? Held(frame.Right, frame.Right.Drag, ref rightDragArmed, rightWasHeld)
-            : Held(frame.Right, frame.Right.Turn, ref rightTurnArmed, rightWasHeld);
-        if (left)
-            result |= LeftHand;
-        if (right)
-            result |= RightHand;
-        return result;
-    }
-
-    private static Quaternion HandOrientation(InputFrame frame, byte hands) => hands switch
-    {
-        LeftHand => frame.Left.Pose.Orientation,
-        RightHand => frame.Right.Pose.Orientation,
-        _ => Quaternion.Identity
-    };
 
     private Quaternion TurnInputOrientation(InputFrame frame) => turnHands == BothHands
         ? frame.Head.Orientation
         : HandOrientation(frame, turnHands);
 
-    private static Vector3 HandPosition(InputFrame frame, byte hands) => hands switch
-    {
-        LeftHand => frame.Left.Pose.Position,
-        RightHand => frame.Right.Pose.Position,
-        BothHands => (frame.Left.Pose.Position + frame.Right.Pose.Position) * 0.5f,
-        _ => Vector3.Zero
-    };
-
-    private static bool Held(HandSample hand, float value, ref bool armed, bool held)
-    {
-        if (!hand.IsTracked || !hand.Pose.IsValid || !float.IsFinite(value))
-        {
-            armed = false;
-            return false;
-        }
-        if (value <= 0.35f)
-        {
-            armed = true;
-            return false;
-        }
-        return armed && value >= (held ? 0.35f : 0.65f);
-    }
 }

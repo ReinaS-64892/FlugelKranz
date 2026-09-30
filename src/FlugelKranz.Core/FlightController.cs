@@ -104,19 +104,10 @@ public sealed class FlightController(
 
             if (runtime is null)
                 return;
-            var freeFlight = new FreeFlightManipulator(runtime.CurrentOffset);
-            var infiniteWalking = new InfiniteWalkingManipulator(runtime.CurrentOffset);
+            var session = new FlightSession(runtime, progress,
+                (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized());
             long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
-            FlightMode? appliedMode = null;
-            InfiniteWalkingTransition? modeTransition = null;
-            SpaceResetTransition? spaceResetTransition = null;
-            FlightMode? inputModeOverride = null;
-            bool previousDpadLeft = false, previousDpadRight = false;
-            float leftDpadSeconds = 0, rightDpadSeconds = 0, singleDpadSeconds = 0;
-            bool modeDpadTriggered = false, singleDpadTriggered = false;
-            RigidPose? previousReferenceSpaceOffset = null;
-            int tick = 0;
             while (!shutdown.IsCancellationRequested)
             {
                 var frame = runtime.ReadPhysical();
@@ -124,208 +115,20 @@ public sealed class FlightController(
                 float elapsedSeconds = (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
                 previousTimestamp = timestamp;
                 var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
-                if (inputModeOverride is { } requested && settings.Mode == requested)
-                    inputModeOverride = null;
-                FlightMode selectedMode = inputModeOverride ?? settings.Mode;
-                reportedMode = selectedMode;
-
-                bool dpadLeft = DpadDownHeld(frame.Left);
-                bool dpadRight = DpadDownHeld(frame.Right);
-                bool dpadBoth = dpadLeft && dpadRight;
-                leftDpadSeconds = dpadLeft ? leftDpadSeconds + elapsedSeconds : 0;
-                rightDpadSeconds = dpadRight ? rightDpadSeconds + elapsedSeconds : 0;
-                if (dpadBoth || dpadLeft != previousDpadLeft || dpadRight != previousDpadRight)
-                {
-                    singleDpadSeconds = 0;
-                    singleDpadTriggered = false;
-                }
-                else if (dpadLeft || dpadRight)
-                {
-                    singleDpadSeconds += elapsedSeconds;
-                }
-                else
-                {
-                    singleDpadSeconds = 0;
-                    singleDpadTriggered = false;
-                }
-                if (dpadBoth && !(previousDpadLeft && previousDpadRight))
-                    modeDpadTriggered = false;
-                else if (!dpadBoth)
-                    modeDpadTriggered = false;
-                previousDpadLeft = dpadLeft;
-                previousDpadRight = dpadRight;
-
-                bool spaceResetRequested = false;
-                if (dpadBoth && !modeDpadTriggered &&
-                    (leftDpadSeconds >= 1 || rightDpadSeconds >= 1))
-                {
-                    selectedMode = selectedMode == FlightMode.InfiniteWalking
-                        ? FlightMode.FreeFlight
-                        : FlightMode.InfiniteWalking;
-                    inputModeOverride = selectedMode;
-                    reportedMode = selectedMode;
-                    modeDpadTriggered = true;
-                    progress.Report(new(enabled, true, ModeChangedMessage(selectedMode),
-                        Mode: selectedMode));
-                }
-                else if (!dpadBoth && !singleDpadTriggered && singleDpadSeconds >= 1 &&
-                    (selectedMode == FlightMode.InfiniteWalking ||
-                        frame.HeadTracked && frame.Head.IsValid))
-                {
-                    spaceResetRequested = true;
-                    singleDpadTriggered = true;
-                }
                 lock (gate)
                 {
                     if (observedVersion != releaseVersion)
                     {
-                        freeFlight.Release();
-                        infiniteWalking.Release();
-                        spaceResetTransition = null;
+                        session.Release();
                         observedVersion = releaseVersion;
                     }
                     if (resetRequested)
                     {
-                        runtime.Restore();
-                        freeFlight.SetOffset(runtime.CurrentOffset);
-                        infiniteWalking.SetOffset(runtime.CurrentOffset);
-                        modeTransition = null;
-                        spaceResetTransition = null;
-                        appliedMode = selectedMode;
+                        session.Reset();
                         resetRequested = false;
                     }
-                    if (enabled)
-                    {
-                        if (spaceResetTransition is not null &&
-                            spaceResetTransition.Mode != selectedMode)
-                        {
-                            spaceResetTransition = null;
-                            freeFlight.SetOffset(runtime.CurrentOffset);
-                            infiniteWalking.SetOffset(runtime.CurrentOffset);
-                        }
-                        if (modeTransition is not null && selectedMode == FlightMode.FreeFlight)
-                        {
-                            modeTransition = null;
-                            appliedMode = FlightMode.FreeFlight;
-                            freeFlight.SetOffset(runtime.CurrentOffset);
-                            infiniteWalking.SetOffset(runtime.CurrentOffset);
-                        }
-                        if (modeTransition is null && appliedMode != selectedMode)
-                        {
-                            bool modeWasAlreadyApplied = appliedMode is not null;
-                            if (appliedMode == FlightMode.FreeFlight &&
-                                selectedMode == FlightMode.InfiniteWalking)
-                            {
-                                modeTransition = new(runtime.CurrentOffset, runtime.OriginalOffset);
-                                spaceResetTransition = null;
-                                freeFlight.Release();
-                                infiniteWalking.Release();
-                                SendModeChangeHaptic(runtime);
-                            }
-                            else
-                            {
-                                freeFlight.SetOffset(runtime.CurrentOffset);
-                                infiniteWalking.SetOffset(runtime.CurrentOffset);
-                                appliedMode = selectedMode;
-                                if (modeWasAlreadyApplied)
-                                    SendModeChangeHaptic(runtime);
-                            }
-                        }
-
-                        if (spaceResetRequested && modeTransition is null &&
-                            spaceResetTransition is null)
-                        {
-                            spaceResetTransition = selectedMode == FlightMode.FreeFlight
-                                ? SpaceResetTransition.CreateFreeFlight(
-                                    runtime.CurrentOffset,
-                                    frame.Head,
-                                    freeFlight.GetCurrentTurnPivot(frame, settings.FreeFlight))
-                                : SpaceResetTransition.CreateInfiniteWalking(
-                                    runtime.CurrentOffset,
-                                    runtime.OriginalOffset);
-                            freeFlight.Release();
-                            infiniteWalking.Release();
-                            progress.Report(new(
-                                enabled,
-                                true,
-                                SpaceResetMessage(selectedMode),
-                                Mode: selectedMode));
-                        }
-
-                        RigidPose offset;
-                        if (modeTransition is not null)
-                        {
-                            offset = modeTransition.Advance(elapsedSeconds);
-                            if (modeTransition.IsComplete)
-                            {
-                                freeFlight.SetOffset(offset);
-                                infiniteWalking.SetOffset(offset);
-                                appliedMode = FlightMode.InfiniteWalking;
-                                modeTransition = null;
-                            }
-                        }
-                        else if (spaceResetTransition is not null)
-                        {
-                            offset = spaceResetTransition.Advance(elapsedSeconds);
-                            if (spaceResetTransition.IsComplete)
-                            {
-                                freeFlight.SetOffset(offset);
-                                infiniteWalking.SetOffset(offset);
-                                spaceResetTransition = null;
-                            }
-                        }
-                        else
-                        {
-                            offset = selectedMode == FlightMode.FreeFlight
-                                ? freeFlight.Update(frame, elapsedSeconds, settings.FreeFlight)
-                                : infiniteWalking.Update(frame, elapsedSeconds, settings.InfiniteWalking);
-                        }
-                        // Use exact equality here: a tolerance would accumulate un-applied substeps as feedback.
-                        if (offset != runtime.CurrentOffset) runtime.Apply(offset);
-                    }
-                    else
-                    {
-                        modeTransition = null;
-                        spaceResetTransition = null;
-                        freeFlight.Release();
-                        infiniteWalking.Release();
-                    }
-                    if (tick++ % 10 == 0)
-                    {
-                        bool transitioning = modeTransition is not null || spaceResetTransition is not null;
-                        bool dragging = transitioning ? false
-                            : selectedMode == FlightMode.FreeFlight
-                            ? freeFlight.IsDragging
-                            : infiniteWalking.IsDragging;
-                        bool turning = transitioning ? false
-                            : selectedMode == FlightMode.FreeFlight
-                            ? freeFlight.IsTurning
-                            : infiniteWalking.IsTurning;
-                        string message = !enabled ? "オフ — 現在の位置・姿勢を保持しています。"
-                            : modeTransition is not null ? "無限歩行モードへ戻しています…"
-                            : spaceResetTransition is not null ? SpaceResetMessage(selectedMode)
-                            : !frame.HeadTracked ? "HMD のトラッキングを待っています。"
-                            : !frame.Left.IsTracked || !frame.Right.IsTracked ? "コントローラーの姿勢・操作入力を待っています。"
-                            : "オン — 操作入力を一度離してから使用してください。";
-                        var referenceSpaceOffset = (runtime as IReferenceSpaceOffsetProvider)
-                            ?.ReferenceSpaceOffset;
-                        var recentReferenceSpaceMovement = referenceSpaceOffset is { } currentReferenceSpaceOffset
-                            && previousReferenceSpaceOffset is { } previous
-                            ? currentReferenceSpaceOffset.Position - previous.Position
-                            : (Vector3?)null;
-                        previousReferenceSpaceOffset = referenceSpaceOffset;
-                        progress.Report(new(
-                            enabled,
-                            true,
-                            message,
-                            dragging,
-                            turning,
-                            selectedMode,
-                            TrackpadForce(frame.Left),
-                            TrackpadForce(frame.Right),
-                            referenceSpaceOffset,
-                            recentReferenceSpaceMovement));
-                    }
+                    session.Update(frame, elapsedSeconds, settings, enabled);
+                    reportedMode = session.Mode;
                 }
                 await Task.Delay(10, shutdown.Token).ConfigureAwait(false);
             }
@@ -354,32 +157,6 @@ public sealed class FlightController(
             }
         }
     }
-
-    private static bool DpadDownHeld(HandSample hand) =>
-        hand.IsTracked && hand.Pose.IsValid &&
-        float.IsFinite(hand.DpadDown) && hand.DpadDown >= 0.65f;
-
-    private static float? TrackpadForce(HandSample hand) =>
-        hand.TrackpadForceActive && float.IsFinite(hand.TrackpadForce)
-            ? Math.Clamp(hand.TrackpadForce, 0, 1)
-            : null;
-
-    private static string ModeChangedMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
-        ? "無限歩行モードへ切り替えました。操作入力を離してから使用してください。"
-        : "自由飛行モードへ切り替えました。操作入力を離してから使用してください。";
-
-    private static void SendModeChangeHaptic(IFlightRuntime runtime)
-    {
-        if (runtime is not IHapticFeedback haptics)
-            return;
-
-        try { haptics.SendHapticPulse(0.08f, 0, 0.35f); }
-        catch { }
-    }
-
-    private static string SpaceResetMessage(FlightMode mode) => mode == FlightMode.InfiniteWalking
-        ? "無限歩行の高さを戻しています…"
-        : "自由飛行の水平へ戻しています…";
 
     public async ValueTask DisposeAsync()
     {

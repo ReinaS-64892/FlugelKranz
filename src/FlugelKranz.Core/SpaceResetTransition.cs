@@ -3,40 +3,20 @@ using System.Numerics;
 namespace FlugelKranz.Core;
 
 /// <summary>Returns one part of the active space offset to its normal flight baseline.</summary>
-public sealed class SpaceResetTransition
+public sealed class SpaceResetTransition : MovementTransition
 {
-    public const float DurationSeconds = 1;
-    private readonly RigidPose start;
-    private readonly RigidPose target;
-    private readonly Vector3 pivot;
-    private readonly Vector3 pivotInRoot;
-    private readonly bool keepPivotFixed;
-    private float elapsed;
-
-    private SpaceResetTransition(
-        FlightMode mode,
-        RigidPose start,
-        RigidPose target,
-        Vector3 pivot = default,
-        bool keepPivotFixed = false)
+    private SpaceResetTransition(RigidPose start, RigidPose target, ManipulationMode destination, Vector3? pivot = null)
+        : base(start, target, destination, pivot)
     {
-        Mode = mode;
-        this.start = start;
-        this.target = target;
-        this.pivot = pivot;
-        this.keepPivotFixed = keepPivotFixed;
-        pivotInRoot = start.Transform(pivot);
-        Current = start;
     }
 
-    public FlightMode Mode { get; }
-    public bool IsComplete => elapsed >= DurationSeconds;
-    public RigidPose Current { get; private set; }
+    public override string StatusMessage => Destination.ResetMessage;
 
     public static SpaceResetTransition CreateFreeFlight(
         RigidPose current,
         RigidPose head,
-        Vector3 turnPivot)
+        Vector3 turnPivot,
+        FreeFlightManipulator? destination = null)
     {
         if (!current.IsValid || !head.IsValid ||
             !float.IsFinite(turnPivot.X) ||
@@ -51,11 +31,10 @@ public sealed class SpaceResetTransition
         Vector3 pivotInRoot = current.Transform(turnPivot);
         Vector3 position = pivotInRoot - Vector3.Transform(turnPivot, orientation);
         return new(
-            FlightMode.FreeFlight,
             current,
             new(orientation, position),
-            turnPivot,
-            keepPivotFixed: true);
+            destination ?? new FreeFlightManipulator(current),
+            turnPivot);
     }
 
     private static Quaternion LevelHeadOrientation(Quaternion headInRoot)
@@ -71,12 +50,13 @@ public sealed class SpaceResetTransition
 
         // Looking exactly up or down has no horizontal forward direction. Preserve
         // the closest yaw component instead of choosing an arbitrary half turn.
-        return FreeFlightManipulator.TwistAroundAxis(headInRoot, Vector3.UnitY);
+        return RotationMath.TwistAroundAxis(headInRoot, Vector3.UnitY);
     }
 
     public static SpaceResetTransition CreateInfiniteWalking(
         RigidPose current,
-        RigidPose original)
+        RigidPose original,
+        InfiniteWalkingManipulator? destination = null)
     {
         if (!current.IsValid || !original.IsValid)
             throw new ArgumentException("Height reset poses must be valid.");
@@ -84,25 +64,8 @@ public sealed class SpaceResetTransition
         Vector3 position = current.Position;
         position.Y = original.Position.Y;
         return new(
-            FlightMode.InfiniteWalking,
             current,
-            current with { Position = position });
-    }
-
-    public RigidPose Advance(float elapsedSeconds)
-    {
-        if (float.IsFinite(elapsedSeconds) && elapsedSeconds > 0)
-            elapsed = MathF.Min(DurationSeconds, elapsed + elapsedSeconds);
-        if (IsComplete)
-            return Current = target;
-
-        float progress = elapsed / DurationSeconds;
-        float eased = progress * progress * (3 - 2 * progress);
-        Quaternion orientation = Quaternion.Normalize(
-            Quaternion.Slerp(start.Orientation, target.Orientation, eased));
-        Vector3 position = keepPivotFixed
-            ? pivotInRoot - Vector3.Transform(pivot, orientation)
-            : Vector3.Lerp(start.Position, target.Position, eased);
-        return Current = new(orientation, position);
+            current with { Position = position },
+            destination ?? new InfiniteWalkingManipulator(current));
     }
 }
