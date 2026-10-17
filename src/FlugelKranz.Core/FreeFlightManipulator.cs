@@ -3,7 +3,7 @@ using static FlugelKranz.Core.RotationMath;
 
 namespace FlugelKranz.Core;
 
-/// <summary>Consumes poses in the unmodified physical tracking origin, never transformed XR poses.</summary>
+/// <summary>Consumes calibrated Monado root poses with the flight transform removed.</summary>
 public sealed class FreeFlightManipulator : ManipulationMode
 {
     // Stop feeding imperceptibly small per-update changes to the runtime. The

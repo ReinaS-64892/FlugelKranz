@@ -54,7 +54,7 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 - `dotnet build FlugelKranz.slnx` — ソリューション全体をビルドします。
 - `dotnet test FlugelKranz.slnx` — 座標変換・実行制御・UI の自動テストを実行します。
 - `dotnet run --project src/FlugelKranz -- --help` — CLI の使い方を表示します。
-- `dotnet run --project src/FlugelKranz -- --diagnose --lib-monado PATH` — UI を開かず、接続先・基準空間・HMD・左右入力とオフセットを確認します。
+- `dotnet run --project src/FlugelKranz -- --diagnose --lib-monado PATH` — UI を開かず、接続先・基準空間・HMD・左右入力を確認します。
 - `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。libmonado は `XR_RUNTIME_JSON` または XDG の OpenXR runtime manifest から `MND_libmonado_path` を探索し、見つからない場合は `/usr/lib/wivrn/libmonado_wivrn.so` を使用します。`--lib-monado PATH` で明示指定できます。
 
 ## コーディング規約
