@@ -18,6 +18,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     private readonly Hand[] hands = [new(true), new(false)];
     private bool running;
     private XrSessionState state;
+    private bool steamFrameSupported;
     private delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult> convertTime;
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
     public string RuntimeName { get; private set; } = "";
@@ -27,6 +28,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         public bool IsLeft { get; } = isLeft;
         public XrAction Pose, TrackpadPosition, TrackpadTouch, TrackpadForce, ThumbRestTouch, TriggerTouch;
         public XrAction Haptic;
+        public XrAction FrameDrag, FrameTurn, FrameReset;
         public XrSpace Space;
     }
 
@@ -81,14 +83,16 @@ public sealed unsafe class OpenXrInput : IDisposable
         }
         foreach (var required in new[] { "XR_MND_headless", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
+        steamFrameSupported = extensions.Contains(ControllerInputMapping.SteamFrameExtension);
         fixed (byte* headless = "XR_MND_headless\0"u8)
         fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
+        fixed (byte* frame = Encoding.UTF8.GetBytes(ControllerInputMapping.SteamFrameExtension + '\0'))
         {
-            byte** names = stackalloc byte*[2] { headless, time };
+            byte** names = stackalloc byte*[3] { headless, time, frame };
             var info = new XrInstanceCreateInfo
             {
                 type = XrStructureType.XR_TYPE_INSTANCE_CREATE_INFO,
-                enabledExtensionCount = 2, enabledExtensionNames = names,
+                enabledExtensionCount = steamFrameSupported ? 3u : 2u, enabledExtensionNames = names,
                 applicationInfo = new XrApplicationInfo { apiVersion = 1UL << 48, applicationVersion = 1 }
             };
             Copy(ApplicationName, info.applicationInfo.applicationName, 128);
@@ -117,9 +121,17 @@ public sealed unsafe class OpenXrInput : IDisposable
             hands[i].ThumbRestTouch = CreateAction($"{side}_thumb_rest", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].TriggerTouch = CreateAction($"{side}_trigger_touch", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
             hands[i].Haptic = CreateAction($"{side}_haptic", XrActionType.XR_ACTION_TYPE_VIBRATION_OUTPUT);
+            if (steamFrameSupported)
+            {
+                hands[i].FrameDrag = CreateAction($"{side}_frame_drag", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+                hands[i].FrameTurn = CreateAction($"{side}_frame_turn", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+                hands[i].FrameReset = CreateAction($"{side}_frame_reset", XrActionType.XR_ACTION_TYPE_BOOLEAN_INPUT);
+            }
         }
         SuggestOculusTouch();
         SuggestValveIndex();
+        if (steamFrameSupported)
+            SuggestSteamFrame();
         var set = actionSet;
         var attach = new XrSessionActionSetsAttachInfo
         { type = XrStructureType.XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO, countActionSets = 1, actionSets = &set };
@@ -189,6 +201,30 @@ public sealed unsafe class OpenXrInput : IDisposable
         var result = xrSuggestInteractionProfileBindings(instance, &info);
         if (result != XrResult.XR_ERROR_PATH_UNSUPPORTED)
             Check(result, "Valve Index の D-pad 入力設定");
+    }
+
+    private void SuggestSteamFrame()
+    {
+        XrActionSuggestedBinding* bindings = stackalloc XrActionSuggestedBinding[10];
+        for (int i = 0; i < hands.Length; i++)
+        {
+            string side = hands[i].IsLeft ? "left" : "right";
+            var buttons = ControllerInputMapping.SteamFrameButtonPaths(
+                hands[i].IsLeft ? ControllerHand.Left : ControllerHand.Right);
+            bindings[i * 5] = new() { action = hands[i].Pose, binding = Path($"/user/hand/{side}/input/grip/pose") };
+            bindings[i * 5 + 1] = new() { action = hands[i].FrameDrag, binding = Path(buttons.Drag) };
+            bindings[i * 5 + 2] = new() { action = hands[i].FrameTurn, binding = Path(buttons.Turn) };
+            bindings[i * 5 + 3] = new() { action = hands[i].FrameReset, binding = Path(buttons.Reset) };
+            bindings[i * 5 + 4] = new() { action = hands[i].Haptic, binding = Path($"/user/hand/{side}/output/haptic") };
+        }
+        var info = new XrInteractionProfileSuggestedBinding
+        {
+            type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
+            interactionProfile = Path(ControllerInputMapping.SteamFrameProfile),
+            countSuggestedBindings = 10,
+            suggestedBindings = bindings
+        };
+        Check(xrSuggestInteractionProfileBindings(instance, &info), "Steam Frame の入力設定");
     }
 
     public InputFrame Read()
@@ -268,7 +304,12 @@ public sealed unsafe class OpenXrInput : IDisposable
                 trackpadForce.Value,
                 thumbRest.Value,
                 triggerTouch.Value,
-                thumbRest.Active && triggerTouch.Active),
+                thumbRest.Active && triggerTouch.Active)
+            {
+                FrameBumperClicked = steamFrameSupported && ReadBoolean(hand.FrameDrag).Value,
+                FrameTurnButtonClicked = steamFrameSupported && ReadBoolean(hand.FrameTurn).Value,
+                FrameResetButtonClicked = steamFrameSupported && ReadBoolean(hand.FrameReset).Value
+            },
             valveIndexSettings);
         return new(
             pose,
