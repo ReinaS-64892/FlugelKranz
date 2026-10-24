@@ -11,8 +11,8 @@ public class ControllerInputMappingTests
     [InlineData(ControllerHand.Left, "/user/hand/left/input/bumper/click",
         "/user/hand/left/input/dpad_up/click", "/user/hand/left/input/view/click")]
     [InlineData(ControllerHand.Right, "/user/hand/right/input/bumper/click",
-        "/user/hand/right/input/y/click", "/user/hand/right/input/x/click")]
-    public void SteamFrameUsesBumpersUpperTurnAndViewOrXResetButtons(
+        "/user/hand/right/input/y/click", "/user/hand/right/input/menu/click")]
+    public void SteamFrameUsesBumpersUpperTurnAndMatchingViewMenuResetButtons(
         ControllerHand hand, string drag, string turn, string reset)
     {
         Assert.Equal((drag, turn, reset), ControllerInputMapping.SteamFrameButtonPaths(hand));

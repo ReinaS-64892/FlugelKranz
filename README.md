@@ -48,7 +48,7 @@ OpenXR は NuGet の [Evergine.Bindings.OpenXR](https://github.com/EvergineTeam/
 
 Valve Index はトラックパッドへ触れ、指定方向へ寄せ、Force が閾値以上になったときに入力されます。既定値は位置デッドゾーン `0.30`、Force 閾値 `0.20` です。設定画面の「Valve Index 専用入力」で `0.00`～`1.00` の範囲を調整でき、検出中は左右の Force 値も確認できます。トラックパッド上には操作を割り当てていません。
 
-Steam Frame の L1 / R1 は通常のアナログトリガーと別の `bumper/click` 入力です。Drag と Turn は同時に押せます。十字キー下・左・右、A / B、通常のトリガー、スティック、グリップには専用割当を設けません。
+Steam Frame の L1 / R1 は通常のアナログトリガーと別の `bumper/click` 入力です。Drag と Turn は同時に押せます。十字キー下・左・右、A / B / X、通常のトリガー、スティック、グリップには専用割当を設けません。
 
 Steam Frame の専用割当には、接続先の Monado / WiVRn が `XR_VALVE_frame_controller_interaction` 拡張と `/interaction_profiles/valve/frame_controller_valve` プロファイルを公開し、各ボタンを転送する必要があります。拡張が列挙された場合だけ有効化してバインドします。拡張のないランタイムでも既存の Index / Touch 入力は利用できますが、Frame 固有のボタンを個別に扱えるとは限りません。Touch エミュレーションでの動作は専用割当の対象外です。SteamVR 単体は本アプリの接続先として対応していません。入力パスは [Valve の公式資料](https://partner.steamgames.com/doc/steamhardware/steamframe/input) に基づきます。Monado / WiVRn での専用プロファイルの提供状況と実機動作は未確認です。
 
@@ -58,7 +58,7 @@ Valve が説明する SteamVR の標準 Touch エミュレーションでは、�
 
 参照した WiVRn コミットには入力転送の不整合もあります。`map_input` は左手の `DPAD_UP` / `DPAD_LEFT` を右手として振り分けますが、対応する入力は左手に登録されており、左手の十字キー上による Turn が届くとは保証できません。実機確認では専用拡張の有無だけでなく、この入力が左手へ届くことも確認してください。このリポジトリでは WiVRn / Monado 本体を変更していません。
 
-Valve Index / Steam Frame の長押し操作は次のとおりです。リセット用入力は Index の D-pad 下（トラックパッドの下側を通常の Drag / Turn と同じ Force 条件で押す）、Frame 左手の View、Frame 右手の X です。Frame の View / X は内部で Index の D-pad 下と同じ論理入力へ変換します。左右は別々に計時し、どちらかの入力開始から 1 秒経過した時点で両方が押されていれば、開始タイミングがずれていてもモードを切り替えます。切替に成功すると、対応しているランタイムでは左右のコントローラーへ短い振動を送ります。
+Valve Index / Steam Frame の長押し操作は次のとおりです。リセット用入力は Index の D-pad 下（トラックパッドの下側を通常の Drag / Turn と同じ Force 条件で押す）、Frame 左手の View、Frame 右手の Menu です。左右で同じ位置のボタンを使います（右手側の OpenXR 入力名は `menu/click`、左手側は `view/click`）。Frame の View / Menu は内部で Index の D-pad 下と同じ論理入力へ変換します。左右は別々に計時し、どちらかの入力開始から 1 秒経過した時点で両方が押されていれば、開始タイミングがずれていてもモードを切り替えます。切替に成功すると、対応しているランタイムでは左右のコントローラーへ短い振動を送ります。
 
 | 入力 | 無限歩行モード | 自由飛行モード |
 | --- | --- | --- |
@@ -141,7 +141,7 @@ dotnet publish src/FlugelKranz/FlugelKranz.csproj -c Release -r linux-x64 --self
 
 自動テストは入力割当、片手・両手の切替、両モードの軸制約、回転支点、慣性、トラッキング喪失、オン・オフ、復元、UI、設定保存を対象にします。実機では VRChat を動かしたまま、Index / Touch / Frame の入力、片手・両手の切替、両モード、各回転軸、操作解放、オフ、復元、終了を確認してください。接続後にスペースキャリブレーターで片方のドライバー空間の向きを変更した場合も、変更後の見えている手の動きと Drag / Turn の方向が一致することを確認してください。自動テストだけではランタイム・コントローラー・VRChat の組み合わせを保証できません。
 
-Steam Frame はランタイムの専用拡張と各入力の転送を確認した上で、L1 / R1 の Drag、十字キー上 / Y の Turn、Drag + Turn の同時押し、View または X の片手長押しによる両モードのリセット、View + X の両手長押しによるモード切替と振動を確認してください。押し続けてもモード切替が反復しないこと、操作後に離して掴み直せること、A / B・通常のトリガー・未割当の十字キーで FlugelKranz が反応しないこと、飛行操作で VRChat 側の A / B やメニュー操作が発生しないことも確認してください。
+Steam Frame はランタイムの専用拡張と各入力の転送を確認した上で、L1 / R1 の Drag、十字キー上 / Y の Turn、Drag + Turn の同時押し、左 View または右 Menu の片手長押しによる両モードのリセット、左 View + 右 Menu の両手長押しによるモード切替と振動を確認してください。押し続けてもモード切替が反復しないこと、操作後に離して掴み直せること、A / B・通常のトリガー・未割当の十字キーで FlugelKranz が反応しないこと、飛行操作で VRChat 側の A / B やメニュー操作が発生しないことも確認してください。
 
 ## 座標変換
 
