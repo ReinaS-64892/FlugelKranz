@@ -38,7 +38,7 @@ public static class ControllerInputMapping
         return (
             prefix + "bumper/click",
             prefix + (hand == ControllerHand.Left ? "dpad_up/click" : "y/click"),
-            prefix + (hand == ControllerHand.Left ? "dpad_left/click" : "x/click"));
+            prefix + (hand == ControllerHand.Left ? "view/click" : "x/click"));
     }
 
     public static ManipulationActions Map(
