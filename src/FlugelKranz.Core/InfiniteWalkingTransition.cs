@@ -3,45 +3,44 @@ using System.Numerics;
 namespace FlugelKranz.Core;
 
 /// <summary>Returns free-flight height and tilt to the infinite-walking baseline.</summary>
-public sealed class InfiniteWalkingTransition
+public sealed class InfiniteWalkingTransition : MovementTransition
 {
-    public const float DurationSeconds = 1;
-    private readonly RigidPose start;
-    private readonly RigidPose target;
-    private float elapsed;
+    private readonly RigidPose original;
+    private readonly Vector3 turnPivot;
 
-    public InfiniteWalkingTransition(RigidPose current, RigidPose original)
+    public InfiniteWalkingTransition(
+        RigidPose current,
+        RigidPose original,
+        InfiniteWalkingManipulator? destination = null,
+        Vector3 turnPivot = default)
+        : base(current, CreateTarget(current, original, turnPivot),
+            destination ?? new InfiniteWalkingManipulator(current), turnPivot)
     {
-        if (!current.IsValid || !original.IsValid)
+        this.original = original;
+        this.turnPivot = turnPivot;
+    }
+
+    public override MovementMode Interrupt(RigidPose appliedOffset) =>
+        new InfiniteWalkingTransition(appliedOffset, original, (InfiniteWalkingManipulator)Destination, turnPivot);
+
+    public override string StatusMessage => "無限歩行モードへ戻しています…";
+
+    public static RigidPose CreateTarget(RigidPose current, RigidPose original, Vector3 turnPivot = default)
+    {
+        if (!current.IsValid || !original.IsValid ||
+            !float.IsFinite(turnPivot.X) || !float.IsFinite(turnPivot.Y) || !float.IsFinite(turnPivot.Z))
             throw new ArgumentException("Mode transition poses must be valid.");
-
-        start = current;
-        target = CreateTarget(current, original);
-        Current = current;
-    }
-
-    public bool IsComplete => elapsed >= DurationSeconds;
-    public RigidPose Current { get; private set; }
-
-    public RigidPose Advance(float elapsedSeconds)
-    {
-        if (float.IsFinite(elapsedSeconds) && elapsedSeconds > 0)
-            elapsed = MathF.Min(DurationSeconds, elapsed + elapsedSeconds);
-        float progress = elapsed / DurationSeconds;
-        float eased = progress * progress * (3 - 2 * progress);
-        Current = new(
-            Quaternion.Normalize(Quaternion.Slerp(start.Orientation, target.Orientation, eased)),
-            Vector3.Lerp(start.Position, target.Position, eased));
-        return Current;
-    }
-
-    public static RigidPose CreateTarget(RigidPose current, RigidPose original)
-    {
         Quaternion difference = Quaternion.Normalize(
             current.Orientation * Quaternion.Conjugate(original.Orientation));
-        Quaternion yaw = FreeFlightManipulator.TwistAroundAxis(difference, Vector3.UnitY);
+        Quaternion yaw = RotationMath.TwistAroundAxis(difference, Vector3.UnitY);
         Quaternion orientation = Quaternion.Normalize(yaw * original.Orientation);
-        Vector3 position = current.Position;
+        // Physical pivot -> Monado root first. Remove tilt around that pivot,
+        // then return its root-space Y to the connection baseline without changing X/Z.
+        Vector3 landingPivot = current.Transform(turnPivot);
+        landingPivot.Y = original.Transform(turnPivot).Y;
+        Vector3 position = landingPivot - Vector3.Transform(turnPivot, orientation);
+        // Root-space yaw leaves Y unchanged. Preserve the exact baseline height
+        // rather than retaining roundoff from the pivot compensation.
         position.Y = original.Position.Y;
         return new(orientation, position);
     }

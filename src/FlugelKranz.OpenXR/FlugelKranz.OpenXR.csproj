@@ -6,6 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="FlugelKranz.Tests" />
     <ProjectReference Include="../FlugelKranz.Core/FlugelKranz.Core.csproj" />
     <ProjectReference Include="../MonadoXrApi/MonadoXrApi.csproj" />
     <PackageReference Include="Evergine.Bindings.OpenXR" Version="2026.9.1.18" />

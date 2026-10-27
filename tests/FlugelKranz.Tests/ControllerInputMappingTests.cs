@@ -7,6 +7,45 @@ namespace FlugelKranz.Tests;
 
 public class ControllerInputMappingTests
 {
+    [Theory]
+    [InlineData(ControllerHand.Left, "/user/hand/left/input/bumper/click",
+        "/user/hand/left/input/dpad_up/click", "/user/hand/left/input/view/click")]
+    [InlineData(ControllerHand.Right, "/user/hand/right/input/bumper/click",
+        "/user/hand/right/input/y/click", "/user/hand/right/input/menu/click")]
+    public void SteamFrameUsesBumpersUpperTurnAndMatchingViewMenuResetButtons(
+        ControllerHand hand, string drag, string turn, string reset)
+    {
+        Assert.Equal((drag, turn, reset), ControllerInputMapping.SteamFrameButtonPaths(hand));
+    }
+
+    [Theory]
+    [InlineData(ControllerHand.Left, false, false, false)]
+    [InlineData(ControllerHand.Right, true, false, false)]
+    [InlineData(ControllerHand.Left, false, true, false)]
+    [InlineData(ControllerHand.Right, false, false, true)]
+    [InlineData(ControllerHand.Left, true, true, false)]
+    [InlineData(ControllerHand.Right, true, true, true)]
+    public void SteamFrameClicksMapIndependentlyOfTrackpadAndTouchSettings(
+        ControllerHand hand,
+        bool bumper,
+        bool turn,
+        bool reset)
+    {
+        var input = new ControllerInputState(Vector2.Zero, false, 0, false, false, false)
+        {
+            FrameBumperClicked = bumper,
+            FrameTurnButtonClicked = turn,
+            FrameResetButtonClicked = reset
+        };
+
+        var result = ControllerInputMapping.Map(hand, input,
+            ValveIndexInputSettings.Default with { PositionDeadZone = 1, ForceThreshold = 1 });
+
+        Assert.Equal(bumper, result.Drag);
+        Assert.Equal(turn, result.Turn);
+        Assert.Equal(reset, result.DpadDown);
+    }
+
     [Fact]
     public void ValveIndexDefaultsMatchUiParameters()
     {

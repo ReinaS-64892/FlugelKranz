@@ -54,7 +54,7 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 - `dotnet build FlugelKranz.slnx` — ソリューション全体をビルドします。
 - `dotnet test FlugelKranz.slnx` — 座標変換・実行制御・UI の自動テストを実行します。
 - `dotnet run --project src/FlugelKranz -- --help` — CLI の使い方を表示します。
-- `dotnet run --project src/FlugelKranz -- --diagnose --lib-monado PATH` — UI を開かず、接続先・基準空間・HMD・左右入力とオフセットを確認します。
+- `dotnet run --project src/FlugelKranz -- --diagnose --lib-monado PATH` — UI を開かず、接続先・基準空間・HMD・左右入力を確認します。
 - `dotnet run --project src/FlugelKranz` — Wayland UI を起動します。libmonado は `XR_RUNTIME_JSON` または XDG の OpenXR runtime manifest から `MND_libmonado_path` を探索し、見つからない場合は `/usr/lib/wivrn/libmonado_wivrn.so` を使用します。`--lib-monado PATH` で明示指定できます。
 
 ## コーディング規約
@@ -66,6 +66,8 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 `MonadoXrApi` に OpenXR・Avalonia・`FlugelKranz.Core` への依存を追加してはいけません。libmonado のロードは `LibMonadoLibrary` に閉じ込め、API 呼び出しは `MonadoRoot` などのラッパーを経由します。FlugelKranz 固有の座標変換・飛行制御・libmonado と OpenXR の協調処理は `FlugelKranz.Core` または `FlugelKranz.OpenXR` に実装してください。使用されない生成済み ABI バインディングは保持しません。
 
 物理ボタンを操作器へ直結せず、`FlugelKranz.OpenXR` で手ごとの論理 Drag / Turn / モード切替へ変換してから Core へ渡してください。入力割当は `ControllerInputMapping` に集約し、将来 Drag と Turn が同じ物理ボタンへ割り当てられても操作器を変更せずに済む構成を保ちます。
+
+コードの読みやすさと編集のしやすさを設計・実装・レビューで考慮してください。状態は責務を持つ型にまとめ、長いメソッドに多数のフラグやループをまたぐローカル変数を集めないでください。ローカル変数は用途が分かる名前を付け、必要な範囲に限定します。共通のライフサイクルや遷移処理は共通化し、モード固有の処理は型に閉じ込めて、新しいモードの追加で既存の分岐を広範囲に変更しない構成を優先してください。ただし、読みやすさに寄与しない抽象化や過度な細分化は避けます。
 
 C# 用のフォーマッターやリンターの設定は登録されていません。
 

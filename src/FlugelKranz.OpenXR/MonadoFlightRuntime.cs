@@ -10,7 +10,6 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
     public RigidPose OriginalOffset => monado.OriginalOffset;
     public RigidPose CurrentOffset => monado.CurrentOffset;
     public RigidPose ReferenceSpaceOffset => monado.CurrentReferenceSpaceOffset;
-    public IReadOnlyList<TrackingOriginOffset> TrackingOrigins => monado.TrackingOrigins;
 
     public MonadoFlightRuntime(
         string libraryPath,
