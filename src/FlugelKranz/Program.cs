@@ -59,7 +59,11 @@ internal static class Program
                 {
                     var frame = runtime.ReadPhysical();
                     if (frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
-                    { Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。"); return 0; }
+                    {
+                        Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
+                        Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
+                        return 0;
+                    }
                     Thread.Sleep(10);
                 }
                 Console.Error.WriteLine("接続できましたが、HMD・両手の有効な入力を確認できませんでした。");

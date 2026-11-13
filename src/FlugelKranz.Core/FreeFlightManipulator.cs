@@ -433,6 +433,16 @@ public sealed class FreeFlightManipulator : ManipulationMode
             sum += frame.Right.Pose.Position;
             count++;
         }
+        if (frame.Trackers is { } trackers)
+        {
+            foreach (var tracker in trackers)
+            {
+                if (!tracker.IsUsable)
+                    continue;
+                sum += tracker.Position;
+                count++;
+            }
+        }
         return sum / count;
     }
 

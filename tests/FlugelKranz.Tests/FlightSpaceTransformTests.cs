@@ -126,6 +126,24 @@ public class FlightSpaceTransformTests
     }
 
     [Fact]
+    public void TrackerRecoveryRemovesFlightAndStageWhileRetainingDriverCalibration()
+    {
+        var space = new FlightSpaceTransform(InitialStage, Flight);
+        var calibration = new RigidPose(Quaternion.CreateFromYawPitchRoll(0.7f, -0.2f, 0.4f), new(-1, 2, 3));
+        Vector3 physical = calibration.Transform(new(0.2f, 0.9f, -0.1f));
+        var frame = Frame(Hand) with
+        {
+            Trackers = [new("waist", space.StageOffset.Inverse().Transform(physical), true)]
+        };
+
+        var tracker = Assert.Single(space.ToPhysical(frame).Trackers!);
+
+        Near(physical, tracker.Position);
+        Assert.Equal("waist", tracker.Serial);
+        Assert.True(tracker.IsUsable);
+    }
+
+    [Fact]
     public void RestoringIdentityFlightReturnsInitialStageAndRetainsCalibration()
     {
         var space = new FlightSpaceTransform(InitialStage, Flight);

@@ -19,9 +19,12 @@ public sealed unsafe class OpenXrInput : IDisposable
     private bool running;
     private XrSessionState state;
     private bool steamFrameSupported;
+    private bool trackerSpacesSupported;
+    private OpenXrTrackers? trackers;
     private delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult> convertTime;
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
     public string RuntimeName { get; private set; } = "";
+    public bool TrackerSpacesSupported => trackers is not null;
 
     private sealed class Hand(bool isLeft)
     {
@@ -64,6 +67,8 @@ public sealed unsafe class OpenXrInput : IDisposable
             session = createdSession;
             stage = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_STAGE);
             view = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_VIEW);
+            if (trackerSpacesSupported && XdevSpaceApi.SupportsSystem(instance, system))
+                trackers = new(new XdevSpaceApi(instance, session, stage));
             CreateActions();
         }
         catch { Dispose(); throw; }
@@ -84,15 +89,20 @@ public sealed unsafe class OpenXrInput : IDisposable
         foreach (var required in new[] { "XR_MND_headless", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
         steamFrameSupported = extensions.Contains(ControllerInputMapping.SteamFrameExtension);
+        trackerSpacesSupported = extensions.Contains(OpenXrTrackers.ExtensionName);
         fixed (byte* headless = "XR_MND_headless\0"u8)
         fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
         fixed (byte* frame = Encoding.UTF8.GetBytes(ControllerInputMapping.SteamFrameExtension + '\0'))
+        fixed (byte* tracker = Encoding.UTF8.GetBytes(OpenXrTrackers.ExtensionName + '\0'))
         {
-            byte** names = stackalloc byte*[3] { headless, time, frame };
+            byte** names = stackalloc byte*[4] { headless, time, null, null };
+            uint extensionCount = 2;
+            if (steamFrameSupported) names[extensionCount++] = frame;
+            if (trackerSpacesSupported) names[extensionCount++] = tracker;
             var info = new XrInstanceCreateInfo
             {
                 type = XrStructureType.XR_TYPE_INSTANCE_CREATE_INFO,
-                enabledExtensionCount = steamFrameSupported ? 3u : 2u, enabledExtensionNames = names,
+                enabledExtensionCount = extensionCount, enabledExtensionNames = names,
                 applicationInfo = new XrApplicationInfo { apiVersion = 1UL << 48, applicationVersion = 1 }
             };
             Copy(ApplicationName, info.applicationInfo.applicationName, 128);
@@ -245,7 +255,10 @@ public sealed unsafe class OpenXrInput : IDisposable
             head,
             tracked,
             ReadHand(hands[0], time, valveIndexSettings),
-            ReadHand(hands[1], time, valveIndexSettings));
+            ReadHand(hands[1], time, valveIndexSettings))
+        {
+            Trackers = trackers?.Read(time)
+        };
     }
 
     public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude)
@@ -441,7 +454,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         span.Clear();
         Encoding.UTF8.GetBytes(value, span[..(size - 1)]);
     }
-    private static void Check(XrResult result, string operation)
+    internal static void Check(XrResult result, string operation)
     {
         if ((int)result < 0) throw new InvalidOperationException($"{operation}に失敗しました（OpenXR: {result}）。");
         if (result == XrResult.XR_SESSION_LOSS_PENDING) throw new InvalidOperationException("OpenXR セッションの接続が失われます。");
@@ -449,6 +462,8 @@ public sealed unsafe class OpenXrInput : IDisposable
 
     public void Dispose()
     {
+        trackers?.Dispose();
+        trackers = null;
         foreach (var hand in hands)
             if (hand.Space != XrSpace.Null) { xrDestroySpace(hand.Space); hand.Space = XrSpace.Null; }
         if (view != XrSpace.Null) { xrDestroySpace(view); view = XrSpace.Null; }
