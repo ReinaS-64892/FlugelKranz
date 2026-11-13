@@ -23,7 +23,6 @@ public sealed class FreeFlightManipulator : ManipulationMode
     private Vector3 linearInertia, dragVelocity;
     private Quaternion dragReferenceOrientation;
     private Vector3 dragAnchorInRoot, previousDragPosition;
-    private bool positionTargetUsesDragSmoothing;
     private bool dragAccelerationBoostActive;
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
@@ -47,7 +46,6 @@ public sealed class FreeFlightManipulator : ManipulationMode
         dragAnchorInRoot = previousDragPosition = twoHandTurnAxis = twoHandTurnPivot = Vector3.Zero;
         previousTwoHandOrientation = Quaternion.Identity;
         useTwoHandTurnPivotForInertia = false;
-        positionTargetUsesDragSmoothing = false;
         dragAccelerationBoostActive = false;
         dragBrakeElapsed = turnBrakeElapsed = 0;
         dragBrakeFactor = turnBrakeFactor = 1;
@@ -75,10 +73,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
         var hands = ReadHands(frame, endTwoHandOnRelease: true);
         HandleGripChanges(frame, hands, settings);
 
-        bool linearMotionActive = linearInertia.LengthSquared() > 0;
-        bool angularMotionActive = angularInertia.LengthSquared() > 0;
-        var orientationBefore = targetOffset.Orientation;
-        AdvanceMotion(frame, dt, sampleSeconds, settings);
+        var orientationBefore = Offset.Orientation;
+        Vector3 inertiaStep = AdvanceMotion(frame, dt, sampleSeconds, settings);
 
         var target = GrabTarget(frame, settings);
         UpdateRawVelocities(
@@ -88,15 +84,11 @@ public sealed class FreeFlightManipulator : ManipulationMode
             IsTurning && !hands.Turn.Changed,
             sampleSeconds);
         targetOffset = target;
-        if (IsDragging || linearMotionActive)
-            positionTargetUsesDragSmoothing = true;
-        else if (IsTurning || angularMotionActive)
-            positionTargetUsesDragSmoothing = false;
+        FollowTarget(frame, inertiaStep, dt, settings);
         RotateLinearInertia(
             orientationBefore,
-            targetOffset.Orientation,
+            Offset.Orientation,
             settings.VectorRotationMultiplier);
-        FollowTarget(frame, dt, settings);
         return Offset;
     }
 
@@ -116,6 +108,9 @@ public sealed class FreeFlightManipulator : ManipulationMode
                 FinishTurn(settings);
             else
                 CancelTurn();
+            // Keep the presented rotation when Turn ends, including while Drag
+            // remains held. Released angular inertia starts from this rotation.
+            targetOffset = targetOffset with { Orientation = Offset.Orientation };
         }
 
         if (hands.Drag.Began)
@@ -152,10 +147,10 @@ public sealed class FreeFlightManipulator : ManipulationMode
         }
     }
 
-    private void AdvanceMotion(InputFrame frame, float dt, float sampleSeconds, FlightMotionSettings settings)
+    private Vector3 AdvanceMotion(InputFrame frame, float dt, float sampleSeconds, FlightMotionSettings settings)
     {
         bool brakingAngularInertia = IsTurning || dragHands == ManipulationHands.Both;
-        AdvanceFreeInertia(frame, dt, !IsDragging, !brakingAngularInertia, settings);
+        Vector3 inertiaStep = AdvanceFreeInertia(frame, dt, !IsDragging, !brakingAngularInertia, settings);
         if (IsDragging)
         {
             float controllerSpeed = ControllerMovementSpeed(frame, sampleSeconds);
@@ -169,8 +164,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
                     ref dragBrakeFactor,
                     dt,
                     settings.BrakeRampSeconds);
-            Vector3 dragInertiaStep = linearInertia * dt;
-            dragAnchorInRoot += dragInertiaStep;
+            inertiaStep = linearInertia * dt;
+            dragAnchorInRoot += inertiaStep;
             ApplyDeceleration(
                 ref linearInertia,
                 ref linearExemptionSeconds,
@@ -213,6 +208,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
                 settings,
                 settings.InertiaStopDisplacementMetres);
         }
+        return inertiaStep;
     }
 
     private void RebaseDrag(InputFrame frame)
@@ -244,6 +240,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     private void FollowTarget(
         InputFrame frame,
+        Vector3 inertiaStep,
         float elapsedSeconds,
         FlightMotionSettings settings)
     {
@@ -253,9 +250,6 @@ public sealed class FreeFlightManipulator : ManipulationMode
             return;
         }
 
-        float positionSmoothSeconds = positionTargetUsesDragSmoothing
-            ? settings.DragSmoothSeconds
-            : settings.TurnSmoothSeconds;
         Quaternion orientation = MotionSmoothing.Follow(
             Offset.Orientation,
             targetOffset.Orientation,
@@ -265,29 +259,22 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (IsDragging)
         {
             Vector3 dragPoint = HandPosition(frame, dragHands);
+            // Advect both ends of the follower by the same inertia step. Only
+            // the controller's displacement relative to its anchor is smoothed.
             Vector3 dragPointInRoot = MotionSmoothing.Follow(
-                Offset.Transform(dragPoint),
+                Offset.Transform(dragPoint) + inertiaStep,
                 dragAnchorInRoot,
                 settings.DragSmoothSeconds,
                 elapsedSeconds);
             position = dragPointInRoot - Vector3.Transform(dragPoint, orientation);
         }
-        else if (positionTargetUsesDragSmoothing)
-        {
-            position = MotionSmoothing.Follow(
-                Offset.Position,
-                targetOffset.Position,
-                positionSmoothSeconds,
-                elapsedSeconds);
-        }
         else
         {
+            // Physical pivot and flight-transformed position are both in Monado
+            // root coordinates. Apply inertia directly, then compensate using
+            // the presented rotation, never the unsmoothed target rotation.
             Vector3 pivot = TurnPivot(frame, settings);
-            Vector3 pivotInRoot = MotionSmoothing.Follow(
-                Offset.Transform(pivot),
-                targetOffset.Transform(pivot),
-                positionSmoothSeconds,
-                elapsedSeconds);
+            Vector3 pivotInRoot = Offset.Transform(pivot) + inertiaStep;
             position = pivotInRoot - Vector3.Transform(pivot, orientation);
         }
         ApplyOffset(new(orientation, position));
@@ -472,7 +459,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
             pivotInRoot - Vector3.Transform(pivot, orientation));
     }
 
-    private void AdvanceFreeInertia(
+    private Vector3 AdvanceFreeInertia(
         InputFrame frame,
         float dt,
         bool move,
@@ -480,7 +467,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         FlightMotionSettings settings)
     {
         if (dt <= 0)
-            return;
+            return Vector3.Zero;
 
         var rotation = targetOffset.Orientation;
         var translation = targetOffset.Position;
@@ -492,8 +479,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
             translation = pivotInRoot - Vector3.Transform(pivot, rotation);
         }
 
-        if (move)
-            translation += linearInertia * dt;
+        Vector3 inertiaStep = move ? linearInertia * dt : Vector3.Zero;
+        translation += inertiaStep;
 
         targetOffset = new(rotation, translation);
         if (move)
@@ -510,6 +497,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
                 dt,
                 settings,
                 settings.InertiaStopDisplacementMetres);
+        return inertiaStep;
     }
 
     private void FinishDrag(RigidPose head, FlightMotionSettings settings)
