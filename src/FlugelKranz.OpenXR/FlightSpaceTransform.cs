@@ -11,7 +11,14 @@ internal sealed record FlightSpaceTransform(RigidPose InitialStage, RigidPose Of
     // Remove STAGE and our flight transform; retain all driver-space calibration.
     public RigidPose ToPhysical(RigidPose stagePose) => StageOffset * stagePose;
 
-    public InputFrame ToPhysical(InputFrame frame) => new(ToPhysical(frame.Head), frame.HeadTracked,
-        frame.Left with { Pose = ToPhysical(frame.Left.Pose) },
-        frame.Right with { Pose = ToPhysical(frame.Right.Pose) });
+    public InputFrame ToPhysical(InputFrame frame) => frame with
+    {
+        Head = ToPhysical(frame.Head),
+        Left = frame.Left with { Pose = ToPhysical(frame.Left.Pose) },
+        Right = frame.Right with { Pose = ToPhysical(frame.Right.Pose) },
+        Trackers = frame.Trackers?.Select(tracker => tracker with
+        {
+            Position = StageOffset.Transform(tracker.Position)
+        }).ToArray()
+    };
 }
