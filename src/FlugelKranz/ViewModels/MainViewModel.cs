@@ -44,6 +44,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(TurnAccelerationLabel))]
     private double turnAccelerationMultiplier = 0.3;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TwoHandDragAccelerationLabel))]
+    private double twoHandDragAccelerationMultiplier = 2;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ZAccelerationLabel))]
     private double zAccelerationMultiplier = 2;
     [ObservableProperty] private bool inertiaAccelerationBoostEnabled = true;
@@ -110,6 +113,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
     public string TurnAccelerationLabel => $"Turn: {TurnAccelerationMultiplier:0.00} 倍";
+    public string TwoHandDragAccelerationLabel => $"Drag: {TwoHandDragAccelerationMultiplier:0.00} 倍";
     public string ZAccelerationLabel => $"Z: {ZAccelerationMultiplier:0.00} 倍";
     public string InertiaAccelerationBoostMaximumLabel =>
         $"最大加速倍率: {InertiaAccelerationBoostMaximumMultiplier:0.00} 倍";
@@ -162,7 +166,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(Mode) or nameof(UseHeadTurnOrigin) or
             nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
             nameof(TurnCutoffDegreesPerSecond) or nameof(DragAccelerationMultiplier) or
-            nameof(TurnAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
+            nameof(TurnAccelerationMultiplier) or nameof(TwoHandDragAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
             nameof(InertiaAccelerationBoostEnabled) or nameof(InertiaAccelerationBoostMaximumMultiplier) or
             nameof(VectorRotationMultiplier) or
             nameof(InertiaDecelerationPerSecond) or nameof(InertiaStopDisplacementMetres) or nameof(DecelerationExemptionEnabled) or
@@ -188,6 +192,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         TurnCutoffDegreesPerSecond = Math.Round(settings.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4);
         DragAccelerationMultiplier = Math.Round(settings.DragAccelerationMultiplier, 6);
         TurnAccelerationMultiplier = Math.Round(settings.TurnAccelerationMultiplier, 6);
+        TwoHandDragAccelerationMultiplier = Math.Round(settings.TwoHandDragAccelerationMultiplier, 6);
         ZAccelerationMultiplier = Math.Round(settings.ZAccelerationMultiplier, 6);
         InertiaAccelerationBoostEnabled = settings.InertiaAccelerationBoostEnabled;
         InertiaAccelerationBoostMaximumMultiplier = Math.Round(settings.InertiaAccelerationBoostMaximumMultiplier, 6);
@@ -221,6 +226,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetTurnCutoff() => ResetToDefaults(s => TurnCutoffDegreesPerSecond = Math.Round(s.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4));
     [RelayCommand] private void ResetDragAcceleration() => ResetToDefaults(s => DragAccelerationMultiplier = s.DragAccelerationMultiplier);
     [RelayCommand] private void ResetTurnAcceleration() => ResetToDefaults(s => TurnAccelerationMultiplier = s.TurnAccelerationMultiplier);
+    [RelayCommand] private void ResetTwoHandDragAcceleration() => ResetToDefaults(s => TwoHandDragAccelerationMultiplier = s.TwoHandDragAccelerationMultiplier);
     [RelayCommand] private void ResetZAcceleration() => ResetToDefaults(s => ZAccelerationMultiplier = s.ZAccelerationMultiplier);
     [RelayCommand] private void ResetInertiaAccelerationBoostEnabled() => ResetToDefaults(s => InertiaAccelerationBoostEnabled = s.InertiaAccelerationBoostEnabled);
     [RelayCommand] private void ResetInertiaAccelerationBoostMaximumMultiplier() => ResetToDefaults(s => InertiaAccelerationBoostMaximumMultiplier = s.InertiaAccelerationBoostMaximumMultiplier);
@@ -332,6 +338,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
             DragAccelerationMultiplier = (float)DragAccelerationMultiplier,
             TurnAccelerationMultiplier = (float)TurnAccelerationMultiplier,
+            TwoHandDragAccelerationMultiplier = (float)TwoHandDragAccelerationMultiplier,
             ZAccelerationMultiplier = (float)ZAccelerationMultiplier,
             InertiaAccelerationBoostEnabled = InertiaAccelerationBoostEnabled,
             InertiaAccelerationBoostMaximumMultiplier = (float)InertiaAccelerationBoostMaximumMultiplier,

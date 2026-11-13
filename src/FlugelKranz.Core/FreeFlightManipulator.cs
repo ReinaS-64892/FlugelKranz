@@ -97,7 +97,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (hands.Drag.Ended)
         {
             if (HandsUsable(frame, hands.Drag.Previous))
-                FinishDrag(frame.Head, settings);
+                FinishDrag(frame.Head, hands.Drag.Previous, settings);
             else
                 CancelDrag();
         }
@@ -510,7 +510,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         return inertiaStep;
     }
 
-    private void FinishDrag(RigidPose head, FlightMotionSettings settings)
+    private void FinishDrag(RigidPose head, ManipulationHands releasedHands, FlightMotionSettings settings)
     {
         bool hasUsableAcceleration = dragVelocity.LengthSquared() > 0.0000000001f &&
             (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
@@ -520,6 +520,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
             // to the physical HMD orientation before comparing their directions.
             var headInRoot = Quaternion.Normalize(Offset.Orientation * head.Orientation);
             var acceleration = ApplyDragAcceleration(dragVelocity, headInRoot, settings);
+            if (releasedHands == ManipulationHands.Both)
+                acceleration *= settings.TwoHandDragAccelerationMultiplier;
             float speedBeforeBoost = linearInertia.Length();
             if (dragAccelerationBoostActive && speedBeforeBoost > 0.0000000001f)
             {

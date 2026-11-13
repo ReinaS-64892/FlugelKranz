@@ -29,6 +29,7 @@ public class InertiaTests
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(0.3f, settings.TurnAccelerationMultiplier);
+        Assert.Equal(2, settings.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, settings.ZAccelerationMultiplier);
         Assert.True(settings.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, settings.InertiaAccelerationBoostMaximumMultiplier);
@@ -41,6 +42,51 @@ public class InertiaTests
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
         Assert.Equal(0.4f, settings.BrakeRampSeconds);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(2.5f, 2.5f)]
+    [InlineData(5, 4)]
+    public void TwoHandDragAccelerationIsClampedToItsSupportedRange(float value, float expected)
+    {
+        Assert.Equal(expected, new FlightMotionSettings
+        {
+            TwoHandDragAccelerationMultiplier = value
+        }.Normalized().TwoHandDragAccelerationMultiplier);
+    }
+
+    [Theory]
+    [InlineData(1, false, false)]
+    [InlineData(2, false, false)]
+    [InlineData(4, true, false)]
+    [InlineData(2, false, true)]
+    public void TwoHandDragScalesReleaseInertiaWithoutScalingHeldMovement(
+        float multiplier, bool releaseOnlyLeft, bool forward)
+    {
+        var settings = Unfiltered with
+        {
+            DragAccelerationMultiplier = 0.5f,
+            TwoHandDragAccelerationMultiplier = multiplier,
+            ZAccelerationMultiplier = 2
+        };
+        var motion = forward ? -Vector3.UnitZ : Vector3.UnitX;
+        InputFrame BothHands(float distance, bool leftDrag, bool rightDrag) => new(
+            Head, true,
+            new(new(Quaternion.Identity, motion * distance), leftDrag ? 1 : 0, 0, 0, true),
+            new(new(Quaternion.Identity, motion * distance), rightDrag ? 1 : 0, 0, 0, true));
+        var engine = new FreeFlightManipulator(Identity);
+        engine.Update(BothHands(0, false, false), 0.1f, settings);
+        engine.Update(BothHands(0, true, true), 0.1f, settings);
+        var held = engine.Update(BothHands(1, true, true), 0.1f, settings);
+        var released = engine.Update(BothHands(1, false, releaseOnlyLeft), 0.1f, settings);
+        var continued = engine.Update(BothHands(1, false, false), 0.1f, settings);
+
+        Near(-motion, held.Position);
+        var expectedStep = -motion * 0.5f * multiplier * (forward ? 2 : 1);
+        Near(expectedStep, released.Position - held.Position);
+        Near(expectedStep, continued.Position - released.Position);
+        Assert.False(engine.IsDragging);
     }
 
     [Fact]
@@ -90,7 +136,11 @@ public class InertiaTests
     [Fact]
     public void DragMultiplierScalesReleasedVelocity()
     {
-        var settings = Unfiltered with { DragAccelerationMultiplier = 0.5f };
+        var settings = Unfiltered with
+        {
+            DragAccelerationMultiplier = 0.5f,
+            TwoHandDragAccelerationMultiplier = 4
+        };
         var engine = BeginDrag(settings);
         engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
