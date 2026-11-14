@@ -37,7 +37,7 @@ public class MainViewTests
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.3, vm.TurnAccelerationMultiplier);
-        Assert.Equal(2, vm.TwoHandDragAccelerationMultiplier);
+        Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
@@ -55,7 +55,7 @@ public class MainViewTests
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
-        Assert.Equal(0.4, vm.InfiniteWalkingBoostMultiplier);
+        Assert.Equal(0, vm.InfiniteWalkingBoostMultiplier);
         Assert.Equal(0.3, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
@@ -102,11 +102,11 @@ public class MainViewTests
             Assert.Equal(23, sliders.Length);
             var twoHandSlider = Assert.Single(sliders,
                 slider => slider.Minimum == 1 && slider.Maximum == 4);
-            Assert.Equal(2, twoHandSlider.Value);
+            Assert.Equal(1.5, twoHandSlider.Value);
             twoHandSlider.Value = 3;
             Assert.Equal(3, vm.TwoHandDragAccelerationMultiplier);
             vm.ResetTwoHandDragAccelerationCommand.Execute(null);
-            Assert.Equal(2, twoHandSlider.Value);
+            Assert.Equal(1.5, twoHandSlider.Value);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -129,7 +129,7 @@ public class MainViewTests
             Assert.True(vm.UseHeadTurnOrigin);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "2.00 /秒");
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "倍率: 1.00");
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "補正値: 0.40 倍");
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "補正値: 0.00 倍");
             vm.IsValveIndexDetected = true;
             vm.LeftValveIndexForce = 0.42;
             vm.RightValveIndexForce = 0.87;
@@ -290,10 +290,10 @@ public class MainViewTests
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
                 Assert.True(vm.ToeTurnOriginEnabled);
                 Assert.Equal(15, vm.GroundRangeCentimetres);
-                Assert.Equal(2, vm.TwoHandDragAccelerationMultiplier);
+                Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             }
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
-            Assert.Equal(2, document.RootElement.GetProperty("freeFlight")
+            Assert.Equal(1.5, document.RootElement.GetProperty("freeFlight")
                 .GetProperty("twoHandDragAccelerationMultiplier").GetDouble());
         }
         finally
@@ -321,7 +321,7 @@ public class MainViewTests
 
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
-            Assert.Equal(2, vm.TwoHandDragAccelerationMultiplier);
+            Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
             Assert.Equal(FlugelKranzSettings.CurrentSchemaVersion,
                 document.RootElement.GetProperty("schemaVersion").GetInt32());
@@ -370,7 +370,7 @@ public class MainViewTests
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
-        Assert.Equal(2, vm.TwoHandDragAccelerationMultiplier);
+        Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
@@ -379,7 +379,7 @@ public class MainViewTests
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
-        Assert.Equal(0.4, vm.InfiniteWalkingBoostMultiplier);
+        Assert.Equal(0, vm.InfiniteWalkingBoostMultiplier);
         Assert.Equal(0.8, vm.ValveIndexPositionDeadZone);
         Assert.Equal(0.2, vm.ValveIndexForceThreshold);
     }

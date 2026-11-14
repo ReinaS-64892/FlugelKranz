@@ -25,7 +25,7 @@ public class InfiniteWalkingManipulatorTests
         Assert.Equal(0, settings.DragSmoothSeconds);
         Assert.Equal(0, settings.TurnSmoothSeconds);
         Assert.Equal(0, settings.TurnHeadSmoothSeconds);
-        Assert.Equal(0.4f, settings.TurnMovementBoostMultiplier);
+        Assert.Equal(0, settings.TurnMovementBoostMultiplier);
         Assert.True(settings.ToeTurnOriginEnabled);
         Assert.Equal(0.15f, settings.GroundRangeMetres);
         Assert.Equal(0, (settings with { GroundRangeMetres = -1 }).Normalized().GroundRangeMetres);

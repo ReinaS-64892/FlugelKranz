@@ -22,7 +22,7 @@ public sealed record FlightMotionSettings
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;
     public float TurnAccelerationMultiplier { get; init; } = 0.3f;
-    public float TwoHandDragAccelerationMultiplier { get; init; } = 2;
+    public float TwoHandDragAccelerationMultiplier { get; init; } = 1.5f;
     public float ZAccelerationMultiplier { get; init; } = 2;
     public bool InertiaAccelerationBoostEnabled { get; init; } = true;
     public float InertiaAccelerationBoostMaximumMultiplier { get; init; } = 4;
@@ -66,7 +66,7 @@ public sealed record InfiniteWalkingSettings
     public float DragSmoothSeconds { get; init; }
     public float TurnSmoothSeconds { get; init; }
     public float TurnHeadSmoothSeconds { get; init; }
-    public float TurnMovementBoostMultiplier { get; init; } = 0.4f;
+    public float TurnMovementBoostMultiplier { get; init; }
     public bool ToeTurnOriginEnabled { get; init; } = true;
     public float GroundRangeMetres { get; init; } = 0.15f;
 

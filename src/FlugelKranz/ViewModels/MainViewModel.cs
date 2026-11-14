@@ -45,7 +45,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double turnAccelerationMultiplier = 0.3;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TwoHandDragAccelerationLabel))]
-    private double twoHandDragAccelerationMultiplier = 2;
+    private double twoHandDragAccelerationMultiplier = 1.5;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ZAccelerationLabel))]
     private double zAccelerationMultiplier = 2;
@@ -89,7 +89,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private double infiniteTurnHeadSmoothSeconds;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteWalkingBoostLabel))]
-    private double infiniteWalkingBoostMultiplier = 0.4;
+    private double infiniteWalkingBoostMultiplier;
     [ObservableProperty] private bool toeTurnOriginEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GroundRangeLabel))]
