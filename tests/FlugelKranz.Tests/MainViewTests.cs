@@ -50,6 +50,8 @@ public class MainViewTests
         Assert.Equal(1, vm.VectorRotationMultiplier);
         Assert.Equal(0.4, vm.BrakeRampSeconds);
         Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
+        Assert.True(vm.ToeTurnOriginEnabled);
+        Assert.Equal(15, vm.GroundRangeCentimetres);
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
@@ -97,7 +99,7 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(22, sliders.Length);
+            Assert.Equal(23, sliders.Length);
             var twoHandSlider = Assert.Single(sliders,
                 slider => slider.Minimum == 1 && slider.Maximum == 4);
             Assert.Equal(2, twoHandSlider.Value);
@@ -108,7 +110,20 @@ public class MainViewTests
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
-            var turnOrigin = window.GetVisualDescendants().OfType<CheckBox>().First();
+            var checkBoxes = window.GetVisualDescendants().OfType<CheckBox>().ToArray();
+            var toeOrigin = checkBoxes[0];
+            Assert.True(toeOrigin.IsChecked);
+            toeOrigin.IsChecked = false;
+            Assert.False(vm.ToeTurnOriginEnabled);
+            vm.ResetToeTurnOriginCommand.Execute(null);
+            Assert.True(toeOrigin.IsChecked);
+            var groundRange = Assert.Single(sliders, slider => slider.Maximum == 50 && slider.TickFrequency == 1);
+            Assert.Equal(15, groundRange.Value);
+            groundRange.Value = 25;
+            Assert.Equal(25, vm.GroundRangeCentimetres);
+            vm.ResetGroundRangeCommand.Execute(null);
+            Assert.Equal(15, groundRange.Value);
+            var turnOrigin = checkBoxes[1];
             Assert.False(turnOrigin.IsChecked);
             turnOrigin.IsChecked = true;
             Assert.True(vm.UseHeadTurnOrigin);
@@ -213,6 +228,8 @@ public class MainViewTests
                 first.BrakeRampSeconds = 0.75;
                 first.InfiniteTurnHeadSmoothSeconds = 0.4;
                 first.InfiniteWalkingBoostMultiplier = 1.6;
+                first.ToeTurnOriginEnabled = false;
+                first.GroundRangeCentimetres = 32;
                 first.ValveIndexPositionDeadZone = 0.44;
                 first.ValveIndexForceThreshold = 0.62;
             }
@@ -229,6 +246,8 @@ public class MainViewTests
             Assert.Equal(0.75, second.BrakeRampSeconds);
             Assert.Equal(0.4, second.InfiniteTurnHeadSmoothSeconds);
             Assert.Equal(1.6, second.InfiniteWalkingBoostMultiplier);
+            Assert.False(second.ToeTurnOriginEnabled);
+            Assert.Equal(32, second.GroundRangeCentimetres);
             Assert.Equal(0.44, second.ValveIndexPositionDeadZone);
             Assert.Equal(0.62, second.ValveIndexForceThreshold);
 
@@ -269,6 +288,8 @@ public class MainViewTests
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
+                Assert.True(vm.ToeTurnOriginEnabled);
+                Assert.Equal(15, vm.GroundRangeCentimetres);
                 Assert.Equal(2, vm.TwoHandDragAccelerationMultiplier);
             }
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
@@ -325,6 +346,8 @@ public class MainViewTests
         vm.ZAccelerationMultiplier = 4;
         vm.InertiaAccelerationBoostEnabled = false;
         vm.InertiaAccelerationBoostMaximumMultiplier = 3;
+        vm.ToeTurnOriginEnabled = false;
+        vm.GroundRangeCentimetres = 50;
         vm.InfiniteDragSmoothSeconds = 0.6;
         vm.InfiniteTurnSmoothSeconds = 0.7;
         vm.InfiniteTurnHeadSmoothSeconds = 0.8;
@@ -337,6 +360,8 @@ public class MainViewTests
         vm.ResetZAccelerationCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostEnabledCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostMaximumMultiplierCommand.Execute(null);
+        vm.ResetToeTurnOriginCommand.Execute(null);
+        vm.ResetGroundRangeCommand.Execute(null);
         vm.ResetInfiniteDragSmoothCommand.Execute(null);
         vm.ResetInfiniteTurnSmoothCommand.Execute(null);
         vm.ResetInfiniteTurnHeadSmoothCommand.Execute(null);
@@ -349,6 +374,8 @@ public class MainViewTests
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
         Assert.Equal(4, vm.InertiaAccelerationBoostMaximumMultiplier);
+        Assert.True(vm.ToeTurnOriginEnabled);
+        Assert.Equal(15, vm.GroundRangeCentimetres);
         Assert.Equal(0, vm.InfiniteDragSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnSmoothSeconds);
         Assert.Equal(0, vm.InfiniteTurnHeadSmoothSeconds);
