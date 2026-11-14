@@ -6,6 +6,8 @@ namespace FlugelKranz.Core;
 public sealed class InfiniteWalkingManipulator : ManipulationMode
 {
     private readonly ToeTurnOrigin toeOrigin = new();
+    private readonly ToeRotationCompensation toeCompensation = new();
+    public override IReadOnlyList<TrackerRotationOffset> TrackerRotations => toeCompensation.Offsets;
     private Vector3? turnToePivot;
     private float dragStartY, dragStartOffsetY;
     private Quaternion turnStartInputOrientation, turnStartOffsetOrientation;
@@ -19,6 +21,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
     protected override void ReleaseMotion()
     {
         toeOrigin.Clear();
+        toeCompensation.Clear();
         turnToePivot = null;
         turnStartInputOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragStartY = dragStartOffsetY = 0;
@@ -47,6 +50,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         {
             hasPreviousTurnHeadPosition = false;
             toeOrigin.Clear();
+            toeCompensation.Clear();
             turnToePivot = null;
             return Offset;
         }
@@ -67,7 +71,9 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
             ApplyTurn(frame, settings, toePivot);
         if (IsDragging)
             ApplyDrag(frame);
+        Quaternion before = Offset.Orientation;
         FollowTarget(dt, settings);
+        toeCompensation.Update(frame, toeOrigin.Supports, before, Offset.Orientation, dt, settings);
         return Offset;
     }
 

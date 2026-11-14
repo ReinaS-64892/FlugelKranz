@@ -42,10 +42,12 @@ public class OpenXrTrackersTests
         var api = new FakeXdevApi();
         using var trackers = new OpenXrTrackers(api);
         Assert.Empty(trackers.Read(10));
+        Assert.Equal(1, trackers.Revision);
 
         api.Devices = [new(42, "Vive Tracker", "body", true), new(43, "Base Station Tracker", "LHB-station", true)];
         Assert.Empty(trackers.Read(500_000_010));
         var connected = Assert.Single(trackers.Read(1_000_000_010));
+        Assert.Equal(2, trackers.Revision);
         Assert.Equal("body", connected.Serial);
         Assert.Equal(new Vector3(1, 2, 3), connected.Position);
         Assert.Single(api.LiveSpaces);

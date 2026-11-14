@@ -3,13 +3,14 @@ using MonadoXrApi;
 
 namespace FlugelKranz.OpenXR;
 
-public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetProvider, IHapticFeedback
+public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetProvider, IHapticFeedback, ITrackerRotationRuntime
 {
     private readonly MonadoFlightConnection monado;
     private readonly OpenXrInput input;
     public RigidPose OriginalOffset => monado.OriginalOffset;
     public RigidPose CurrentOffset => monado.CurrentOffset;
     public RigidPose ReferenceSpaceOffset => monado.CurrentReferenceSpaceOffset;
+    public bool TrackerRotationOffsetsSupported => monado.TrackerRotationOffsetsSupported;
     public bool TrackerSpacesSupported => input.TrackerSpacesSupported;
 
     public MonadoFlightRuntime(
@@ -29,9 +30,12 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
     public InputFrame ReadPhysical()
     {
         monado.VerifyUnchanged();
-        return monado.ToPhysical(input.Read());
+        var frame = input.Read();
+        monado.RefreshTrackers(input.TrackerRevision);
+        return monado.ToPhysical(frame);
     }
     public void Apply(RigidPose offset) => monado.Apply(offset);
+    public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations) => monado.Apply(offset, rotations);
     public void Restore() => monado.Restore();
     public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude) =>
         input.SendHapticPulse(durationSeconds, frequencyHz, amplitude);

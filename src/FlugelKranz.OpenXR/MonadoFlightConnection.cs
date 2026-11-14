@@ -9,6 +9,11 @@ internal sealed class MonadoFlightConnection : IDisposable
 {
     private readonly MonadoRoot root;
     private FlightSpaceTransform space;
+    private Dictionary<string, uint> deviceIndices = new(StringComparer.Ordinal);
+    private MonadoDeviceRotation[] appliedRotations = [];
+    private int trackerRevision = -1;
+
+    public bool TrackerRotationOffsetsSupported => root.SupportsDeviceRotationOffsets;
 
     public RigidPose OriginalOffset => RigidPose.Identity;
     public RigidPose CurrentOffset => space.Offset;
@@ -38,18 +43,38 @@ internal sealed class MonadoFlightConnection : IDisposable
 
     public InputFrame ToPhysical(InputFrame stageFrame) => space.ToPhysical(stageFrame);
 
-    public void Apply(RigidPose offset)
+    public void RefreshTrackers(int revision)
+    {
+        if (!root.SupportsDeviceRotationOffsets || revision == trackerRevision) return;
+        deviceIndices = root.RefreshDeviceList().Where(d => d.Serial.Length > 0)
+            .GroupBy(d => d.Serial, StringComparer.Ordinal).Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single().Index, StringComparer.Ordinal);
+        trackerRevision = revision;
+    }
+
+    public void Apply(RigidPose offset) => Apply(offset, []);
+
+    public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations)
     {
         if (!offset.IsValid) throw new ArgumentException("空間変換が不正です。", nameof(offset));
         var next = space with { Offset = offset };
-        root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(next.StageOffset));
+        if (root.SupportsDeviceRotationOffsets)
+        {
+            var updates = rotations.Where(r => deviceIndices.ContainsKey(r.Serial)).Select(r =>
+                new MonadoDeviceRotation(deviceIndices[r.Serial], r.Orientation.X, r.Orientation.Y, r.Orientation.Z, r.Orientation.W)).ToArray();
+            if (offset == space.Offset && updates.SequenceEqual(appliedRotations)) return;
+            root.ApplyStageAndDeviceRotations(ToMonadoPose(next.StageOffset), updates);
+            appliedRotations = updates;
+        }
+        else if (offset != space.Offset)
+            root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(next.StageOffset));
         space = next;
     }
 
     public void Restore()
     {
         VerifyUnchanged();
-        if (space.Offset != RigidPose.Identity)
+        if (space.Offset != RigidPose.Identity || appliedRotations.Length > 0)
             Apply(RigidPose.Identity);
     }
 

@@ -25,6 +25,16 @@ public sealed class MonadoRoot : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int ClientId(nint root, uint index, out uint id);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int ClientName(nint root, uint id, out nint name);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int RefreshDevices(nint root);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int DeviceString(nint root, uint index, uint property, out nint value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int ApplyDeviceRotations(nint root, in MonadoPose stage, uint count, [In] MonadoDeviceRotation[] rotations);
+
+    private readonly RefreshDevices? refreshDevices;
+    private readonly ApplyDeviceRotations? applyDeviceRotations;
+    private readonly DeviceString deviceString;
+    private readonly ClientCount deviceCount;
+    public bool SupportsDeviceRotationOffsets => refreshDevices is not null && applyDeviceRotations is not null;
+
     private readonly LibMonadoLibrary library;
     private readonly Destroy destroy;
     private readonly Role role;
@@ -42,6 +52,10 @@ public sealed class MonadoRoot : IDisposable
         library = new(libraryPath);
         try
         {
+            refreshDevices = library.TryGetDelegate<RefreshDevices>("mnd_root_flugelkranz_refresh_devices");
+            applyDeviceRotations = library.TryGetDelegate<ApplyDeviceRotations>("mnd_root_flugelkranz_apply");
+            deviceString = library.GetDelegate<DeviceString>("mnd_root_get_device_info_string");
+            deviceCount = library.GetDelegate<ClientCount>("mnd_root_get_device_count");
             destroy = library.GetDelegate<Destroy>("mnd_root_destroy");
             role = library.GetDelegate<Role>("mnd_root_get_device_from_role");
             property = library.GetDelegate<Property>("mnd_root_get_device_info_u32");
@@ -55,6 +69,27 @@ public sealed class MonadoRoot : IDisposable
             Check(library.GetDelegate<Create>("mnd_root_create")(out root), "root の作成");
         }
         catch { library.Dispose(); throw; }
+    }
+
+    public IReadOnlyList<(uint Index, string Serial)> RefreshDeviceList()
+    {
+        if (!SupportsDeviceRotationOffsets) throw new NotSupportedException("個別トラッカー補正拡張がありません。");
+        Check(refreshDevices!(root), "デバイス一覧の更新");
+        Check(deviceCount(root, out var count), "デバイス数の取得");
+        var devices = new List<(uint, string)>();
+        for (uint i = 0; i < count; i++)
+        {
+            Check(deviceString(root, i, 1, out var serial), "デバイスシリアルの取得");
+            devices.Add((i, Marshal.PtrToStringUTF8(serial) ?? string.Empty));
+        }
+        return devices;
+    }
+
+    public void ApplyStageAndDeviceRotations(MonadoPose stage, MonadoDeviceRotation[] rotations)
+    {
+        if (!SupportsDeviceRotationOffsets) throw new NotSupportedException("個別トラッカー補正拡張がありません。");
+        if (rotations.Length > 32) throw new ArgumentOutOfRangeException(nameof(rotations));
+        Check(applyDeviceRotations!(root, in stage, (uint)rotations.Length, rotations), "基準空間・トラッカー補正の設定");
     }
 
     public int GetDeviceFromRole(string roleName)

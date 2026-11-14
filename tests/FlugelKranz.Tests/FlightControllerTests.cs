@@ -8,6 +8,43 @@ namespace FlugelKranz.Tests;
 public class FlightControllerTests
 {
     [Fact]
+    public async Task TrackerReleaseUpdatesRuntimeWhileSpaceIsStationaryAndOffClearsCorrections()
+    {
+        var runtime = new RotationRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+        var frame = Frame(0, 0) with { Trackers = [new("toe", new(0, 0.05f, 0), true)] };
+        await WaitForFrame(runtime, frame);
+        frame = frame with { Left = frame.Left with { Turn = 1 } };
+        await WaitForFrame(runtime, frame);
+        frame = frame with { Left = frame.Left with
+        {
+            Pose = new(Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f), Vector3.Zero)
+        } };
+        await WaitForFrame(runtime, frame);
+        await Wait(() => runtime.Rotations.Count == 1);
+        var retained = runtime.CurrentOffset;
+        // No further space rotation: only the compensation needs to be updated.
+        await WaitForFrame(runtime, frame with { Trackers = [new("toe", new(0, 0.3f, 0), true)] });
+        await Wait(() => runtime.Rotations.Count == 0);
+        Assert.Equal(retained, runtime.CurrentOffset);
+        await WaitForFrame(runtime, frame);
+        await Task.Delay(700, TestContext.Current.CancellationToken); // Let the re-planted foot settle below the contact-speed threshold.
+        frame = frame with { Left = frame.Left with
+        {
+            Pose = new(Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1), Vector3.Zero)
+        } };
+        await WaitForFrame(runtime, frame);
+        await Wait(() => runtime.Rotations.Count == 1);
+        retained = runtime.CurrentOffset;
+        controller.SetEnabled(false);
+        await Wait(() => runtime.Rotations.Count == 0);
+        Assert.Equal(retained, runtime.CurrentOffset);
+    }
+
+    [Fact]
     public async Task OffRetainsOffsetResetRestoresAndShutdownDisposes()
     {
         var runtime = new FakeRuntime();
@@ -288,7 +325,18 @@ public class FlightControllerTests
         public ConcurrentQueue<FlightStatus> Statuses { get; } = new();
         public void Report(FlightStatus value) => Statuses.Enqueue(value);
     }
-    private sealed class FakeRuntime : IFlightRuntime, IHapticFeedback
+    private sealed class RotationRuntime : FakeRuntime, ITrackerRotationRuntime
+    {
+        private IReadOnlyList<TrackerRotationOffset> rotations = [];
+        public IReadOnlyList<TrackerRotationOffset> Rotations => Volatile.Read(ref rotations);
+        public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> value)
+        {
+            Apply(offset);
+            Volatile.Write(ref rotations, value.ToArray());
+        }
+    }
+
+    private class FakeRuntime : IFlightRuntime, IHapticFeedback
     {
         private readonly object gate = new();
         private InputFrame frame = FlightControllerTests.Frame(0, 0);

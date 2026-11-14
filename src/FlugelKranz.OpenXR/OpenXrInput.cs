@@ -25,6 +25,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
     public string RuntimeName { get; private set; } = "";
     public bool TrackerSpacesSupported => trackers is not null;
+    public int TrackerRevision => trackers?.Revision ?? 0;
 
     private sealed class Hand(bool isLeft)
     {

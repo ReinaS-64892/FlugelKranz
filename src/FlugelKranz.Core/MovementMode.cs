@@ -4,6 +4,7 @@ namespace FlugelKranz.Core;
 public abstract class MovementMode
 {
     public abstract RigidPose Offset { get; }
+    public virtual IReadOnlyList<TrackerRotationOffset> TrackerRotations => [];
     public virtual bool IsDragging => false;
     public virtual bool IsTurning => false;
     public virtual string? StatusMessage => null;
