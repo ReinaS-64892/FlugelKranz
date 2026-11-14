@@ -90,6 +90,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InfiniteWalkingBoostLabel))]
     private double infiniteWalkingBoostMultiplier = 0.4;
+    [ObservableProperty] private bool toeTurnOriginEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GroundRangeLabel))]
+    private double groundRangeCentimetres = 15;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BrakeRampLabel))]
     private double brakeRampSeconds = 0.4;
@@ -130,6 +134,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string InfiniteDragSmoothLabel => $"Drag: {InfiniteDragSmoothSeconds:0.00} 秒";
     public string InfiniteTurnSmoothLabel => $"Turn: {InfiniteTurnSmoothSeconds:0.00} 秒";
     public string InfiniteTurnHeadSmoothLabel => $"Turn Head: {InfiniteTurnHeadSmoothSeconds:0.00} 秒";
+    public string GroundRangeLabel => $"地面範囲高度: {GroundRangeCentimetres:0} cm";
     public string InfiniteWalkingBoostLabel => $"補正値: {InfiniteWalkingBoostMultiplier:0.00} 倍";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
     public string ValveIndexPositionDeadZoneLabel => $"位置デッドゾーン: {ValveIndexPositionDeadZone:0.00}";
@@ -174,6 +179,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(DecelerationExemptionStrength) or nameof(DragSmoothSeconds) or nameof(TurnSmoothSeconds) or
             nameof(InfiniteDragSmoothSeconds) or nameof(InfiniteTurnSmoothSeconds) or
             nameof(InfiniteTurnHeadSmoothSeconds) or nameof(InfiniteWalkingBoostMultiplier) or
+            nameof(ToeTurnOriginEnabled) or nameof(GroundRangeCentimetres) or
             nameof(ValveIndexPositionDeadZone) or nameof(ValveIndexForceThreshold) or
             nameof(BrakeRampSeconds)))
             return;
@@ -210,6 +216,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InfiniteTurnSmoothSeconds = Math.Round(root.InfiniteWalking.TurnSmoothSeconds, 6);
         InfiniteTurnHeadSmoothSeconds = Math.Round(root.InfiniteWalking.TurnHeadSmoothSeconds, 6);
         InfiniteWalkingBoostMultiplier = Math.Round(root.InfiniteWalking.TurnMovementBoostMultiplier, 6);
+        ToeTurnOriginEnabled = root.InfiniteWalking.ToeTurnOriginEnabled;
+        GroundRangeCentimetres = Math.Round(root.InfiniteWalking.GroundRangeMetres * 100, 4);
         ValveIndexPositionDeadZone = Math.Round(root.ValveIndex.PositionDeadZone, 6);
         ValveIndexForceThreshold = Math.Round(root.ValveIndex.ForceThreshold, 6);
     }
@@ -243,6 +251,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
+    [RelayCommand] private void ResetToeTurnOrigin() => ToeTurnOriginEnabled = InfiniteWalkingSettings.Default.ToeTurnOriginEnabled;
+    [RelayCommand] private void ResetGroundRange() => GroundRangeCentimetres = Math.Round(InfiniteWalkingSettings.Default.GroundRangeMetres * 100, 4);
     [RelayCommand] private void ResetInfiniteWalkingBoost() => InfiniteWalkingBoostMultiplier = Math.Round(InfiniteWalkingSettings.Default.TurnMovementBoostMultiplier, 6);
     [RelayCommand] private void ResetValveIndexPositionDeadZone() => ValveIndexPositionDeadZone = ValveIndexInputSettings.Default.PositionDeadZone;
     [RelayCommand] private void ResetValveIndexForceThreshold() => ValveIndexForceThreshold = Math.Round(ValveIndexInputSettings.Default.ForceThreshold, 6);
@@ -358,6 +368,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             DragSmoothSeconds = (float)InfiniteDragSmoothSeconds,
             TurnSmoothSeconds = (float)InfiniteTurnSmoothSeconds,
             TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds,
+            ToeTurnOriginEnabled = ToeTurnOriginEnabled,
+            GroundRangeMetres = (float)(GroundRangeCentimetres / 100),
             TurnMovementBoostMultiplier = (float)InfiniteWalkingBoostMultiplier
         },
         ValveIndex = CreateValveIndexSettings()

@@ -120,7 +120,8 @@ public class FlightSpaceTransformTests
         Assert.True(recovered.Head.NearlyEquals(head));
         Assert.True(recovered.Left.Pose.NearlyEquals(Hand));
         Assert.True(recovered.Right.Pose.NearlyEquals(right));
-        Assert.Equal(reported, recovered with { Head = reported.Head,
+        Assert.Equal(InitialStage, recovered.FloorPose);
+        Assert.Equal(reported, recovered with { FloorPose = reported.FloorPose, Head = reported.Head,
             Left = recovered.Left with { Pose = reported.Left.Pose },
             Right = recovered.Right with { Pose = reported.Right.Pose } });
     }

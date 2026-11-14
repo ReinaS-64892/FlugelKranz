@@ -5,6 +5,8 @@ namespace FlugelKranz.Core;
 /// <summary>Direct Y translation and yaw-only rotation for room-scale recentering.</summary>
 public sealed class InfiniteWalkingManipulator : ManipulationMode
 {
+    private readonly ToeTurnOrigin toeOrigin = new();
+    private Vector3? turnToePivot;
     private float dragStartY, dragStartOffsetY;
     private Quaternion turnStartInputOrientation, turnStartOffsetOrientation;
     private Vector3 previousTurnHeadPosition;
@@ -16,6 +18,8 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
 
     protected override void ReleaseMotion()
     {
+        toeOrigin.Clear();
+        turnToePivot = null;
         turnStartInputOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragStartY = dragStartOffsetY = 0;
         previousTurnHeadPosition = Vector3.Zero;
@@ -42,9 +46,13 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         if (!frame.HeadTracked || !frame.Head.IsValid)
         {
             hasPreviousTurnHeadPosition = false;
+            toeOrigin.Clear();
+            turnToePivot = null;
             return Offset;
         }
 
+        Vector3? toePivot = toeOrigin.Update(frame, dt, settings);
+        turnToePivot = null;
         var hands = ReadHands(frame);
         if (hands.NeedsRebase)
         {
@@ -56,7 +64,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         }
 
         if (IsTurning)
-            ApplyTurn(frame, settings);
+            ApplyTurn(frame, settings, toePivot);
         if (IsDragging)
             ApplyDrag(frame);
         FollowTarget(dt, settings);
@@ -88,7 +96,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         targetOffset = targetOffset with { Position = position };
     }
 
-    private void ApplyTurn(InputFrame frame, InfiniteWalkingSettings settings)
+    private void ApplyTurn(InputFrame frame, InfiniteWalkingSettings settings, Vector3? toePivot)
     {
         Vector3 headMovement = hasPreviousTurnHeadPosition
             ? frame.Head.Position - previousTurnHeadPosition
@@ -103,7 +111,8 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         Quaternion target = Quaternion.Normalize(
             turnStartOffsetOrientation * Quaternion.Conjugate(yaw));
         bool rotated = 1 - MathF.Abs(Quaternion.Dot(targetOffset.Orientation, target)) > 0.0000001f;
-        Vector3 pivot = frame.Head.Position;
+        turnToePivot = toePivot;
+        Vector3 pivot = toePivot ?? frame.Head.Position;
         Vector3 pivotInRoot = targetOffset.Transform(pivot);
         Vector3 position = pivotInRoot - Vector3.Transform(pivot, target);
         if (rotated && settings.TurnMovementBoostMultiplier > 0)
@@ -143,13 +152,18 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
                 targetOffset.Position.Z,
                 turnSmoothSeconds,
                 elapsedSeconds));
-        ApplyOffset(new(
-            MotionSmoothing.Follow(
-                Offset.Orientation,
-                targetOffset.Orientation,
-                turnSmoothSeconds,
-                elapsedSeconds),
-            position));
+        Quaternion orientation = MotionSmoothing.Follow(
+            Offset.Orientation, targetOffset.Orientation, turnSmoothSeconds, elapsedSeconds);
+        if (turnToePivot is { } pivot)
+        {
+            // Smooth the pivot's translation separately from rotation, preserving a planted toe.
+            Vector3 pivotPosition = MotionSmoothing.Follow(
+                Offset.Transform(pivot), targetOffset.Transform(pivot), turnSmoothSeconds, elapsedSeconds);
+            Vector3 anchoredPosition = pivotPosition - Vector3.Transform(pivot, orientation);
+            position.X = anchoredPosition.X;
+            position.Z = anchoredPosition.Z;
+        }
+        ApplyOffset(new(orientation, position));
     }
 
     private Quaternion TurnInputOrientation(InputFrame frame) => turnHands == ManipulationHands.Both

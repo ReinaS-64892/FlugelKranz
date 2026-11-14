@@ -171,6 +171,13 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                     .Value(model, x => x.InfiniteTurnHeadSmoothSeconds),
                 ResetButton(model, x => x.ResetInfiniteTurnHeadSmoothCommand)),
             Divider(),
+            Header("無限歩行 — Turn 原点"),
+            Row("つま先回転原点", new CheckBox().IsChecked(model, x => x.ToeTurnOriginEnabled),
+                ResetButton(model, x => x.ResetToeTurnOriginCommand)),
+            Row(model, x => x.GroundRangeLabel, new Slider().Minimum(0).Maximum(50).TickFrequency(1)
+                    .Value(model, x => x.GroundRangeCentimetres),
+                ResetButton(model, x => x.ResetGroundRangeCommand)),
+            Divider(),
             Header("無限歩行ブースト"),
             Row(model, x => x.InfiniteWalkingBoostLabel, new Slider().Minimum(0).Maximum(2).TickFrequency(0.05)
                     .Value(model, x => x.InfiniteWalkingBoostMultiplier),

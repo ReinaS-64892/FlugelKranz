@@ -26,6 +26,11 @@ public class InfiniteWalkingManipulatorTests
         Assert.Equal(0, settings.TurnSmoothSeconds);
         Assert.Equal(0, settings.TurnHeadSmoothSeconds);
         Assert.Equal(0.4f, settings.TurnMovementBoostMultiplier);
+        Assert.True(settings.ToeTurnOriginEnabled);
+        Assert.Equal(0.15f, settings.GroundRangeMetres);
+        Assert.Equal(0, (settings with { GroundRangeMetres = -1 }).Normalized().GroundRangeMetres);
+        Assert.Equal(0.5f, (settings with { GroundRangeMetres = 1 }).Normalized().GroundRangeMetres);
+        Assert.Equal(0.15f, (settings with { GroundRangeMetres = float.NaN }).Normalized().GroundRangeMetres);
         Assert.Equal(0, (settings with { TurnMovementBoostMultiplier = -1 }).Normalized().TurnMovementBoostMultiplier);
         Assert.Equal(2, (settings with { TurnMovementBoostMultiplier = 3 }).Normalized().TurnMovementBoostMultiplier);
         Assert.Equal(FlightMode.InfiniteWalking, FlugelKranzSettings.Default.Mode);
@@ -224,6 +229,150 @@ public class InfiniteWalkingManipulatorTests
         var oneHand = both with { Left = Hand(Left with { Orientation = yaw }) };
         var rebased = engine.Update(oneHand, 0.1f, Direct);
         Assert.True(turned.NearlyEquals(rebased));
+    }
+
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(false, 0.2f)]
+    [InlineData(true, 0)]
+    [InlineData(true, 0.2f)]
+    public void ToePivotRemainsFixedDuringSingleAndTwoHandTurnAndSmoothing(bool both, float smoothing)
+    {
+        var settings = Direct with { TurnSmoothSeconds = smoothing, TurnHeadSmoothSeconds = smoothing };
+        var engine = Armed();
+        Vector3 toe = new(-0.2f, 0.05f, -0.3f);
+        var frame = Frame(leftTurn: 1, rightTurn: both ? 1 : 0) with
+        {
+            Trackers = [new("toe", toe, true), new("waist", new(0, 1, 0), true)]
+        };
+        engine.Update(frame, 0.1f, settings);
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.8f);
+        frame = frame with
+        {
+            Head = frame.Head with { Orientation = yaw },
+            Left = frame.Left with { Pose = Left with { Orientation = yaw } }
+        };
+        var result = engine.Update(frame, 0.1f, settings);
+        Assert.False(result.NearlyEquals(RigidPose.Identity));
+        Near(toe, result.Transform(toe));
+    }
+
+    [Fact]
+    public void LessMovingToeReceivesMoreWeightThanSlightlyLowerMovingToeWithoutJumping()
+    {
+        var engine = Armed();
+        Vector3 planted = new(-0.2f, 0.08f, 0);
+        var frame = Frame(leftTurn: 1) with
+        {
+            Trackers = [new("planted", planted, true), new("moving", new(0.2f, 0.04f, 0), true)]
+        };
+        engine.Update(frame, 0.1f, Direct);
+        frame = frame with
+        {
+            Trackers = [new("planted", planted, true), new("moving", new(0.4f, 0.04f, 0), true)]
+        };
+        Assert.True(engine.Update(frame, 0.1f, Direct).NearlyEquals(RigidPose.Identity));
+        frame = frame with { Left = frame.Left with
+        {
+            Pose = Left with { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f) }
+        } };
+        var offset = engine.Update(frame, 0.1f, Direct);
+        Vector3 moving = frame.Trackers![1].Position;
+        Assert.True(Vector3.Distance(planted, offset.Transform(planted)) <
+            Vector3.Distance(moving, offset.Transform(moving)));
+    }
+
+    [Theory]
+    [InlineData(false, true, 0.05f)]
+    [InlineData(true, false, 0.05f)]
+    [InlineData(true, true, -0.01f)]
+    [InlineData(true, true, 0.151f)]
+    [InlineData(true, true, float.NaN)]
+    public void DisabledInvalidOrOutOfRangeTrackerUsesHead(bool enabled, bool tracked, float height)
+    {
+        var engine = Armed();
+        var settings = Direct with { ToeTurnOriginEnabled = enabled };
+        var frame = Frame(leftTurn: 1) with { Trackers = [new("toe", new(1, height, 0), tracked)] };
+        engine.Update(frame, 0.1f, settings);
+        frame = frame with { Left = frame.Left with
+        {
+            Pose = Left with { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f) }
+        } };
+        Near(Head.Position, engine.Update(frame, 0.1f, settings).Transform(Head.Position));
+    }
+
+    [Fact]
+    public void FloorRangeUsesUnmodifiedStageAndPhysicalPositionsDespiteFlightHeight()
+    {
+        var initial = new RigidPose(Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f), new(3, 5, -2));
+        var engine = new InfiniteWalkingManipulator(initial);
+        var floor = new RigidPose(Quaternion.Identity, new(0, 2, 0));
+        Vector3 toe = new(0.2f, 2.125f, -0.3f);
+        var frame = Frame() with { FloorPose = floor, Trackers = [new("toe", toe, true)] };
+        engine.Update(frame, 0.1f, Direct);
+        frame = frame with { Left = Hand(Left, turn: 1) };
+        engine.Update(frame, 0.1f, Direct);
+        frame = frame with { Left = Hand(Left with
+        {
+            Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f)
+        }, turn: 1) };
+        Near(initial.Transform(toe), engine.Update(frame, 0.1f, Direct).Transform(toe));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0.15f, 0.15f)]
+    [InlineData(0.5f, 0.5f)]
+    public void GroundRangeIncludesFloorAndUpperBoundary(float height, float range)
+    {
+        var engine = Armed();
+        Vector3 toe = new(0.3f, height, 0);
+        var frame = Frame(leftTurn: 1) with { Trackers = [new("toe", toe, true)] };
+        var settings = Direct with { GroundRangeMetres = range };
+        engine.Update(frame, 0.1f, settings);
+        frame = frame with { Left = Hand(Left with
+        {
+            Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.8f)
+        }, turn: 1) };
+        Near(toe, engine.Update(frame, 0.1f, settings).Transform(toe));
+    }
+
+    [Theory]
+    [InlineData(0.05f, 0.05f)]
+    [InlineData(0.02f, 0.12f)]
+    public void MultipleToeCandidatesUseWeightedMidpoint(float leftHeight, float rightHeight)
+    {
+        var engine = Armed();
+        Vector3 leftToe = new(-0.3f, leftHeight, 0);
+        Vector3 rightToe = new(0.3f, rightHeight, 0);
+        var frame = Frame(leftTurn: 1) with
+        {
+            Trackers = [new("left", leftToe, true), new("right", rightToe, true)]
+        };
+        engine.Update(frame, 0.1f, Direct);
+        frame = frame with { Left = Hand(Left with
+        {
+            Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.8f)
+        }, turn: 1) };
+        float leftWeight = MathF.Exp(-(leftHeight - MathF.Min(leftHeight, rightHeight)) / 0.05f);
+        float rightWeight = MathF.Exp(-(rightHeight - MathF.Min(leftHeight, rightHeight)) / 0.05f);
+        Vector3 pivot = (leftToe * leftWeight + rightToe * rightWeight) / (leftWeight + rightWeight);
+        Near(pivot, engine.Update(frame, 0.1f, Direct).Transform(pivot));
+    }
+
+    [Fact]
+    public void LostToeFallsBackToHeadWithoutJumpingOnLoss()
+    {
+        var engine = Armed();
+        var frame = Frame(leftTurn: 1) with { Trackers = [new("toe", new(1, 0.05f, 0), true)] };
+        engine.Update(frame, 0.1f, Direct);
+        frame = frame with { Trackers = [] };
+        Assert.True(engine.Update(frame, 0.1f, Direct).NearlyEquals(RigidPose.Identity));
+        frame = frame with { Left = Hand(Left with
+        {
+            Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f)
+        }, turn: 1) };
+        Near(Head.Position, engine.Update(frame, 0.1f, Direct).Transform(Head.Position));
     }
 
     private static InfiniteWalkingManipulator Armed()

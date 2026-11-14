@@ -13,6 +13,7 @@ internal sealed record FlightSpaceTransform(RigidPose InitialStage, RigidPose Of
 
     public InputFrame ToPhysical(InputFrame frame) => frame with
     {
+        FloorPose = InitialStage,
         Head = ToPhysical(frame.Head),
         Left = frame.Left with { Pose = ToPhysical(frame.Left.Pose) },
         Right = frame.Right with { Pose = ToPhysical(frame.Right.Pose) },

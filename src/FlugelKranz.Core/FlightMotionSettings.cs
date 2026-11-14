@@ -67,13 +67,16 @@ public sealed record InfiniteWalkingSettings
     public float TurnSmoothSeconds { get; init; }
     public float TurnHeadSmoothSeconds { get; init; }
     public float TurnMovementBoostMultiplier { get; init; } = 0.4f;
+    public bool ToeTurnOriginEnabled { get; init; } = true;
+    public float GroundRangeMetres { get; init; } = 0.15f;
 
     public InfiniteWalkingSettings Normalized() => this with
     {
         DragSmoothSeconds = Math.Clamp(DragSmoothSeconds, 0, 1),
         TurnSmoothSeconds = Math.Clamp(TurnSmoothSeconds, 0, 1),
         TurnHeadSmoothSeconds = Math.Clamp(TurnHeadSmoothSeconds, 0, 1),
-        TurnMovementBoostMultiplier = Math.Clamp(TurnMovementBoostMultiplier, 0, 2)
+        TurnMovementBoostMultiplier = Math.Clamp(TurnMovementBoostMultiplier, 0, 2),
+        GroundRangeMetres = float.IsFinite(GroundRangeMetres) ? Math.Clamp(GroundRangeMetres, 0, 0.5f) : Default.GroundRangeMetres
     };
 }
 
