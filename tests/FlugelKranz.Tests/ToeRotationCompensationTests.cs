@@ -123,6 +123,121 @@ public class ToeRotationCompensationTests
         Assert.Equal("left", Assert.Single(engine.TrackerRotations).Serial);
     }
 
+    private static InfiniteWalkingManipulator DescendingToe(float dt, float horizontalSpeed = 0)
+    {
+        var engine = Turn();
+        engine.Update(Frame(0.6f, 0.25f), 0.25f, Settings);
+        float x = 0;
+        foreach (float height in new[] { 0.12f, 0.10f, 0.08f, 0.06f, 0.05f })
+        {
+            x += horizontalSpeed * dt;
+            engine.Update(Frame(0.6f, height, x), dt, Settings);
+        }
+        Assert.Empty(engine.TrackerRotations);
+        return engine;
+    }
+
+    [Theory]
+    [InlineData(0.005f)]
+    [InlineData(0.01f)]
+    [InlineData(0.02f)]
+    public void LandingReanchorsWithinTwoSamplesAndRetainsCorrectionThroughBoundedImpactShake(float dt)
+    {
+        var engine = DescendingToe(dt);
+        var landingOrientation = engine.Offset.Orientation;
+        // Braking/rebound is the contact cue. No space rotation on the anchor frame.
+        engine.Update(Frame(0.6f, 0.053f), dt, Settings);
+        for (int i = 0; i < (int)(0.1f / dt); i++)
+        {
+            float angle = 0.7f + i * 0.02f;
+            engine.Update(Frame(angle, i % 2 == 0 ? 0.047f : 0.053f,
+                i % 2 == 0 ? 0.001f : -0.001f), dt, Settings);
+            Near(landingOrientation, engine.Offset.Orientation * Assert.Single(engine.TrackerRotations).Orientation);
+        }
+    }
+
+    [Fact]
+    public void DescendingFootIsNotReanchoredBeforeItBrakes()
+    {
+        var engine = DescendingToe(0.01f);
+        engine.Update(Frame(0.8f, 0.03f), 0.01f, Settings);
+        Assert.Empty(engine.TrackerRotations);
+    }
+
+    [Fact]
+    public void LandingDoesNotSuppressSustainedHorizontalSliding()
+    {
+        var engine = DescendingToe(0.01f, 0.3f);
+        for (int i = 1; i <= 30; i++)
+        {
+            engine.Update(Frame(0.6f + i * 0.02f, 0.05f, (5 + i) * 0.003f), 0.01f, Settings);
+            Assert.Empty(engine.TrackerRotations);
+        }
+    }
+
+    [Fact]
+    public void MovingAwayAfterImpactImmediatelyEndsTheSettlingAllowance()
+    {
+        var engine = DescendingToe(0.01f);
+        engine.Update(Frame(0.6f, 0.053f), 0.01f, Settings);
+        engine.Update(Frame(0.8f, 0.05f), 0.01f, Settings);
+        Assert.Single(engine.TrackerRotations);
+        engine.Update(Frame(0.8f, 0.09f), 0.01f, Settings);
+        engine.Update(Frame(0.8f, 0.09f), 0.2f, Settings);
+        Assert.Empty(engine.TrackerRotations);
+    }
+
+    [Fact]
+    public void ImpactAllowanceExpiresInsteadOfTreatingContinuedShakingAsPermanentContact()
+    {
+        var engine = DescendingToe(0.01f);
+        engine.Update(Frame(0.6f, 0.053f), 0.01f, Settings);
+        engine.Update(Frame(0.8f, 0.047f), 0.01f, Settings);
+        Assert.Single(engine.TrackerRotations);
+        for (int i = 0; i < 70; i++)
+            engine.Update(Frame(0.8f, i % 2 == 0 ? 0.053f : 0.047f), 0.01f, Settings);
+        Assert.Empty(engine.TrackerRotations);
+    }
+
+    [Fact]
+    public void SamplingGapDiscardsImpactEvidenceInsteadOfAssumingTheFootLanded()
+    {
+        var engine = DescendingToe(0.01f);
+        engine.Update(Frame(0.6f, 0.053f), 0.1f, Settings);
+        engine.Update(Frame(0.8f, 0.053f), 0.01f, Settings);
+        Assert.Empty(engine.TrackerRotations);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1.5707963f)]
+    public void LandingReceivesSupportWeightBesidePlantedFootUsingFloorAxes(float tilt)
+    {
+        var floor = new RigidPose(Quaternion.CreateFromAxisAngle(Vector3.UnitZ, tilt), new(2, 3, 4));
+        InputFrame PhysicalFrame(float angle, float height) => Frame(angle, height) with
+        {
+            FloorPose = floor,
+            Trackers =
+            [
+                new("planted", floor.Transform(new(-0.2f, 0.05f, 0)), true),
+                new("toe", floor.Transform(new(0.2f, height, 0)), true)
+            ]
+        };
+        var engine = new InfiniteWalkingManipulator(RigidPose.Identity);
+        var initial = PhysicalFrame(0, 0.05f);
+        engine.Update(initial with { Left = initial.Left with { Turn = 0 } }, 0.01f, Settings);
+        engine.Update(initial, 0.01f, Settings);
+        engine.Update(PhysicalFrame(0.6f, 0.05f), 0.01f, Settings);
+        engine.Update(PhysicalFrame(0.6f, 0.25f), 0.25f, Settings);
+        foreach (float height in new[] { 0.12f, 0.10f, 0.08f, 0.06f, 0.05f })
+            engine.Update(PhysicalFrame(0.6f, height), 0.01f, Settings);
+        Assert.Equal("planted", Assert.Single(engine.TrackerRotations).Serial);
+        engine.Update(PhysicalFrame(0.6f, 0.053f), 0.01f, Settings);
+        engine.Update(PhysicalFrame(0.8f, 0.047f), 0.01f, Settings);
+        Assert.Equal(2, engine.TrackerRotations.Count);
+        Near(Yaw(0.2f), Assert.Single(engine.TrackerRotations, t => t.Serial == "toe").Orientation);
+    }
+
     [Fact]
     public void SettingDefaultsAndBoundsMatchRequestedValues()
     {

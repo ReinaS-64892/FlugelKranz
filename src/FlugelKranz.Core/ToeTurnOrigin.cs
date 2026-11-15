@@ -5,7 +5,7 @@ namespace FlugelKranz.Core;
 /// <summary>Blends floor-level tracker positions using physical height and translation speed.</summary>
 internal sealed class ToeTurnOrigin
 {
-    private Dictionary<string, (Vector3 Position, float Speed)> previousPositions = [];
+    private Dictionary<string, ToeTrackerMotion> previousPositions = [];
     internal readonly record struct Support(string Serial, Vector3 Position, float Height, float Speed, float Score);
     public IReadOnlyList<Support> Supports { get; private set; } = [];
 
@@ -24,22 +24,21 @@ internal sealed class ToeTurnOrigin
         }
 
         RigidPose rootToFloor = frame.FloorPose.Inverse();
-        var positions = new Dictionary<string, (Vector3 Position, float Speed)>();
+        var positions = new Dictionary<string, ToeTrackerMotion>();
         var candidates = new List<Support>();
         Supports = [];
         foreach (var tracker in frame.Trackers ?? [])
         {
-            if (!tracker.IsUsable || string.IsNullOrEmpty(tracker.Serial) ||
-                !positions.TryAdd(tracker.Serial, (tracker.Position, 0)))
+            if (!tracker.IsUsable || string.IsNullOrEmpty(tracker.Serial) || positions.ContainsKey(tracker.Serial))
                 continue;
-            float speed = 0;
-            if (elapsedSeconds > 0 && previousPositions.TryGetValue(tracker.Serial, out var previous))
-            {
-                float measuredSpeed = Vector3.Distance(previous.Position, tracker.Position) / elapsedSeconds;
-                speed = float.Lerp(previous.Speed, measuredSpeed, 1 - MathF.Exp(-elapsedSeconds / 0.1f));
-            }
-            positions[tracker.Serial] = (tracker.Position, speed);
-            float height = rootToFloor.Transform(tracker.Position).Y;
+            Vector3 floorPosition = rootToFloor.Transform(tracker.Position);
+            if (previousPositions.TryGetValue(tracker.Serial, out var motion))
+                motion.Update(tracker.Position, floorPosition, elapsedSeconds, settings.GroundRangeMetres);
+            else
+                motion = new(tracker.Position, floorPosition);
+            positions.Add(tracker.Serial, motion);
+            float speed = motion.Speed;
+            float height = floorPosition.Y;
             if (height < 0 || height > settings.GroundRangeMetres)
                 continue;
             // Compare height with the distance travelled in 100 ms. Without history, prefer the lower toe.
