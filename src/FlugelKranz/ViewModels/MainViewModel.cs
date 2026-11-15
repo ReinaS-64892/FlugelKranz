@@ -91,6 +91,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(InfiniteWalkingBoostLabel))]
     private double infiniteWalkingBoostMultiplier;
     [ObservableProperty] private bool toeTurnOriginEnabled = true;
+    [ObservableProperty] private bool toeRotationCompensationEnabled = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToeRotationReleaseLabel))]
+    private double toeRotationReleaseSeconds = 0.2;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GroundRangeLabel))]
     private double groundRangeCentimetres = 15;
@@ -134,6 +138,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string InfiniteDragSmoothLabel => $"Drag: {InfiniteDragSmoothSeconds:0.00} 秒";
     public string InfiniteTurnSmoothLabel => $"Turn: {InfiniteTurnSmoothSeconds:0.00} 秒";
     public string InfiniteTurnHeadSmoothLabel => $"Turn Head: {InfiniteTurnHeadSmoothSeconds:0.00} 秒";
+    public string ToeRotationReleaseLabel => $"つま先逆補正解除時間: {ToeRotationReleaseSeconds:0.00} 秒";
     public string GroundRangeLabel => $"地面範囲高度: {GroundRangeCentimetres:0} cm";
     public string InfiniteWalkingBoostLabel => $"補正値: {InfiniteWalkingBoostMultiplier:0.00} 倍";
     public string BrakeRampLabel => $"適用時間: {BrakeRampSeconds:0.00} 秒";
@@ -180,6 +185,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             nameof(InfiniteDragSmoothSeconds) or nameof(InfiniteTurnSmoothSeconds) or
             nameof(InfiniteTurnHeadSmoothSeconds) or nameof(InfiniteWalkingBoostMultiplier) or
             nameof(ToeTurnOriginEnabled) or nameof(GroundRangeCentimetres) or
+            nameof(ToeRotationCompensationEnabled) or nameof(ToeRotationReleaseSeconds) or
             nameof(ValveIndexPositionDeadZone) or nameof(ValveIndexForceThreshold) or
             nameof(BrakeRampSeconds)))
             return;
@@ -217,6 +223,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InfiniteTurnHeadSmoothSeconds = Math.Round(root.InfiniteWalking.TurnHeadSmoothSeconds, 6);
         InfiniteWalkingBoostMultiplier = Math.Round(root.InfiniteWalking.TurnMovementBoostMultiplier, 6);
         ToeTurnOriginEnabled = root.InfiniteWalking.ToeTurnOriginEnabled;
+        ToeRotationCompensationEnabled = root.InfiniteWalking.ToeRotationCompensationEnabled;
+        ToeRotationReleaseSeconds = Math.Round(root.InfiniteWalking.ToeRotationReleaseSeconds, 6);
         GroundRangeCentimetres = Math.Round(root.InfiniteWalking.GroundRangeMetres * 100, 4);
         ValveIndexPositionDeadZone = Math.Round(root.ValveIndex.PositionDeadZone, 6);
         ValveIndexForceThreshold = Math.Round(root.ValveIndex.ForceThreshold, 6);
@@ -251,6 +259,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetInfiniteDragSmooth() => InfiniteDragSmoothSeconds = InfiniteWalkingSettings.Default.DragSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnSmooth() => InfiniteTurnSmoothSeconds = InfiniteWalkingSettings.Default.TurnSmoothSeconds;
     [RelayCommand] private void ResetInfiniteTurnHeadSmooth() => InfiniteTurnHeadSmoothSeconds = InfiniteWalkingSettings.Default.TurnHeadSmoothSeconds;
+    [RelayCommand] private void ResetToeRotationCompensation() => ToeRotationCompensationEnabled = InfiniteWalkingSettings.Default.ToeRotationCompensationEnabled;
+    [RelayCommand] private void ResetToeRotationRelease() => ToeRotationReleaseSeconds = Math.Round(InfiniteWalkingSettings.Default.ToeRotationReleaseSeconds, 6);
     [RelayCommand] private void ResetToeTurnOrigin() => ToeTurnOriginEnabled = InfiniteWalkingSettings.Default.ToeTurnOriginEnabled;
     [RelayCommand] private void ResetGroundRange() => GroundRangeCentimetres = Math.Round(InfiniteWalkingSettings.Default.GroundRangeMetres * 100, 4);
     [RelayCommand] private void ResetInfiniteWalkingBoost() => InfiniteWalkingBoostMultiplier = Math.Round(InfiniteWalkingSettings.Default.TurnMovementBoostMultiplier, 6);
@@ -369,6 +379,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             TurnSmoothSeconds = (float)InfiniteTurnSmoothSeconds,
             TurnHeadSmoothSeconds = (float)InfiniteTurnHeadSmoothSeconds,
             ToeTurnOriginEnabled = ToeTurnOriginEnabled,
+            ToeRotationCompensationEnabled = ToeRotationCompensationEnabled,
+            ToeRotationReleaseSeconds = (float)ToeRotationReleaseSeconds,
             GroundRangeMetres = (float)(GroundRangeCentimetres / 100),
             TurnMovementBoostMultiplier = (float)InfiniteWalkingBoostMultiplier
         },

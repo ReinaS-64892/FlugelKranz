@@ -178,6 +178,13 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
                     .Value(model, x => x.GroundRangeCentimetres),
                 ResetButton(model, x => x.ResetGroundRangeCommand)),
             Divider(),
+            Header("無限歩行 — つま先逆補正"),
+            Row("つま先逆補正", new CheckBox().IsChecked(model, x => x.ToeRotationCompensationEnabled),
+                ResetButton(model, x => x.ResetToeRotationCompensationCommand)),
+            Row(model, x => x.ToeRotationReleaseLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.ToeRotationReleaseSeconds),
+                ResetButton(model, x => x.ResetToeRotationReleaseCommand)),
+            Divider(),
             Header("無限歩行ブースト"),
             Row(model, x => x.InfiniteWalkingBoostLabel, new Slider().Minimum(0).Maximum(2).TickFrequency(0.05)
                     .Value(model, x => x.InfiniteWalkingBoostMultiplier),

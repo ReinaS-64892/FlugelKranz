@@ -30,6 +30,10 @@ public sealed class LibMonadoLibrary : IDisposable
     internal T GetDelegate<T>(string name) where T : Delegate =>
         Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(handle, name));
 
+    internal T? TryGetDelegate<T>(string name) where T : Delegate =>
+        NativeLibrary.TryGetExport(handle, name, out var address)
+            ? Marshal.GetDelegateForFunctionPointer<T>(address) : null;
+
     public void Dispose()
     {
         if (handle != 0) { NativeLibrary.Free(handle); handle = 0; }

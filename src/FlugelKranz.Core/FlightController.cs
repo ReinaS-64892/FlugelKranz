@@ -12,6 +12,11 @@ public interface IFlightRuntime : IDisposable
     void Restore();
 }
 
+public interface ITrackerRotationRuntime
+{
+    void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations);
+}
+
 public interface IReferenceSpaceOffsetProvider
 {
     RigidPose ReferenceSpaceOffset { get; }

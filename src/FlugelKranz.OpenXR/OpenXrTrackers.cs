@@ -33,6 +33,8 @@ internal sealed class OpenXrTrackers(IXdevSpaceApi api) : IDisposable
     private nint list;
     private long nextRefreshTime;
 
+    public int Revision { get; private set; }
+
     public IReadOnlyList<TrackerSample> Read(long time)
     {
         // The pinned Monado reports generation 1 forever. Periodic snapshots
@@ -77,6 +79,7 @@ internal sealed class OpenXrTrackers(IXdevSpaceApi api) : IDisposable
         list = nextList;
         spaces.AddRange(nextSpaces);
         nextRefreshTime = time + RefreshIntervalNanoseconds;
+        Revision++;
     }
 
     public void Dispose()

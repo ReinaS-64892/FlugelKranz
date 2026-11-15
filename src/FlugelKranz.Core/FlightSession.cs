@@ -21,7 +21,12 @@ internal sealed class FlightSession
     }
 
     public FlightMode Mode => MovementModes.Selection(movement.SelectedMode);
-    public void Release() => movement.Release(runtime.CurrentOffset);
+    public void Release()
+    {
+        movement.Release(runtime.CurrentOffset);
+        if (runtime is ITrackerRotationRuntime trackerRuntime)
+            trackerRuntime.Apply(runtime.CurrentOffset, []);
+    }
 
     public void Reset()
     {
@@ -50,7 +55,9 @@ internal sealed class FlightSession
         {
             var offset = movement.Update(frame, elapsedSeconds, settings);
             // Exact equality avoids accumulating unapplied substeps as feedback.
-            if (offset != runtime.CurrentOffset)
+            if (runtime is ITrackerRotationRuntime trackerRuntime)
+                trackerRuntime.Apply(offset, movement.ActiveMode.TrackerRotations);
+            else if (offset != runtime.CurrentOffset)
                 runtime.Apply(offset);
         }
 

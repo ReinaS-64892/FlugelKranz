@@ -62,6 +62,7 @@ internal static class Program
                     {
                         Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
                         Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
+                        Console.WriteLine($"つま先逆補正 API: {(runtime.TrackerRotationOffsetsSupported ? "対応" : "非対応（つま先逆補正は無効）")}");
                         return 0;
                     }
                     Thread.Sleep(10);

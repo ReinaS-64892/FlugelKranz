@@ -30,6 +30,43 @@ public sealed class TestApp : FlugelKranz.App
 public class MainViewTests
 {
     [AvaloniaFact]
+    public async Task ToeCompensationSettingsPersistRestoreDefaultsAndReadOlderCurrentSchema()
+    {
+        string path = TemporarySettingsPath();
+        try
+        {
+            await using (var first = new MainViewModel("/nonexistent/test.so", path))
+            {
+                Assert.True(first.ToeRotationCompensationEnabled);
+                Assert.Equal(0.2, first.ToeRotationReleaseSeconds, 6);
+                first.ToeRotationCompensationEnabled = false;
+                first.ToeRotationReleaseSeconds = 0.7;
+            }
+            await using (var second = new MainViewModel("/nonexistent/test.so", path))
+            {
+                Assert.False(second.ToeRotationCompensationEnabled);
+                Assert.Equal(0.7, second.ToeRotationReleaseSeconds, 6);
+                second.ResetToeRotationCompensationCommand.Execute(null);
+                second.ResetToeRotationReleaseCommand.Execute(null);
+                Assert.True(second.ToeRotationCompensationEnabled);
+                Assert.Equal(0.2, second.ToeRotationReleaseSeconds, 6);
+            }
+            using (var json = JsonDocument.Parse(File.ReadAllText(path)))
+            {
+                var walking = json.RootElement.GetProperty("infiniteWalking");
+                Assert.True(walking.GetProperty("toeRotationCompensationEnabled").GetBoolean());
+                Assert.Equal(0.2, walking.GetProperty("toeRotationReleaseSeconds").GetDouble(), 6);
+            }
+            File.WriteAllText(path, """{"schemaVersion":2,"mode":"infiniteWalking","freeFlight":{},"infiniteWalking":{"groundRangeMetres":0.25}}""");
+            await using var older = new MainViewModel("/nonexistent/test.so", path);
+            Assert.Equal(25, older.GroundRangeCentimetres);
+            Assert.True(older.ToeRotationCompensationEnabled);
+            Assert.Equal(0.2, older.ToeRotationReleaseSeconds, 6);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [AvaloniaFact]
     public async Task StartsOffAndCompiledBindingsUpdateButtonAndStatus()
     {
         string settingsPath = TemporarySettingsPath();
@@ -99,7 +136,7 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(23, sliders.Length);
+            Assert.Equal(24, sliders.Length);
             var twoHandSlider = Assert.Single(sliders,
                 slider => slider.Minimum == 1 && slider.Maximum == 4);
             Assert.Equal(1.5, twoHandSlider.Value);
@@ -123,7 +160,20 @@ public class MainViewTests
             Assert.Equal(25, vm.GroundRangeCentimetres);
             vm.ResetGroundRangeCommand.Execute(null);
             Assert.Equal(15, groundRange.Value);
-            var turnOrigin = checkBoxes[1];
+            var compensation = checkBoxes[1];
+            Assert.True(compensation.IsChecked);
+            compensation.IsChecked = false;
+            Assert.False(vm.ToeRotationCompensationEnabled);
+            vm.ResetToeRotationCompensationCommand.Execute(null);
+            Assert.True(compensation.IsChecked);
+            vm.ToeRotationReleaseSeconds = 0.37;
+            var releaseSlider = Assert.Single(sliders, slider => Math.Abs(slider.Value - 0.37) < 0.000001
+                && slider.Minimum == 0 && slider.Maximum == 1 && slider.TickFrequency == 0.01);
+            releaseSlider.Value = 0.4;
+            Assert.Equal(0.4, vm.ToeRotationReleaseSeconds);
+            vm.ResetToeRotationReleaseCommand.Execute(null);
+            Assert.Equal(0.2, releaseSlider.Value, 6);
+            var turnOrigin = checkBoxes[2];
             Assert.False(turnOrigin.IsChecked);
             turnOrigin.IsChecked = true;
             Assert.True(vm.UseHeadTurnOrigin);
