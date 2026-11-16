@@ -193,6 +193,10 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Header("自由飛行 — Turn 原点"),
             Row("頭を原点にする", new CheckBox().IsChecked(model, x => x.UseHeadTurnOrigin),
                 ResetButton(model, x => x.ResetTurnOriginCommand)),
+            Header("回転原点頭重心比率倍率"),
+            Row(model, x => x.TurnOriginHeadWeightLabel, new Slider().Minimum(1).Maximum(4).TickFrequency(0.05)
+                    .Value(model, x => x.TurnOriginHeadWeightMultiplier),
+                ResetButton(model, x => x.ResetTurnOriginHeadWeightCommand)),
             Divider(),
             Header("自由飛行 — 慣性カットオフ"),
             Row("有効", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),

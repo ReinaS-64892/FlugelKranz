@@ -421,17 +421,17 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (settings.TurnOrigin == TurnOrigin.Head)
             return frame.Head.Position;
 
-        Vector3 sum = frame.Head.Position;
-        int count = 1;
+        Vector3 weightedPosition = frame.Head.Position * settings.TurnOriginHeadWeightMultiplier;
+        float totalWeight = settings.TurnOriginHeadWeightMultiplier;
         if (Usable(frame.Left))
         {
-            sum += frame.Left.Pose.Position;
-            count++;
+            weightedPosition += frame.Left.Pose.Position;
+            totalWeight++;
         }
         if (Usable(frame.Right))
         {
-            sum += frame.Right.Pose.Position;
-            count++;
+            weightedPosition += frame.Right.Pose.Position;
+            totalWeight++;
         }
         if (frame.Trackers is { } trackers)
         {
@@ -439,11 +439,11 @@ public sealed class FreeFlightManipulator : ManipulationMode
             {
                 if (!tracker.IsUsable)
                     continue;
-                sum += tracker.Position;
-                count++;
+                weightedPosition += tracker.Position;
+                totalWeight++;
             }
         }
-        return sum / count;
+        return weightedPosition / totalWeight;
     }
 
     internal Vector3 GetCurrentTurnPivot(InputFrame frame, FlightMotionSettings settings) =>

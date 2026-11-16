@@ -20,11 +20,13 @@ public class TrackerTurnOriginTests
     };
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(0.05f)]
-    public void SingleHandTurnUsesTheMidpointOfHeadHandsAndValidTrackers(float smoothSeconds)
+    [InlineData(0, 1)]
+    [InlineData(0, 1.5f)]
+    [InlineData(0, 4)]
+    [InlineData(0.05f, 1.5f)]
+    public void SingleHandTurnWeightsOnlyTheHeadAmongHandsAndValidTrackers(float smoothSeconds, float headWeight)
     {
-        var settings = Direct with { TurnSmoothSeconds = smoothSeconds };
+        var settings = Direct with { TurnSmoothSeconds = smoothSeconds, TurnOriginHeadWeightMultiplier = headWeight };
         var frame = Frame() with
         {
             Trackers =
@@ -36,7 +38,8 @@ public class TrackerTurnOriginTests
             ]
         };
         var engine = BeginTurn(frame, settings);
-        Vector3 pivot = (Head + Left + Right + Waist.Position + Foot.Position) / 5;
+        Vector3 pivot = (Head * settings.TurnOriginHeadWeightMultiplier + Left + Right + Waist.Position + Foot.Position) /
+            (settings.TurnOriginHeadWeightMultiplier + 4);
         var rotated = RotateRight(frame);
 
         var after = engine.Update(rotated, 0.01f, settings);
@@ -50,7 +53,7 @@ public class TrackerTurnOriginTests
     {
         var frame = Frame() with { Left = default, Trackers = [Waist] };
         var engine = BeginTurn(frame, Direct);
-        Vector3 pivot = (Head + Right + Waist.Position) / 3;
+        Vector3 pivot = (Head * Direct.TurnOriginHeadWeightMultiplier + Right + Waist.Position) / (Direct.TurnOriginHeadWeightMultiplier + 2);
         var after = engine.Update(RotateRight(frame), 0.01f, Direct);
         Near(pivot, after.Transform(pivot));
     }
@@ -111,7 +114,8 @@ public class TrackerTurnOriginTests
             var changed = engine.Update(frame, 0.01f, Direct);
             Assert.True(before.NearlyEquals(changed));
 
-            Vector3 pivot = tracked ? (Head + Left + Right + Waist.Position) / 4 : (Head + Left + Right) / 3;
+            Vector3 pivot = tracked ? (Head * Direct.TurnOriginHeadWeightMultiplier + Left + Right + Waist.Position) / (Direct.TurnOriginHeadWeightMultiplier + 3)
+                : (Head * Direct.TurnOriginHeadWeightMultiplier + Left + Right) / (Direct.TurnOriginHeadWeightMultiplier + 2);
             Vector3 expected = changed.Transform(pivot);
             var rotation = Quaternion.Normalize(frame.Right.Pose.Orientation * Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f));
             frame = frame with { Right = frame.Right with { Pose = frame.Right.Pose with { Orientation = rotation } } };
@@ -133,12 +137,26 @@ public class TrackerTurnOriginTests
             ? Assert.IsType<InfiniteWalkingTransition>(new InfiniteWalkingManipulator(current)
                 .EnterFrom(flight, new(current, RigidPose.Identity, frame, settings)))
             : Assert.IsType<SpaceResetTransition>(flight.CreateReset(frame, RigidPose.Identity, settings));
-        Vector3 pivot = (Head + Left + Right + Waist.Position + Foot.Position) / 5;
+        Vector3 pivot = (Head * Direct.TurnOriginHeadWeightMultiplier + Left + Right + Waist.Position + Foot.Position) / (Direct.TurnOriginHeadWeightMultiplier + 4);
         Vector3 start = current.Transform(pivot);
         // Later tracker motion/loss must not change the pivot captured at entry.
         var result = transition.Update(frame with { Trackers = [] }, 0.5f, settings);
         Vector3 expected = modeEntry ? new(start.X, (start.Y + pivot.Y) * 0.5f, start.Z) : start;
         Near(expected, result.Transform(pivot));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(1.5f, 1.5f)]
+    [InlineData(4, 4)]
+    [InlineData(5, 4)]
+    [InlineData(float.NaN, 1.5f)]
+    [InlineData(float.PositiveInfinity, 1.5f)]
+    public void HeadWeightIsNormalizedToTheSupportedRange(float value, float expected)
+    {
+        var settings = Direct with { TurnOriginHeadWeightMultiplier = value };
+        Assert.Equal(expected, settings.Normalized().TurnOriginHeadWeightMultiplier);
     }
 
     private static FreeFlightManipulator BeginTurn(InputFrame frame, FlightMotionSettings settings)

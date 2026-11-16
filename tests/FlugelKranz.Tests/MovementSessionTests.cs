@@ -201,7 +201,7 @@ public class MovementSessionTests
         var frame = EntryFrame(ManipulationHands.None);
         var settings = Settings with { FreeFlight = Settings.FreeFlight with { TurnOrigin = origin } };
         Vector3 pivot = origin == TurnOrigin.Head ? frame.Head.Position
-            : (frame.Head.Position + frame.Left.Pose.Position + frame.Right.Pose.Position) / 3;
+            : (frame.Head.Position * 1.5f + frame.Left.Pose.Position + frame.Right.Pose.Position) / 3.5f;
         Vector3 startPoint = current.Transform(pivot);
         var session = CreateFlight(current);
 
@@ -254,7 +254,7 @@ public class MovementSessionTests
         new(new(Quaternion.Identity, new(-0.3f, 1.2f, 0.1f)), dragHands.HasFlag(ManipulationHands.Left) ? 1 : 0, 0, 0, true),
         new(new(Quaternion.Identity, new(0.6f, 1.1f, 0.4f)), dragHands.HasFlag(ManipulationHands.Right) ? 1 : 0, 0, 0, true));
 
-    private static readonly Vector3 DefaultPivot = new(0, 1.7f / 3, 0);
+    private static readonly Vector3 DefaultPivot = new(0, 1.7f * 1.5f / 3.5f, 0);
 
     private static MovementSession CreateFlight(RigidPose current) =>
         new(new FreeFlightManipulator(current), current, RigidPose.Identity);

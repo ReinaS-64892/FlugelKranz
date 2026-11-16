@@ -30,6 +30,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(ModeDescription))]
     private FlightMode mode = FlightMode.InfiniteWalking;
     [ObservableProperty] private bool useHeadTurnOrigin;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnOriginHeadWeightLabel))]
+    private double turnOriginHeadWeightMultiplier = 1.5;
     [ObservableProperty] private bool inertiaCutoffEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
@@ -117,6 +120,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string ToggleLabel => IsEnabled ? "ON" : "OFF";
     public string ModeLabel => Mode == FlightMode.InfiniteWalking ? "I" : "F";
     public string ModeDescription => Mode == FlightMode.InfiniteWalking ? "無限歩行モード" : "自由飛行モード";
+    public string TurnOriginHeadWeightLabel => $"頭: {TurnOriginHeadWeightMultiplier:0.00} 倍";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
@@ -173,7 +177,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private void SettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (
-            nameof(Mode) or nameof(UseHeadTurnOrigin) or
+            nameof(Mode) or nameof(UseHeadTurnOrigin) or nameof(TurnOriginHeadWeightMultiplier) or
             nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
             nameof(TurnCutoffDegreesPerSecond) or nameof(DragAccelerationMultiplier) or
             nameof(TurnAccelerationMultiplier) or nameof(TwoHandDragAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
@@ -199,6 +203,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Mode = root.Mode;
         var settings = root.FreeFlight;
         UseHeadTurnOrigin = settings.TurnOrigin == TurnOrigin.Head;
+        TurnOriginHeadWeightMultiplier = Math.Round(settings.TurnOriginHeadWeightMultiplier, 6);
         InertiaCutoffEnabled = settings.InertiaCutoffEnabled;
         DragCutoffCentimetresPerSecond = Math.Round(settings.DragCutoffMetresPerSecond * 100, 6);
         TurnCutoffDegreesPerSecond = Math.Round(settings.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4);
@@ -236,6 +241,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         apply(FlightMotionSettings.Default);
     }
 
+    [RelayCommand] private void ResetTurnOriginHeadWeight() => ResetToDefaults(s => TurnOriginHeadWeightMultiplier = s.TurnOriginHeadWeightMultiplier);
     [RelayCommand] private void ResetTurnOrigin() => ResetToDefaults(s => UseHeadTurnOrigin = s.TurnOrigin == TurnOrigin.Head);
     [RelayCommand] private void ResetInertiaCutoffEnabled() => ResetToDefaults(s => InertiaCutoffEnabled = s.InertiaCutoffEnabled);
     [RelayCommand] private void ResetDragCutoff() => ResetToDefaults(s => DragCutoffCentimetresPerSecond = s.DragCutoffMetresPerSecond * 100);
@@ -353,6 +359,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         FreeFlight = new()
         {
             TurnOrigin = UseHeadTurnOrigin ? TurnOrigin.Head : TurnOrigin.TrackedElementsMidpoint,
+            TurnOriginHeadWeightMultiplier = (float)TurnOriginHeadWeightMultiplier,
             InertiaCutoffEnabled = InertiaCutoffEnabled,
             DragCutoffMetresPerSecond = (float)(DragCutoffCentimetresPerSecond / 100),
             TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
