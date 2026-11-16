@@ -93,7 +93,7 @@ public class FreeFlightSmoothingTests
                 Right = new(new(rotation, Right - displacement), 0, 1, 0, true)
             };
             Vector3 pivot = origin == TurnOrigin.Head ? frame.Head.Position :
-                (frame.Head.Position * 1.5f + frame.Left.Pose.Position + frame.Right.Pose.Position) / 3.5f;
+                (frame.Head.Position * 2.5f + frame.Left.Pose.Position + frame.Right.Pose.Position) / 4.5f;
             Vector3 expected = engine.Offset.Transform(pivot);
             var after = engine.Update(frame, StepSeconds, settings);
             Near(expected, after.Transform(pivot));

@@ -37,7 +37,7 @@ public class MainViewTests
         {
             await using (var first = new MainViewModel("/nonexistent/test.so", path))
             {
-                Assert.Equal(1.5, first.TurnOriginHeadWeightMultiplier);
+                Assert.Equal(2.5, first.TurnOriginHeadWeightMultiplier);
                 first.TurnOriginHeadWeightMultiplier = 3.25;
                 using var json = JsonDocument.Parse(File.ReadAllText(path));
                 Assert.Equal(3.25, json.RootElement.GetProperty("freeFlight")
@@ -47,7 +47,7 @@ public class MainViewTests
             {
                 Assert.Equal(3.25, second.TurnOriginHeadWeightMultiplier);
                 second.ResetTurnOriginHeadWeightCommand.Execute(null);
-                Assert.Equal(1.5, second.TurnOriginHeadWeightMultiplier);
+                Assert.Equal(2.5, second.TurnOriginHeadWeightMultiplier);
             }
         }
         finally { File.Delete(path); }
@@ -162,10 +162,10 @@ public class MainViewTests
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
             Assert.Equal(25, sliders.Length);
             var headWeightSlider = sliders.First(slider => slider.Minimum == 1 && slider.Maximum == 4);
-            headWeightSlider.Value = 2.5;
-            Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
+            headWeightSlider.Value = 3;
+            Assert.Equal(3, vm.TurnOriginHeadWeightMultiplier);
             vm.ResetTurnOriginHeadWeightCommand.Execute(null);
-            Assert.Equal(1.5, headWeightSlider.Value);
+            Assert.Equal(2.5, headWeightSlider.Value);
             var twoHandSlider = Assert.Single(sliders,
                 slider => slider.Minimum == 1 && slider.Maximum == 4 && slider != headWeightSlider);
             Assert.Equal(1.5, twoHandSlider.Value);
@@ -366,14 +366,14 @@ public class MainViewTests
             await using (var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
-                Assert.Equal(1.5, vm.TurnOriginHeadWeightMultiplier);
+                Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
                 Assert.True(vm.ToeTurnOriginEnabled);
                 Assert.Equal(15, vm.GroundRangeCentimetres);
                 Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             }
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
-            Assert.Equal(1.5, document.RootElement.GetProperty("freeFlight")
+            Assert.Equal(2.5, document.RootElement.GetProperty("freeFlight")
                 .GetProperty("turnOriginHeadWeightMultiplier").GetDouble());
             Assert.Equal(1.5, document.RootElement.GetProperty("freeFlight")
                 .GetProperty("twoHandDragAccelerationMultiplier").GetDouble());
@@ -404,7 +404,7 @@ public class MainViewTests
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
             Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
-            Assert.Equal(1.5, vm.TurnOriginHeadWeightMultiplier);
+            Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
             Assert.Equal(FlugelKranzSettings.CurrentSchemaVersion,
                 document.RootElement.GetProperty("schemaVersion").GetInt32());

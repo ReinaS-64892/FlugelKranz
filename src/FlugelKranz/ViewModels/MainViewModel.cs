@@ -32,7 +32,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool useHeadTurnOrigin;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnOriginHeadWeightLabel))]
-    private double turnOriginHeadWeightMultiplier = 1.5;
+    private double turnOriginHeadWeightMultiplier = 2.5;
     [ObservableProperty] private bool inertiaCutoffEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]

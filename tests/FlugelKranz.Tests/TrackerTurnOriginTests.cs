@@ -151,8 +151,8 @@ public class TrackerTurnOriginTests
     [InlineData(1.5f, 1.5f)]
     [InlineData(4, 4)]
     [InlineData(5, 4)]
-    [InlineData(float.NaN, 1.5f)]
-    [InlineData(float.PositiveInfinity, 1.5f)]
+    [InlineData(float.NaN, 2.5f)]
+    [InlineData(float.PositiveInfinity, 2.5f)]
     public void HeadWeightIsNormalizedToTheSupportedRange(float value, float expected)
     {
         var settings = Direct with { TurnOriginHeadWeightMultiplier = value };

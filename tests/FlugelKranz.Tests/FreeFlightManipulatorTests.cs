@@ -54,7 +54,7 @@ public class FreeFlightManipulatorTests
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(x, y, z)), 1.1f);
         var offset = engine.Update(Frame(right: 1) with { Right = new(Right with { Orientation = rotation }, 0, 1, 0, true) });
         Near(Quaternion.Conjugate(rotation), offset.Orientation);
-        var midpoint = (Head.Position * 1.5f + Left.Position + Right.Position) / 3.5f;
+        var midpoint = (Head.Position * 2.5f + Left.Position + Right.Position) / 4.5f;
         Near(midpoint, offset.Transform(midpoint));
     }
 
@@ -92,7 +92,7 @@ public class FreeFlightManipulatorTests
 
         var offset = engine.Update(moved);
 
-        var midpoint = (Head.Position * 1.5f + Right.Position) / 2.5f;
+        var midpoint = (Head.Position * 2.5f + Right.Position) / 3.5f;
         Near(midpoint, offset.Transform(midpoint));
     }
 
