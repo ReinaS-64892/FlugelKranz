@@ -382,25 +382,30 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (Quaternion.Dot(current, previousTwoHandOrientation) < 0)
             current = -current;
 
-        // Keep the pole axis captured at the moment both hands start turning.
-        // Reprojecting the accumulated pose onto a moving hand line can turn
-        // tracking noise or a large pose change into an unintended spin.
-        Vector3 axis = twoHandTurnAxis;
-        if (axis.LengthSquared() <= 0)
-        {
-            previousTwoHandOrientation = current;
-            return turnStartOffsetOrientation;
-        }
-
+        // The hand pole stays in physical coordinates at its grab-start axis.
+        // Travel inertia is in flight-transformed root coordinates. Bring its
+        // direction back through the target rotation before separating input.
+        Vector3 pole = twoHandTurnAxis;
+        Vector3 rollAxis = linearInertia.LengthSquared() > 0
+            ? Vector3.Transform(Vector3.Normalize(linearInertia), Quaternion.Conjugate(turnStartOffsetOrientation))
+            : BodyRotationAxis.From(frame);
         Quaternion controllerDelta = Quaternion.Normalize(current * Quaternion.Conjugate(previousTwoHandOrientation));
-        float twistAngle = RotationAngleAroundAxis(controllerDelta, axis);
+        Vector3 rotationVector = RotationVector(controllerDelta);
         previousTwoHandOrientation = current;
-        if (MathF.Abs(twistAngle) > 0)
-        {
-            Quaternion inverseTwist = Quaternion.CreateFromAxisAngle(axis, -twistAngle);
+
+        // Preserve the original pole component. Only the component along the
+        // roll direction projected onto the plane perpendicular to the pole is
+        // remapped to roll. Mixed gestures therefore retain both contributions.
+        Vector3 offPoleAxis = rollAxis - pole * Vector3.Dot(pole, rollAxis);
+        Vector3 rollInputAxis = offPoleAxis.LengthSquared() > 0.0001f
+            ? Vector3.Normalize(offPoleAxis) : Vector3.Zero;
+        float rollAngle = Vector3.Dot(rotationVector, rollInputAxis);
+        float poleAngle = Vector3.Dot(rotationVector, pole);
+        Vector3 inverseRotation = -pole * poleAngle - rollAxis * rollAngle;
+        float angle = inverseRotation.Length();
+        if (angle > 0)
             turnStartOffsetOrientation = Quaternion.Normalize(
-                turnStartOffsetOrientation * inverseTwist);
-        }
+                turnStartOffsetOrientation * Quaternion.CreateFromAxisAngle(inverseRotation / angle, angle));
         return turnStartOffsetOrientation;
     }
 
@@ -639,12 +644,8 @@ public sealed class FreeFlightManipulator : ManipulationMode
         useTwoHandTurnPivotForInertia = false;
     }
 
-    private static float RotationAngleAroundAxis(Quaternion rotation, Vector3 axis)
+    private static Vector3 RotationVector(Quaternion rotation)
     {
-        axis = SafeDirection(axis);
-        if (axis.LengthSquared() <= 0)
-            return 0;
-
         rotation = Quaternion.Normalize(rotation);
         if (rotation.W < 0)
             rotation = -rotation;
@@ -652,10 +653,10 @@ public sealed class FreeFlightManipulator : ManipulationMode
         var imaginary = new Vector3(rotation.X, rotation.Y, rotation.Z);
         float imaginaryLength = imaginary.Length();
         if (imaginaryLength <= 0.0000001f)
-            return 0;
+            return Vector3.Zero;
 
         float angle = 2 * MathF.Atan2(imaginaryLength, MathF.Max(0, rotation.W));
-        return Vector3.Dot(imaginary / imaginaryLength * angle, axis);
+        return imaginary / imaginaryLength * angle;
     }
 
     private static Vector3 SafeDirection(Vector3 value) =>

@@ -208,12 +208,12 @@ public class FreeFlightManipulatorTests
         var other = Armed();
         other.Update(both);
         var outsideAxis = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f);
-        var ignored = both with
+        var bodyTurn = both with
         {
             Left = new(Left with { Orientation = outsideAxis }, 0, 1, 0, true),
             Right = new(Right with { Orientation = outsideAxis }, 0, 1, 0, true)
         };
-        Near(Quaternion.Identity, other.Update(ignored).Orientation);
+        Near(Quaternion.Conjugate(outsideAxis), other.Update(bodyTurn).Orientation);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class FreeFlightManipulatorTests
             new(Right, 0, 1, 0, true));
         engine.Update(both);
 
-        var foldedAxis = Vector3.Normalize(new Vector3(0.001f, 1, 0));
+        var foldedAxis = Vector3.Normalize(new Vector3(0.001f, 0, 1));
         var foldedRotation = Quaternion.CreateFromAxisAngle(
             foldedAxis,
             MathF.PI - 0.0001f);
