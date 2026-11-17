@@ -20,7 +20,7 @@ public sealed record FlightMotionSettings
     public float TurnOriginHeadWeightMultiplier { get; init; } = 2.5f;
     public bool InertiaCutoffEnabled { get; init; } = true;
     public bool InertiaFullCutEnabled { get; init; }
-    public float InertiaSuppressionStrength { get; init; } = 0.5f;
+    public float InertiaSuppressionStrength { get; init; }
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;

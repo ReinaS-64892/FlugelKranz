@@ -179,7 +179,7 @@ public class MainViewTests
             suppression.Value = 0.75;
             Assert.Equal(0.75, vm.InertiaSuppressionStrength);
             vm.ResetInertiaSuppressionCommand.Execute(null);
-            Assert.Equal(0.5, suppression.Value);
+            Assert.Equal(0, suppression.Value);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
@@ -343,7 +343,7 @@ public class MainViewTests
             second.ResetInertiaFullCutCommand.Execute(null);
             second.ResetInertiaSuppressionCommand.Execute(null);
             Assert.False(second.InertiaFullCutEnabled);
-            Assert.Equal(0.5, second.InertiaSuppressionStrength);
+            Assert.Equal(0, second.InertiaSuppressionStrength);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
             Assert.Equal(3.5, second.TwoHandDragAccelerationMultiplier);
@@ -395,7 +395,7 @@ public class MainViewTests
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
                 Assert.False(vm.InertiaFullCutEnabled);
-                Assert.Equal(0.5, vm.InertiaSuppressionStrength);
+                Assert.Equal(0, vm.InertiaSuppressionStrength);
                 Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
                 Assert.True(vm.ToeTurnOriginEnabled);
@@ -434,7 +434,7 @@ public class MainViewTests
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
             Assert.False(vm.InertiaFullCutEnabled);
-            Assert.Equal(0.5, vm.InertiaSuppressionStrength);
+            Assert.Equal(0, vm.InertiaSuppressionStrength);
             Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));

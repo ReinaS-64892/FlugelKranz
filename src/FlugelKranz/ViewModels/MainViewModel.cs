@@ -37,7 +37,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool inertiaFullCutEnabled;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InertiaSuppressionLabel))]
-    private double inertiaSuppressionStrength = 0.5;
+    private double inertiaSuppressionStrength;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
     private double dragCutoffCentimetresPerSecond = 40;

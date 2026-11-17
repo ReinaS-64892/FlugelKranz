@@ -26,7 +26,7 @@ public class InertiaTests
 
         Assert.True(settings.InertiaCutoffEnabled);
         Assert.False(settings.InertiaFullCutEnabled);
-        Assert.Equal(0.5f, settings.InertiaSuppressionStrength);
+        Assert.Equal(0, settings.InertiaSuppressionStrength);
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
@@ -207,7 +207,7 @@ public class InertiaTests
         var frame = drag ? Frame(leftX: speed * 0.1f) : Frame(rightRotation: rotation);
         var released = engine.Update(frame, 0.1f, settings);
         var continued = engine.Update(frame, 0.1f, settings);
-        float releaseSpeed = speed < 1 ? speed * speed : speed;
+        float releaseSpeed = speed;
         float nextStep = releaseSpeed * 0.1f * (speed < 1 ? MathF.Exp(-0.2f) : 1);
         if (drag)
         {
@@ -225,8 +225,8 @@ public class InertiaTests
     [InlineData(-1, 0)]
     [InlineData(0.5f, 0.5f)]
     [InlineData(2, 1)]
-    [InlineData(float.NaN, 0.5f)]
-    [InlineData(float.PositiveInfinity, 0.5f)]
+    [InlineData(float.NaN, 0)]
+    [InlineData(float.PositiveInfinity, 0)]
     public void SuppressionStrengthIsNormalized(float value, float expected)
     {
         Assert.Equal(expected, new FlightMotionSettings { InertiaSuppressionStrength = value }
