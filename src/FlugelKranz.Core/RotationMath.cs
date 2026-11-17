@@ -4,6 +4,21 @@ namespace FlugelKranz.Core;
 
 internal static class RotationMath
 {
+    // Inputs are unit directions. At an exact half turn the rotation plane is
+    // ambiguous; choose a stable perpendicular axis instead of normalizing zero.
+    public static Quaternion RotationBetweenDirections(Vector3 from, Vector3 to)
+    {
+        Vector3 cross = Vector3.Cross(from, to);
+        float dot = Math.Clamp(Vector3.Dot(from, to), -1, 1);
+        if (cross.LengthSquared() > 0.0000000001f)
+            return Quaternion.CreateFromAxisAngle(Vector3.Normalize(cross), MathF.Atan2(cross.Length(), dot));
+        if (dot >= 0)
+            return Quaternion.Identity;
+
+        Vector3 perpendicular = Vector3.Cross(from, MathF.Abs(from.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY);
+        return Quaternion.CreateFromAxisAngle(Vector3.Normalize(perpendicular), MathF.PI);
+    }
+
     public static Quaternion IntegrateRotation(Quaternion rotation, Vector3 velocity, float dt)
     {
         float speed = velocity.Length();

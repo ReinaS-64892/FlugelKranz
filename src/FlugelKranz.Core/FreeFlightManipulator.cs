@@ -27,7 +27,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
     private float dragBrakeElapsed, turnBrakeElapsed;
     private float dragBrakeFactor = 1, turnBrakeFactor = 1;
     private Quaternion turnAnchor, turnStartOrientation, turnStartOffsetOrientation;
-    private Vector3 twoHandTurnAxis;
+    private Vector3 previousTwoHandTurnAxis;
     private Vector3 twoHandTurnPivot;
     private Quaternion previousTwoHandOrientation;
     private bool useTwoHandTurnPivotForInertia;
@@ -43,7 +43,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
     {
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = turnStartOrientation = turnStartOffsetOrientation = Quaternion.Identity;
-        dragAnchorInRoot = previousDragPosition = twoHandTurnAxis = twoHandTurnPivot = Vector3.Zero;
+        dragAnchorInRoot = previousDragPosition = previousTwoHandTurnAxis = twoHandTurnPivot = Vector3.Zero;
         previousTwoHandOrientation = Quaternion.Identity;
         useTwoHandTurnPivotForInertia = false;
         dragAccelerationBoostActive = false;
@@ -224,7 +224,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         turnStartOrientation = HandOrientation(frame, turnHands);
         turnStartOffsetOrientation = targetOffset.Orientation;
         turnAnchor = Quaternion.Normalize(targetOffset.Orientation * turnStartOrientation);
-        twoHandTurnAxis = turnHands == ManipulationHands.Both
+        previousTwoHandTurnAxis = turnHands == ManipulationHands.Both
             ? SafeDirection(frame.Right.Pose.Position - frame.Left.Pose.Position)
             : Vector3.Zero;
         twoHandTurnPivot = turnHands == ManipulationHands.Both
@@ -382,25 +382,26 @@ public sealed class FreeFlightManipulator : ManipulationMode
         if (Quaternion.Dot(current, previousTwoHandOrientation) < 0)
             current = -current;
 
-        // Keep the pole axis captured at the moment both hands start turning.
-        // Reprojecting the accumulated pose onto a moving hand line can turn
-        // tracking noise or a large pose change into an unintended spin.
-        Vector3 axis = twoHandTurnAxis;
-        if (axis.LengthSquared() <= 0)
+        // Both directions are physical Monado root vectors, before the flight
+        // offset. Measure line swing separately from controller-driven twist,
+        // then undo their composition to preserve the pole's world direction.
+        Vector3 axis = SafeDirection(frame.Right.Pose.Position - frame.Left.Pose.Position);
+        if (axis.LengthSquared() <= 0 || previousTwoHandTurnAxis.LengthSquared() <= 0)
         {
+            previousTwoHandTurnAxis = axis;
             previousTwoHandOrientation = current;
             return turnStartOffsetOrientation;
         }
 
+        Quaternion swing = RotationBetweenDirections(previousTwoHandTurnAxis, axis);
         Quaternion controllerDelta = Quaternion.Normalize(current * Quaternion.Conjugate(previousTwoHandOrientation));
-        float twistAngle = RotationAngleAroundAxis(controllerDelta, axis);
+        Quaternion residual = Quaternion.Normalize(controllerDelta * Quaternion.Conjugate(swing));
+        float twistAngle = RotationAngleAroundAxis(residual, axis);
+        previousTwoHandTurnAxis = axis;
         previousTwoHandOrientation = current;
-        if (MathF.Abs(twistAngle) > 0)
-        {
-            Quaternion inverseTwist = Quaternion.CreateFromAxisAngle(axis, -twistAngle);
-            turnStartOffsetOrientation = Quaternion.Normalize(
-                turnStartOffsetOrientation * inverseTwist);
-        }
+        Quaternion delta = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(axis, twistAngle) * swing);
+        turnStartOffsetOrientation = Quaternion.Normalize(
+            turnStartOffsetOrientation * Quaternion.Conjugate(delta));
         return turnStartOffsetOrientation;
     }
 
