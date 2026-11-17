@@ -34,6 +34,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(TurnOriginHeadWeightLabel))]
     private double turnOriginHeadWeightMultiplier = 2.5;
     [ObservableProperty] private bool inertiaCutoffEnabled = true;
+    [ObservableProperty] private bool inertiaFullCutEnabled;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InertiaSuppressionLabel))]
+    private double inertiaSuppressionStrength = 0.5;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DragCutoffLabel))]
     private double dragCutoffCentimetresPerSecond = 40;
@@ -121,6 +125,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string ModeLabel => Mode == FlightMode.InfiniteWalking ? "I" : "F";
     public string ModeDescription => Mode == FlightMode.InfiniteWalking ? "無限歩行モード" : "自由飛行モード";
     public string TurnOriginHeadWeightLabel => $"頭: {TurnOriginHeadWeightMultiplier:0.00} 倍";
+    public string InertiaSuppressionLabel => $"慣性抑え込み強さ: {InertiaSuppressionStrength:0.00}";
     public string DragCutoffLabel => $"Drag: {DragCutoffCentimetresPerSecond:0.0} cm/s";
     public string TurnCutoffLabel => $"Turn: {TurnCutoffDegreesPerSecond:0.0} °/s";
     public string DragAccelerationLabel => $"Drag: {DragAccelerationMultiplier:0.00} 倍";
@@ -178,7 +183,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         if (e.PropertyName is not (
             nameof(Mode) or nameof(UseHeadTurnOrigin) or nameof(TurnOriginHeadWeightMultiplier) or
-            nameof(InertiaCutoffEnabled) or nameof(DragCutoffCentimetresPerSecond) or
+            nameof(InertiaCutoffEnabled) or nameof(InertiaFullCutEnabled) or
+            nameof(InertiaSuppressionStrength) or nameof(DragCutoffCentimetresPerSecond) or
             nameof(TurnCutoffDegreesPerSecond) or nameof(DragAccelerationMultiplier) or
             nameof(TurnAccelerationMultiplier) or nameof(TwoHandDragAccelerationMultiplier) or nameof(ZAccelerationMultiplier) or
             nameof(InertiaAccelerationBoostEnabled) or nameof(InertiaAccelerationBoostMaximumMultiplier) or
@@ -205,6 +211,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseHeadTurnOrigin = settings.TurnOrigin == TurnOrigin.Head;
         TurnOriginHeadWeightMultiplier = Math.Round(settings.TurnOriginHeadWeightMultiplier, 6);
         InertiaCutoffEnabled = settings.InertiaCutoffEnabled;
+        InertiaFullCutEnabled = settings.InertiaFullCutEnabled;
+        InertiaSuppressionStrength = Math.Round(settings.InertiaSuppressionStrength, 6);
         DragCutoffCentimetresPerSecond = Math.Round(settings.DragCutoffMetresPerSecond * 100, 6);
         TurnCutoffDegreesPerSecond = Math.Round(settings.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4);
         DragAccelerationMultiplier = Math.Round(settings.DragAccelerationMultiplier, 6);
@@ -244,6 +252,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand] private void ResetTurnOriginHeadWeight() => ResetToDefaults(s => TurnOriginHeadWeightMultiplier = s.TurnOriginHeadWeightMultiplier);
     [RelayCommand] private void ResetTurnOrigin() => ResetToDefaults(s => UseHeadTurnOrigin = s.TurnOrigin == TurnOrigin.Head);
     [RelayCommand] private void ResetInertiaCutoffEnabled() => ResetToDefaults(s => InertiaCutoffEnabled = s.InertiaCutoffEnabled);
+    [RelayCommand] private void ResetInertiaFullCut() => ResetToDefaults(s => InertiaFullCutEnabled = s.InertiaFullCutEnabled);
+    [RelayCommand] private void ResetInertiaSuppression() => ResetToDefaults(s => InertiaSuppressionStrength = s.InertiaSuppressionStrength);
     [RelayCommand] private void ResetDragCutoff() => ResetToDefaults(s => DragCutoffCentimetresPerSecond = s.DragCutoffMetresPerSecond * 100);
     [RelayCommand] private void ResetTurnCutoff() => ResetToDefaults(s => TurnCutoffDegreesPerSecond = Math.Round(s.TurnCutoffRadiansPerSecond * 180 / Math.PI, 4));
     [RelayCommand] private void ResetDragAcceleration() => ResetToDefaults(s => DragAccelerationMultiplier = s.DragAccelerationMultiplier);
@@ -361,6 +371,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             TurnOrigin = UseHeadTurnOrigin ? TurnOrigin.Head : TurnOrigin.TrackedElementsMidpoint,
             TurnOriginHeadWeightMultiplier = (float)TurnOriginHeadWeightMultiplier,
             InertiaCutoffEnabled = InertiaCutoffEnabled,
+            InertiaFullCutEnabled = InertiaFullCutEnabled,
+            InertiaSuppressionStrength = (float)InertiaSuppressionStrength,
             DragCutoffMetresPerSecond = (float)(DragCutoffCentimetresPerSecond / 100),
             TurnCutoffRadiansPerSecond = (float)(TurnCutoffDegreesPerSecond * Math.PI / 180),
             DragAccelerationMultiplier = (float)DragAccelerationMultiplier,

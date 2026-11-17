@@ -160,7 +160,7 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(25, sliders.Length);
+            Assert.Equal(26, sliders.Length);
             var headWeightSlider = sliders.First(slider => slider.Minimum == 1 && slider.Maximum == 4);
             headWeightSlider.Value = 3;
             Assert.Equal(3, vm.TurnOriginHeadWeightMultiplier);
@@ -173,10 +173,23 @@ public class MainViewTests
             Assert.Equal(3, vm.TwoHandDragAccelerationMultiplier);
             vm.ResetTwoHandDragAccelerationCommand.Execute(null);
             Assert.Equal(1.5, twoHandSlider.Value);
+            vm.InertiaSuppressionStrength = 0.63;
+            var suppression = Assert.Single(sliders, slider => Math.Abs(slider.Value - 0.63) < 0.000001
+                && slider.Minimum == 0 && slider.Maximum == 1);
+            suppression.Value = 0.75;
+            Assert.Equal(0.75, vm.InertiaSuppressionStrength);
+            vm.ResetInertiaSuppressionCommand.Execute(null);
+            Assert.Equal(0.5, suppression.Value);
             var scrollViewer = Assert.Single(window.GetVisualDescendants().OfType<ScrollViewer>());
             Assert.False(scrollViewer.AllowAutoHide);
             Assert.Equal(12, scrollViewer.Padding.Right);
             var checkBoxes = window.GetVisualDescendants().OfType<CheckBox>().ToArray();
+            var fullCut = checkBoxes[4];
+            Assert.False(fullCut.IsChecked);
+            fullCut.IsChecked = true;
+            Assert.True(vm.InertiaFullCutEnabled);
+            vm.ResetInertiaFullCutCommand.Execute(null);
+            Assert.False(fullCut.IsChecked);
             var toeOrigin = checkBoxes[0];
             Assert.True(toeOrigin.IsChecked);
             toeOrigin.IsChecked = false;
@@ -299,6 +312,8 @@ public class MainViewTests
                 first.Mode = FlugelKranz.Core.FlightMode.FreeFlight;
                 first.UseHeadTurnOrigin = true;
                 first.DragCutoffCentimetresPerSecond = 12.5;
+                first.InertiaFullCutEnabled = true;
+                first.InertiaSuppressionStrength = 0.75;
                 first.TurnAccelerationMultiplier = 1.25;
                 first.TwoHandDragAccelerationMultiplier = 3.5;
                 first.ZAccelerationMultiplier = 4.25;
@@ -316,6 +331,19 @@ public class MainViewTests
             await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
             Assert.Equal(FlugelKranz.Core.FlightMode.FreeFlight, second.Mode);
             Assert.True(second.UseHeadTurnOrigin);
+            Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
+            Assert.True(second.InertiaFullCutEnabled);
+            Assert.Equal(0.75, second.InertiaSuppressionStrength);
+            using (var saved = JsonDocument.Parse(File.ReadAllText(settingsPath)))
+            {
+                var flight = saved.RootElement.GetProperty("freeFlight");
+                Assert.True(flight.GetProperty("inertiaFullCutEnabled").GetBoolean());
+                Assert.Equal(0.75, flight.GetProperty("inertiaSuppressionStrength").GetDouble());
+            }
+            second.ResetInertiaFullCutCommand.Execute(null);
+            second.ResetInertiaSuppressionCommand.Execute(null);
+            Assert.False(second.InertiaFullCutEnabled);
+            Assert.Equal(0.5, second.InertiaSuppressionStrength);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
             Assert.Equal(3.5, second.TwoHandDragAccelerationMultiplier);
@@ -366,6 +394,8 @@ public class MainViewTests
             await using (var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
+                Assert.False(vm.InertiaFullCutEnabled);
+                Assert.Equal(0.5, vm.InertiaSuppressionStrength);
                 Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
                 Assert.True(vm.ToeTurnOriginEnabled);
@@ -403,6 +433,8 @@ public class MainViewTests
 
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
+            Assert.False(vm.InertiaFullCutEnabled);
+            Assert.Equal(0.5, vm.InertiaSuppressionStrength);
             Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));

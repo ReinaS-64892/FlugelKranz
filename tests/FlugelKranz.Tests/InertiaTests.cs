@@ -25,6 +25,8 @@ public class InertiaTests
         var settings = FlightMotionSettings.Default;
 
         Assert.True(settings.InertiaCutoffEnabled);
+        Assert.False(settings.InertiaFullCutEnabled);
+        Assert.Equal(0.5f, settings.InertiaSuppressionStrength);
         Assert.Equal(0.4f, settings.DragCutoffMetresPerSecond);
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
@@ -123,7 +125,8 @@ public class InertiaTests
         var settings = Unfiltered with
         {
             InertiaCutoffEnabled = true,
-            DragCutoffMetresPerSecond = 0.05f
+            DragCutoffMetresPerSecond = 0.05f,
+            InertiaFullCutEnabled = true
         };
         var engine = BeginDrag(settings);
         var moved = engine.Update(Frame(leftX: 0.004f, leftGrip: 1), 0.1f, settings);
@@ -131,6 +134,103 @@ public class InertiaTests
 
         Assert.Equal(moved, released);
         Assert.False(engine.HasLinearInertia);
+    }
+
+    [Theory]
+    [InlineData(0, false, true, 0.1f)]
+    [InlineData(0.5f, false, true, 0.05f)]
+    [InlineData(1, false, true, 0)]
+    [InlineData(0, true, true, 0)]
+    [InlineData(1, true, false, 0.1f)]
+    public void DragReleaseUsesSuppressionBelowCutoff(float strength, bool fullCut, bool enabled, float step)
+    {
+        var settings = Unfiltered with
+        {
+            InertiaCutoffEnabled = enabled,
+            InertiaFullCutEnabled = fullCut,
+            InertiaSuppressionStrength = strength,
+            DragCutoffMetresPerSecond = 2
+        };
+        var engine = BeginDrag(settings);
+        var held = engine.Update(Frame(leftX: 0.1f, leftGrip: 1), 0.1f, settings);
+        var released = engine.Update(Frame(leftX: 0.1f), 0.1f, settings);
+        Near(new(-step, 0, 0), released.Position - held.Position);
+    }
+
+    [Theory]
+    [InlineData(0, false, true, 0.1f)]
+    [InlineData(0.5f, false, true, 0.05f)]
+    [InlineData(1, false, true, 0)]
+    [InlineData(0, true, true, 0)]
+    [InlineData(1, true, false, 0.1f)]
+    public void TurnReleaseUsesSuppressionBelowCutoff(float strength, bool fullCut, bool enabled, float angle)
+    {
+        var settings = Unfiltered with
+        {
+            InertiaCutoffEnabled = enabled,
+            InertiaFullCutEnabled = fullCut,
+            InertiaSuppressionStrength = strength,
+            TurnCutoffRadiansPerSecond = 2
+        };
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.1f);
+        var engine = BeginTurn(settings);
+        engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
+        var released = engine.Update(Frame(rightRotation: rotation), 0.1f, settings);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.1f - angle), released.Orientation);
+    }
+
+    [Theory]
+    [InlineData(0.5f, true)]
+    [InlineData(0.5f, false)]
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(2, false)]
+    public void ReleaseBelowCutoffHasNoExemptionWhileBoundaryAndAboveRetainIt(float speed, bool drag)
+    {
+        var settings = Unfiltered with
+        {
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 1,
+            TurnCutoffRadiansPerSecond = 1,
+            InertiaDecelerationPerSecond = 2,
+            DecelerationExemptionEnabled = true,
+            DragDecelerationExemptionDurationRatio = 1,
+            TurnDecelerationExemptionDurationRatio = 1,
+            DecelerationExemptionStrength = 1
+        };
+        var engine = drag ? BeginDrag(settings) : BeginTurn(settings);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, speed * 0.1f);
+        engine.Update(drag ? Frame(leftX: speed * 0.1f, leftGrip: 1)
+            : Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
+        var held = engine.Offset;
+        var frame = drag ? Frame(leftX: speed * 0.1f) : Frame(rightRotation: rotation);
+        var released = engine.Update(frame, 0.1f, settings);
+        var continued = engine.Update(frame, 0.1f, settings);
+        float releaseSpeed = speed < 1 ? speed * speed : speed;
+        float nextStep = releaseSpeed * 0.1f * (speed < 1 ? MathF.Exp(-0.2f) : 1);
+        if (drag)
+        {
+            Near(new(-releaseSpeed * 0.1f, 0, 0), released.Position - held.Position);
+            Near(new(-nextStep, 0, 0), continued.Position - released.Position);
+        }
+        else
+        {
+            Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -speed * 0.1f - releaseSpeed * 0.1f - nextStep),
+                continued.Orientation);
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0.5f, 0.5f)]
+    [InlineData(2, 1)]
+    [InlineData(float.NaN, 0.5f)]
+    [InlineData(float.PositiveInfinity, 0.5f)]
+    public void SuppressionStrengthIsNormalized(float value, float expected)
+    {
+        Assert.Equal(expected, new FlightMotionSettings { InertiaSuppressionStrength = value }
+            .Normalized().InertiaSuppressionStrength);
     }
 
     [Fact]
@@ -622,7 +722,8 @@ public class InertiaTests
         var settings = Unfiltered with
         {
             InertiaCutoffEnabled = true,
-            TurnCutoffRadiansPerSecond = MathF.PI / 36
+            TurnCutoffRadiansPerSecond = MathF.PI / 36,
+            InertiaFullCutEnabled = true
         };
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.005f);
         var engine = BeginTurn(settings);

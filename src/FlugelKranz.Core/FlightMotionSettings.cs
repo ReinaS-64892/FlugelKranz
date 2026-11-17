@@ -19,6 +19,8 @@ public sealed record FlightMotionSettings
     public TurnOrigin TurnOrigin { get; init; } = TurnOrigin.TrackedElementsMidpoint;
     public float TurnOriginHeadWeightMultiplier { get; init; } = 2.5f;
     public bool InertiaCutoffEnabled { get; init; } = true;
+    public bool InertiaFullCutEnabled { get; init; }
+    public float InertiaSuppressionStrength { get; init; } = 0.5f;
     public float DragCutoffMetresPerSecond { get; init; } = 0.4f;
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;
@@ -44,6 +46,8 @@ public sealed record FlightMotionSettings
         TurnOriginHeadWeightMultiplier = float.IsFinite(TurnOriginHeadWeightMultiplier)
             ? Math.Clamp(TurnOriginHeadWeightMultiplier, 1, 4) : Default.TurnOriginHeadWeightMultiplier,
         DragCutoffMetresPerSecond = Math.Clamp(DragCutoffMetresPerSecond, 0, 5),
+        InertiaSuppressionStrength = float.IsFinite(InertiaSuppressionStrength)
+            ? Math.Clamp(InertiaSuppressionStrength, 0, 1) : Default.InertiaSuppressionStrength,
         TurnCutoffRadiansPerSecond = Math.Clamp(TurnCutoffRadiansPerSecond, 0, MathF.PI * 4),
         DragAccelerationMultiplier = Math.Clamp(DragAccelerationMultiplier, 0, 5),
         TurnAccelerationMultiplier = Math.Clamp(TurnAccelerationMultiplier, 0, 5),

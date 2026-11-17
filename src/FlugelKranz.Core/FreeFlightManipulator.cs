@@ -512,14 +512,16 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     private void FinishDrag(RigidPose head, ManipulationHands releasedHands, FlightMotionSettings settings)
     {
-        bool hasUsableAcceleration = dragVelocity.LengthSquared() > 0.0000000001f &&
-            (!settings.InertiaCutoffEnabled || dragVelocity.Length() >= settings.DragCutoffMetresPerSecond);
+        bool belowCutoff = settings.InertiaCutoffEnabled &&
+            dragVelocity.Length() < settings.DragCutoffMetresPerSecond;
+        var releaseVelocity = SuppressReleaseVelocity(dragVelocity, settings.DragCutoffMetresPerSecond, settings);
+        bool hasUsableAcceleration = releaseVelocity.LengthSquared() > 0.0000000001f;
         if (hasUsableAcceleration)
         {
             // dragVelocity is in root space. Apply the reference-space rotation
             // to the physical HMD orientation before comparing their directions.
             var headInRoot = Quaternion.Normalize(Offset.Orientation * head.Orientation);
-            var acceleration = ApplyDragAcceleration(dragVelocity, headInRoot, settings);
+            var acceleration = ApplyDragAcceleration(releaseVelocity, headInRoot, settings);
             if (releasedHands == ManipulationHands.Both)
                 acceleration *= settings.TwoHandDragAccelerationMultiplier;
             float speedBeforeBoost = linearInertia.Length();
@@ -535,7 +537,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
             else
                 linearInertia = acceleration;
 
-            linearExemptionSeconds = ExemptionDuration(
+            linearExemptionSeconds = belowCutoff ? 0 : ExemptionDuration(
                 linearInertia.Length(),
                 0.001f,
                 settings.DragDecelerationExemptionDurationRatio,
@@ -571,16 +573,30 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     private void FinishTurn(FlightMotionSettings settings)
     {
-        if (settings.InertiaCutoffEnabled && turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond)
-            angularInertia = Vector3.Zero;
-        else
-            angularInertia = turnVelocity * settings.TurnAccelerationMultiplier;
+        bool belowCutoff = settings.InertiaCutoffEnabled &&
+            turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond;
+        angularInertia = SuppressReleaseVelocity(turnVelocity, settings.TurnCutoffRadiansPerSecond, settings)
+            * settings.TurnAccelerationMultiplier;
 
-        angularExemptionSeconds = ExemptionDuration(
+        angularExemptionSeconds = belowCutoff ? 0 : ExemptionDuration(
             angularInertia.Length(),
             MathF.PI / 1800,
             settings.TurnDecelerationExemptionDurationRatio,
             settings);
+    }
+
+    private static Vector3 SuppressReleaseVelocity(Vector3 velocity, float cutoff, FlightMotionSettings settings)
+    {
+        float speed = velocity.Length();
+        if (!settings.InertiaCutoffEnabled || speed >= cutoff)
+            return velocity;
+        if (settings.InertiaFullCutEnabled || settings.InertiaSuppressionStrength >= 1)
+            return Vector3.Zero;
+
+        // Multiplying the original velocity preserves its root-space direction.
+        // The resulting speed is cutoff * (speed / cutoff)^(1 / (1 - strength)).
+        float exponent = settings.InertiaSuppressionStrength / (1 - settings.InertiaSuppressionStrength);
+        return velocity * MathF.Pow(speed / cutoff, exponent);
     }
 
     private static void ApplyDeceleration(

@@ -201,6 +201,11 @@ public sealed class MainView(MainViewModel vm) : ViewBase<MainViewModel>(vm)
             Header("自由飛行 — 慣性カットオフ"),
             Row("有効", new CheckBox().IsChecked(model, x => x.InertiaCutoffEnabled),
                 ResetButton(model, x => x.ResetInertiaCutoffEnabledCommand)),
+            Row("慣性完全カット", new CheckBox().IsChecked(model, x => x.InertiaFullCutEnabled),
+                ResetButton(model, x => x.ResetInertiaFullCutCommand)),
+            Row(model, x => x.InertiaSuppressionLabel, new Slider().Minimum(0).Maximum(1).TickFrequency(0.01)
+                    .Value(model, x => x.InertiaSuppressionStrength),
+                ResetButton(model, x => x.ResetInertiaSuppressionCommand)),
             Row(model, x => x.DragCutoffLabel, new Slider().Minimum(0).Maximum(50).TickFrequency(0.5)
                     .Value(model, x => x.DragCutoffCentimetresPerSecond),
                 ResetButton(model, x => x.ResetDragCutoffCommand)),
