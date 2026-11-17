@@ -27,6 +27,7 @@ public class FreeFlightManipulatorTests
         InertiaAccelerationBoostEnabled = false,
         DragAccelerationMultiplier = 0,
         TurnAccelerationMultiplier = 0,
+        TwoHandTurnAccelerationMultiplier = 0,
         DragSmoothSeconds = 0,
         TurnSmoothSeconds = 0
     };

@@ -23,6 +23,7 @@ public sealed record FlightMotionSettings
     public float TurnCutoffRadiansPerSecond { get; init; } = MathF.PI / 4;
     public float DragAccelerationMultiplier { get; init; } = 1;
     public float TurnAccelerationMultiplier { get; init; } = 0.3f;
+    public float TwoHandTurnAccelerationMultiplier { get; init; } = 1;
     public float TwoHandDragAccelerationMultiplier { get; init; } = 1.5f;
     public float ZAccelerationMultiplier { get; init; } = 2;
     public bool InertiaAccelerationBoostEnabled { get; init; } = true;
@@ -47,6 +48,8 @@ public sealed record FlightMotionSettings
         TurnCutoffRadiansPerSecond = Math.Clamp(TurnCutoffRadiansPerSecond, 0, MathF.PI * 4),
         DragAccelerationMultiplier = Math.Clamp(DragAccelerationMultiplier, 0, 5),
         TurnAccelerationMultiplier = Math.Clamp(TurnAccelerationMultiplier, 0, 5),
+        TwoHandTurnAccelerationMultiplier = float.IsFinite(TwoHandTurnAccelerationMultiplier)
+            ? Math.Clamp(TwoHandTurnAccelerationMultiplier, 0, 5) : Default.TwoHandTurnAccelerationMultiplier,
         TwoHandDragAccelerationMultiplier = Math.Clamp(TwoHandDragAccelerationMultiplier, 1, 4),
         ZAccelerationMultiplier = Math.Clamp(ZAccelerationMultiplier, 1, 5),
         InertiaAccelerationBoostMaximumMultiplier = Math.Clamp(InertiaAccelerationBoostMaximumMultiplier, 1, 6),

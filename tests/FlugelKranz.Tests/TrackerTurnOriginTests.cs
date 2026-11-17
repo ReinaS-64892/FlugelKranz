@@ -16,7 +16,8 @@ public class TrackerTurnOriginTests
         DragSmoothSeconds = 0,
         TurnSmoothSeconds = 0,
         DragAccelerationMultiplier = 0,
-        TurnAccelerationMultiplier = 0
+        TurnAccelerationMultiplier = 0,
+        TwoHandTurnAccelerationMultiplier = 0
     };
 
     [Theory]

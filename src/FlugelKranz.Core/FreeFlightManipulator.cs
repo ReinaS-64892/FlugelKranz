@@ -16,6 +16,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
             InertiaAccelerationBoostEnabled = false,
             DragAccelerationMultiplier = 0,
             TurnAccelerationMultiplier = 0,
+            TwoHandTurnAccelerationMultiplier = 0,
             DragSmoothSeconds = 0,
             TurnSmoothSeconds = 0
         };
@@ -105,7 +106,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
         {
             useTwoHandTurnPivotForInertia = hands.Turn.Previous == ManipulationHands.Both;
             if (HandsUsable(frame, hands.Turn.Previous))
-                FinishTurn(settings);
+                FinishTurn(hands.Turn.Previous, settings);
             else
                 CancelTurn();
             // Keep the presented rotation when Turn ends, including while Drag
@@ -570,12 +571,14 @@ public sealed class FreeFlightManipulator : ManipulationMode
         return lateralVelocity + forwardVelocity * zMultiplier;
     }
 
-    private void FinishTurn(FlightMotionSettings settings)
+    private void FinishTurn(ManipulationHands releasedHands, FlightMotionSettings settings)
     {
         if (settings.InertiaCutoffEnabled && turnVelocity.Length() < settings.TurnCutoffRadiansPerSecond)
             angularInertia = Vector3.Zero;
         else
-            angularInertia = turnVelocity * settings.TurnAccelerationMultiplier;
+            angularInertia = turnVelocity * (releasedHands == ManipulationHands.Both
+                ? settings.TwoHandTurnAccelerationMultiplier
+                : settings.TurnAccelerationMultiplier);
 
         angularExemptionSeconds = ExemptionDuration(
             angularInertia.Length(),

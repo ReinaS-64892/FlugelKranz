@@ -20,6 +20,7 @@ public class FreeFlightSmoothingTests
         DecelerationExemptionEnabled = false,
         ZAccelerationMultiplier = 1,
         TurnAccelerationMultiplier = 0,
+        TwoHandTurnAccelerationMultiplier = 0,
         VectorRotationMultiplier = 0
     };
 

@@ -12,6 +12,7 @@ public class FreeFlightPoleTurnTests
         InertiaCutoffEnabled = false,
         InertiaDecelerationPerSecond = 0,
         TurnAccelerationMultiplier = 0,
+        TwoHandTurnAccelerationMultiplier = 0,
         TurnSmoothSeconds = 0,
         DragSmoothSeconds = 0,
         BrakeRampSeconds = 0,
@@ -97,7 +98,7 @@ public class FreeFlightPoleTurnTests
     [InlineData(0.2f)]
     public void ReleasingOneHandUsesRawSwingVelocityAndRequiresRegrip(float smoothSeconds)
     {
-        var settings = Settings with { TurnSmoothSeconds = smoothSeconds, TurnAccelerationMultiplier = 0.3f };
+        var settings = Settings with { TurnSmoothSeconds = smoothSeconds, TurnAccelerationMultiplier = 4, TwoHandTurnAccelerationMultiplier = 0.3f };
         var engine = Armed(RigidPose.Identity, settings);
         engine.Update(Frame(Vector3.UnitX, Quaternion.Identity), 0.01f, settings);
         var swing = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.1f);
@@ -155,7 +156,7 @@ public class FreeFlightPoleTurnTests
     [Fact]
     public void AddingSecondHandRebasesPoleAndStationaryReleaseDoesNotAccelerate()
     {
-        var settings = Settings with { TurnAccelerationMultiplier = 1 };
+        var settings = Settings with { TwoHandTurnAccelerationMultiplier = 1 };
         var engine = Armed(RigidPose.Identity, settings);
         var one = Frame(Vector3.UnitX, Quaternion.Identity);
         one = one with { Left = one.Left with { Turn = 0 } };
@@ -176,5 +177,44 @@ public class FreeFlightPoleTurnTests
         var released = engine.Update(moved with { Left = moved.Left with { Turn = 0 } }, 0.01f, settings);
         Assert.True(rotated.NearlyEquals(released));
         Assert.False(engine.HasAngularInertia);
+    }
+
+    [Theory]
+    [InlineData(true, 0, false)]
+    [InlineData(true, 1, false)]
+    [InlineData(true, 2.5f, false)]
+    [InlineData(true, 2.5f, true)]
+    [InlineData(false, 0, false)]
+    [InlineData(false, 2.5f, false)]
+    public void TurnReleaseUsesOnlyTheMultiplierForItsHandCount(bool both, float multiplier, bool releaseOnlyLeft)
+    {
+        var settings = Settings with
+        {
+            TurnAccelerationMultiplier = 0.2f,
+            TwoHandTurnAccelerationMultiplier = multiplier
+        };
+        var engine = Armed(RigidPose.Identity, settings);
+        var frame = Frame(Vector3.UnitX, Quaternion.Identity);
+        if (!both)
+            frame = frame with { Left = frame.Left with { Turn = 0 } };
+        engine.Update(frame, 0.01f, settings);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.1f);
+        frame = frame with
+        {
+            Left = frame.Left with { Pose = frame.Left.Pose with { Orientation = rotation } },
+            Right = frame.Right with { Pose = frame.Right.Pose with { Orientation = rotation } }
+        };
+        var before = engine.Update(frame, 0.01f, settings);
+        Near(Quaternion.Conjugate(rotation), before.Orientation);
+        var released = frame with
+        {
+            Left = frame.Left with { Turn = 0 },
+            Right = frame.Right with { Turn = releaseOnlyLeft ? 1 : 0 }
+        };
+        var after = engine.Update(released, 0.01f, settings);
+        float appliedMultiplier = both ? multiplier : 0.2f;
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -0.1f * appliedMultiplier) * before.Orientation, after.Orientation);
+        Assert.Equal(appliedMultiplier > 0, engine.HasAngularInertia);
+        Assert.False(engine.IsTurning);
     }
 }

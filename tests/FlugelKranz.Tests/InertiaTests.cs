@@ -29,6 +29,7 @@ public class InertiaTests
         Assert.Equal(MathF.PI / 4, settings.TurnCutoffRadiansPerSecond);
         Assert.Equal(1, settings.DragAccelerationMultiplier);
         Assert.Equal(0.3f, settings.TurnAccelerationMultiplier);
+        Assert.Equal(1, settings.TwoHandTurnAccelerationMultiplier);
         Assert.Equal(1.5f, settings.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, settings.ZAccelerationMultiplier);
         Assert.True(settings.InertiaAccelerationBoostEnabled);
@@ -42,6 +43,21 @@ public class InertiaTests
         Assert.Equal(0.01f, settings.DragSmoothSeconds);
         Assert.Equal(0.05f, settings.TurnSmoothSeconds);
         Assert.Equal(0.4f, settings.BrakeRampSeconds);
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(2.5f, 2.5f)]
+    [InlineData(6, 5)]
+    [InlineData(float.NaN, 1)]
+    [InlineData(float.PositiveInfinity, 1)]
+    public void TwoHandTurnAccelerationIsNormalized(float value, float expected)
+    {
+        Assert.Equal(expected, new FlightMotionSettings
+        {
+            TwoHandTurnAccelerationMultiplier = value
+        }.Normalized().TwoHandTurnAccelerationMultiplier);
     }
 
     [Theory]

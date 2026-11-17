@@ -98,6 +98,7 @@ public class MainViewTests
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.3, vm.TurnAccelerationMultiplier);
+        Assert.Equal(1, vm.TwoHandTurnAccelerationMultiplier);
         Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
@@ -160,7 +161,16 @@ public class MainViewTests
             Assert.True(settingsLayoutCenter.Value.Y < toggleLayoutCenter.Value.Y);
             Assert.True(toggleLayoutCenter.Value.Y < resetLayoutCenter.Value.Y);
             var sliders = window.GetVisualDescendants().OfType<Slider>().ToArray();
-            Assert.Equal(25, sliders.Length);
+            Assert.Equal(26, sliders.Length);
+            vm.TwoHandTurnAccelerationMultiplier = 2.75;
+            var twoHandTurnSlider = Assert.Single(sliders, slider => slider.Value == 2.75);
+            Assert.Equal(0, twoHandTurnSlider.Minimum);
+            Assert.Equal(5, twoHandTurnSlider.Maximum);
+            twoHandTurnSlider.Value = 4;
+            Assert.Equal(4, vm.TwoHandTurnAccelerationMultiplier);
+            Assert.Equal(0.3, vm.TurnAccelerationMultiplier);
+            vm.ResetTwoHandTurnAccelerationCommand.Execute(null);
+            Assert.Equal(1, twoHandTurnSlider.Value);
             var headWeightSlider = sliders.First(slider => slider.Minimum == 1 && slider.Maximum == 4);
             headWeightSlider.Value = 3;
             Assert.Equal(3, vm.TurnOriginHeadWeightMultiplier);
@@ -300,6 +310,7 @@ public class MainViewTests
                 first.UseHeadTurnOrigin = true;
                 first.DragCutoffCentimetresPerSecond = 12.5;
                 first.TurnAccelerationMultiplier = 1.25;
+                first.TwoHandTurnAccelerationMultiplier = 2.75;
                 first.TwoHandDragAccelerationMultiplier = 3.5;
                 first.ZAccelerationMultiplier = 4.25;
                 first.InertiaAccelerationBoostEnabled = false;
@@ -318,6 +329,7 @@ public class MainViewTests
             Assert.True(second.UseHeadTurnOrigin);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
             Assert.Equal(1.25, second.TurnAccelerationMultiplier);
+            Assert.Equal(2.75, second.TwoHandTurnAccelerationMultiplier);
             Assert.Equal(3.5, second.TwoHandDragAccelerationMultiplier);
             Assert.Equal(4.25, second.ZAccelerationMultiplier);
             Assert.False(second.InertiaAccelerationBoostEnabled);
@@ -366,6 +378,7 @@ public class MainViewTests
             await using (var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
+                Assert.Equal(1, vm.TwoHandTurnAccelerationMultiplier);
                 Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
                 Assert.Equal(1.2, vm.InfiniteWalkingBoostMultiplier);
                 Assert.True(vm.ToeTurnOriginEnabled);
@@ -375,6 +388,8 @@ public class MainViewTests
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
             Assert.Equal(2.5, document.RootElement.GetProperty("freeFlight")
                 .GetProperty("turnOriginHeadWeightMultiplier").GetDouble());
+            Assert.Equal(1, document.RootElement.GetProperty("freeFlight")
+                .GetProperty("twoHandTurnAccelerationMultiplier").GetDouble());
             Assert.Equal(1.5, document.RootElement.GetProperty("freeFlight")
                 .GetProperty("twoHandDragAccelerationMultiplier").GetDouble());
         }
@@ -403,6 +418,7 @@ public class MainViewTests
 
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
+            Assert.Equal(1, vm.TwoHandTurnAccelerationMultiplier);
             Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
             Assert.Equal(2.5, vm.TurnOriginHeadWeightMultiplier);
             using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
@@ -426,6 +442,8 @@ public class MainViewTests
         vm.DragCutoffCentimetresPerSecond = 12;
         vm.TurnCutoffDegreesPerSecond = 123;
         vm.TwoHandDragAccelerationMultiplier = 4;
+        vm.TurnAccelerationMultiplier = 2;
+        vm.TwoHandTurnAccelerationMultiplier = 4;
         vm.ZAccelerationMultiplier = 4;
         vm.InertiaAccelerationBoostEnabled = false;
         vm.InertiaAccelerationBoostMaximumMultiplier = 3;
@@ -440,6 +458,7 @@ public class MainViewTests
 
         vm.ResetDragCutoffCommand.Execute(null);
         vm.ResetTwoHandDragAccelerationCommand.Execute(null);
+        vm.ResetTwoHandTurnAccelerationCommand.Execute(null);
         vm.ResetZAccelerationCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostEnabledCommand.Execute(null);
         vm.ResetInertiaAccelerationBoostMaximumMultiplierCommand.Execute(null);
@@ -453,6 +472,8 @@ public class MainViewTests
 
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(123, vm.TurnCutoffDegreesPerSecond);
+        Assert.Equal(2, vm.TurnAccelerationMultiplier);
+        Assert.Equal(1, vm.TwoHandTurnAccelerationMultiplier);
         Assert.Equal(1.5, vm.TwoHandDragAccelerationMultiplier);
         Assert.Equal(2, vm.ZAccelerationMultiplier);
         Assert.True(vm.InertiaAccelerationBoostEnabled);
