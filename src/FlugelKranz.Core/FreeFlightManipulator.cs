@@ -525,7 +525,9 @@ public sealed class FreeFlightManipulator : ManipulationMode
             if (releasedHands == ManipulationHands.Both)
                 acceleration *= settings.TwoHandDragAccelerationMultiplier;
             float speedBeforeBoost = linearInertia.Length();
-            if (dragAccelerationBoostActive && speedBeforeBoost > 0.0000000001f)
+            if (belowCutoff)
+                linearInertia += acceleration;
+            else if (dragAccelerationBoostActive && speedBeforeBoost > 0.0000000001f)
             {
                 var boosted = linearInertia + acceleration;
                 float boostReferenceSpeed = MathF.Max(speedBeforeBoost, acceleration.Length());

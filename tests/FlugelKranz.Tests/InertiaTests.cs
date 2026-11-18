@@ -519,6 +519,55 @@ public class InertiaTests
         Assert.True(engine.HasLinearInertia);
     }
 
+    [Theory]
+    [InlineData(false, 0, false)]
+    [InlineData(true, 0, false)]
+    [InlineData(false, 0.5f, false)]
+    [InlineData(true, 0.5f, false)]
+    [InlineData(false, 1, false)]
+    [InlineData(true, 1, false)]
+    [InlineData(false, 0, true)]
+    [InlineData(true, 0, true)]
+    public void DragReleaseBelowCutoffAddsToResidualInertiaWithoutDecelerationExemption(
+        bool boostEnabled, float suppressionStrength, bool fullCut)
+    {
+        var settings = Unfiltered with
+        {
+            InertiaAccelerationBoostEnabled = boostEnabled,
+            InertiaCutoffEnabled = true,
+            DragCutoffMetresPerSecond = 0.4f,
+            InertiaSuppressionStrength = suppressionStrength,
+            InertiaFullCutEnabled = fullCut,
+            BrakeRampSeconds = 1,
+            DragAccelerationMultiplier = 2,
+            DecelerationExemptionEnabled = true,
+            DragDecelerationExemptionDurationRatio = 1,
+            DecelerationExemptionStrength = 1
+        };
+        var engine = BeginDrag(settings);
+        engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        engine.Update(Frame(leftX: 1), 0.1f, settings);
+        var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
+        // Opposing and perpendicular components must both be added as vectors.
+        var movement = new Vector3(-0.02f, 0.01f, 0);
+        var position = Vector3.UnitX + movement;
+        var moved = engine.Update(Frame(position, leftGrip: 1), 0.1f, settings);
+        var residualVelocity = (moved.Position - regripped.Position + movement) / 0.1f;
+        var releaseVelocity = -movement / 0.1f;
+        float suppression = fullCut || suppressionStrength == 1 ? 0
+            : MathF.Pow(releaseVelocity.Length() / settings.DragCutoffMetresPerSecond,
+                suppressionStrength / (1 - suppressionStrength));
+        var expectedVelocity = residualVelocity
+            + releaseVelocity * suppression * settings.DragAccelerationMultiplier;
+        var releaseSettings = settings with { InertiaDecelerationPerSecond = 2 };
+
+        var released = engine.Update(Frame(position), 0.1f, releaseSettings);
+        var continued = engine.Update(Frame(position), 0.1f, releaseSettings);
+
+        Near(expectedVelocity * 0.1f, released.Position - moved.Position);
+        Near(expectedVelocity * MathF.Exp(-0.2f) * 0.1f, continued.Position - released.Position);
+    }
+
     [Fact]
     public void InertiaAccelerationBoostUsesControllerSpeedAndCapsAddedAcceleration()
     {
