@@ -11,7 +11,7 @@ internal sealed class FlightSession
     private readonly FlightInputGestures gestures = new();
     private FlightMode? inputModeOverride;
     private RigidPose? previousReferenceSpaceOffset;
-    private int tick;
+    private double statusElapsedSeconds = 0.1;
 
     public FlightSession(IFlightRuntime runtime, IProgress<FlightStatus> progress, FlugelKranzSettings settings)
     {
@@ -61,8 +61,14 @@ internal sealed class FlightSession
                 runtime.Apply(offset);
         }
 
-        if (tick++ % 10 == 0)
+        // Keep the UI notification rate independent of the XR frame rate.
+        if (float.IsFinite(elapsedSeconds) && elapsedSeconds > 0)
+            statusElapsedSeconds += elapsedSeconds;
+        if (statusElapsedSeconds >= 0.1)
+        {
             ReportStatus(frame, enabled);
+            statusElapsedSeconds = 0;
+        }
     }
 
     private void Select(FlightMode selection, bool enabled, InputFrame frame, FlugelKranzSettings settings)

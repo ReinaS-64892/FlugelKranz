@@ -57,15 +57,24 @@ internal static class Program
                 using var runtime = new MonadoFlightRuntime(MonadoLibraryPath);
                 for (int i = 0; i < 200; i++)
                 {
-                    var frame = runtime.ReadPhysical();
-                    if (frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
+                    bool frameStarted = runtime.WaitFrame();
+                    try
                     {
-                        Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
-                        Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
-                        Console.WriteLine($"つま先逆補正 API: {(runtime.TrackerRotationOffsetsSupported ? "対応" : "非対応（つま先逆補正は無効）")}");
-                        return 0;
+                        var frame = runtime.ReadPhysical();
+                        if (frameStarted && frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
+                        {
+                            Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
+                            Console.WriteLine($"フレーム待機: xrWaitFrame、予測表示周期: {runtime.FramePeriodNanoseconds / 1_000_000.0:F3} ms ({1_000_000_000.0 / runtime.FramePeriodNanoseconds:F2} Hz)。描画レイヤー: 0。");
+                            Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
+                            Console.WriteLine($"つま先逆補正 API: {(runtime.TrackerRotationOffsetsSupported ? "対応" : "非対応（つま先逆補正は無効）")}");
+                            return 0;
+                        }
                     }
-                    Thread.Sleep(10);
+                    finally
+                    {
+                        if (frameStarted) runtime.EndFrame();
+                    }
+                    if (!frameStarted) Thread.Sleep(10);
                 }
                 Console.Error.WriteLine("接続できましたが、HMD・両手の有効な入力を確認できませんでした。");
                 return 1;

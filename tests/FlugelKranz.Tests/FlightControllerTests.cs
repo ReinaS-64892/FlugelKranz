@@ -8,6 +8,43 @@ namespace FlugelKranz.Tests;
 public class FlightControllerTests
 {
     [Fact]
+    public async Task PacedRuntimeUsesFrameTimeForGesturesAndEndsEveryFrameBeforeWaitingAgain()
+    {
+        var runtime = new PacedRuntime { Frame = ModeFrame(1) };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.Equal(["wait", "end", "wait", "end", "wait"], runtime.Calls);
+        Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight && status.Message.Contains("切り替え"));
+        Assert.Equal(2, runtime.Reads);
+    }
+
+    [Fact]
+    public async Task InputFailureStillEndsTheBegunFrameBeforeRestoringAndDisposing()
+    {
+        var runtime = new PacedRuntime { ThrowOnRead = true };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.Equal(["wait", "end"], runtime.Calls);
+        Assert.True(runtime.Restores > 0);
+    }
+
+    [Fact]
+    public async Task StatusNotificationsFollowElapsedTimeInsteadOfFrameCount()
+    {
+        var runtime = new PacedRuntime { MaximumFrames = 26, FrameElapsedSeconds = 0.004f };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.Equal(26, runtime.Reads);
+        Assert.Equal(2, progress.Statuses.Count(status => status.Connected));
+    }
+
+    [Fact]
     public async Task TrackerReleaseUpdatesRuntimeWhileSpaceIsStationaryAndOffClearsCorrections()
     {
         var runtime = new RotationRuntime();
@@ -334,6 +371,21 @@ public class FlightControllerTests
             Apply(offset);
             Volatile.Write(ref rotations, value.ToArray());
         }
+    }
+
+    private sealed class PacedRuntime : FakeRuntime, IFramePacedFlightRuntime
+    {
+        public List<string> Calls { get; } = [];
+        public float FrameElapsedSeconds { get; init; } = 0.6f;
+        public int MaximumFrames { get; init; } = 2;
+        private int waits;
+        public bool WaitFrame()
+        {
+            Calls.Add("wait");
+            if (++waits > MaximumFrames) throw new IOException("finished");
+            return true;
+        }
+        public void EndFrame() => Calls.Add("end");
     }
 
     private class FakeRuntime : IFlightRuntime, IHapticFeedback

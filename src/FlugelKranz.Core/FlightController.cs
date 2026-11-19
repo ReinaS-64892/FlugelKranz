@@ -17,6 +17,14 @@ public interface ITrackerRotationRuntime
     void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations);
 }
 
+/// <summary>Optional runtime pacing. A successful wait begins a frame that the caller must end.</summary>
+public interface IFramePacedFlightRuntime
+{
+    bool WaitFrame();
+    float FrameElapsedSeconds { get; }
+    void EndFrame();
+}
+
 public interface IReferenceSpaceOffsetProvider
 {
     RigidPose ReferenceSpaceOffset { get; }
@@ -113,29 +121,42 @@ public sealed class FlightController(
                 (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized());
             long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
+            var pacedRuntime = runtime as IFramePacedFlightRuntime;
             while (!shutdown.IsCancellationRequested)
             {
-                var frame = runtime.ReadPhysical();
-                long timestamp = Stopwatch.GetTimestamp();
-                float elapsedSeconds = (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
-                previousTimestamp = timestamp;
-                var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
-                lock (gate)
+                bool frameStarted = pacedRuntime?.WaitFrame() ?? false;
+                try
                 {
-                    if (observedVersion != releaseVersion)
+                    shutdown.Token.ThrowIfCancellationRequested();
+                    var frame = runtime.ReadPhysical();
+                    long timestamp = Stopwatch.GetTimestamp();
+                    float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
+                        : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
+                    previousTimestamp = timestamp;
+                    var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
+                    lock (gate)
                     {
-                        session.Release();
-                        observedVersion = releaseVersion;
+                        if (observedVersion != releaseVersion)
+                        {
+                            session.Release();
+                            observedVersion = releaseVersion;
+                        }
+                        if (resetRequested)
+                        {
+                            session.Reset();
+                            resetRequested = false;
+                        }
+                        session.Update(frame, elapsedSeconds, settings, enabled);
+                        reportedMode = session.Mode;
                     }
-                    if (resetRequested)
-                    {
-                        session.Reset();
-                        resetRequested = false;
-                    }
-                    session.Update(frame, elapsedSeconds, settings, enabled);
-                    reportedMode = session.Mode;
                 }
-                await Task.Delay(10, shutdown.Token).ConfigureAwait(false);
+                finally
+                {
+                    if (frameStarted) pacedRuntime!.EndFrame();
+                }
+                // Only idle/unpaced runtimes need a software delay. A running
+                // OpenXR session is paced exclusively by xrWaitFrame.
+                if (!frameStarted) await Task.Delay(10, shutdown.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }

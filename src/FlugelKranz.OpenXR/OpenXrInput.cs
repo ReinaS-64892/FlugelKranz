@@ -7,7 +7,7 @@ using static Evergine.Bindings.OpenXR.OpenXRNative;
 
 namespace FlugelKranz.OpenXR;
 
-/// <summary>A non-rendering OpenXR input client; never requests primary/focused status from libmonado.</summary>
+/// <summary>An empty OpenXR overlay; never requests primary/focused status from libmonado.</summary>
 public sealed unsafe class OpenXrInput : IDisposable
 {
     private readonly Func<ValveIndexInputSettings> getValveIndexSettings;
@@ -21,11 +21,14 @@ public sealed unsafe class OpenXrInput : IDisposable
     private bool steamFrameSupported;
     private bool trackerSpacesSupported;
     private OpenXrTrackers? trackers;
-    private delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult> convertTime;
+    private OpenXrVulkanGraphics? graphics;
+    private OpenXrFrameLoop? frames;
     public string ApplicationName { get; } = $"FlugelKranz-{Environment.ProcessId}";
     public string RuntimeName { get; private set; } = "";
     public bool TrackerSpacesSupported => trackers is not null;
     public int TrackerRevision => trackers?.Revision ?? 0;
+    public float FrameElapsedSeconds => frames?.ElapsedSeconds ?? 0;
+    public long FramePeriodNanoseconds => frames?.DisplayPeriod ?? 0;
 
     private sealed class Hand(bool isLeft)
     {
@@ -35,10 +38,6 @@ public sealed unsafe class OpenXrInput : IDisposable
         public XrAction FrameDrag, FrameTurn, FrameReset;
         public XrSpace Space;
     }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Timespec { public long Seconds, Nanoseconds; }
-    [DllImport("libc", SetLastError = true)] private static extern int clock_gettime(int clockId, out Timespec time);
 
     public OpenXrInput(Func<ValveIndexInputSettings>? getValveIndexSettings = null)
     {
@@ -53,19 +52,33 @@ public sealed unsafe class OpenXrInput : IDisposable
             if (!RuntimeName.Contains("Monado", StringComparison.OrdinalIgnoreCase)
                 && !RuntimeName.Contains("WiVRn", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException($"Monado / WiVRn の OpenXR ランタイムを指定してください（検出: {RuntimeName}）。");
-            nint timeFunction = 0;
-            fixed (byte* name = "xrConvertTimespecTimeToTimeKHR\0"u8)
-                Check(xrGetInstanceProcAddr(instance, name, (nint)(&timeFunction)), "OpenXR 時刻変換の取得");
-            if (timeFunction == 0) throw new NotSupportedException("OpenXR 時刻変換が利用できません。");
-            convertTime = (delegate* unmanaged[Cdecl]<XrInstance, Timespec*, long*, XrResult>)timeFunction;
-
             var systemInfo = new XrSystemGetInfo { type = XrStructureType.XR_TYPE_SYSTEM_GET_INFO, formFactor = XrFormFactor.XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY };
             XrSystemId system;
             Check(xrGetSystem(instance, &systemInfo, &system), "HMD の取得");
-            var sessionInfo = new XrSessionCreateInfo { type = XrStructureType.XR_TYPE_SESSION_CREATE_INFO, systemId = system };
+            graphics = new(instance, system);
+            var overlay = new XrSessionCreateInfoOverlayEXTX
+            {
+                type = XrStructureType.XR_TYPE_SESSION_CREATE_INFO_OVERLAY_EXTX,
+                createFlags = 0, sessionLayersPlacement = 0
+            };
+            var binding = graphics.Binding;
+            binding.next = &overlay;
+            var sessionInfo = new XrSessionCreateInfo
+            {
+                type = XrStructureType.XR_TYPE_SESSION_CREATE_INFO, systemId = system, next = &binding
+            };
             XrSession createdSession;
-            Check(xrCreateSession(instance, &sessionInfo, &createdSession), "描画なしセッションの作成");
+            Check(xrCreateSession(instance, &sessionInfo, &createdSession), "空のオーバーレイセッションの作成");
             session = createdSession;
+            uint blendModeCount;
+            Check(xrEnumerateEnvironmentBlendModes(instance, system,
+                XrViewConfigurationType.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &blendModeCount, null), "表示合成モードの列挙");
+            if (blendModeCount == 0) throw new NotSupportedException("OpenXR の表示合成モードがありません。");
+            var blendModes = new XrEnvironmentBlendMode[blendModeCount];
+            fixed (XrEnvironmentBlendMode* modes = blendModes)
+                Check(xrEnumerateEnvironmentBlendModes(instance, system,
+                    XrViewConfigurationType.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, blendModeCount, &blendModeCount, modes), "表示合成モードの取得");
+            frames = new(new NativeOpenXrFrameApi(session, blendModes[0]));
             stage = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_STAGE);
             view = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_VIEW);
             if (trackerSpacesSupported && XdevSpaceApi.SupportsSystem(instance, system))
@@ -87,16 +100,16 @@ public sealed unsafe class OpenXrInput : IDisposable
             Check(xrEnumerateInstanceExtensionProperties(null, count, &count, p), "OpenXR 拡張の取得");
             for (int i = 0; i < count; i++) extensions.Add(Marshal.PtrToStringUTF8((nint)p[i].extensionName)!);
         }
-        foreach (var required in new[] { "XR_MND_headless", "XR_KHR_convert_timespec_time" })
+        foreach (var required in new[] { "XR_EXTX_overlay", "XR_KHR_vulkan_enable2" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
         steamFrameSupported = extensions.Contains(ControllerInputMapping.SteamFrameExtension);
         trackerSpacesSupported = extensions.Contains(OpenXrTrackers.ExtensionName);
-        fixed (byte* headless = "XR_MND_headless\0"u8)
-        fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
+        fixed (byte* overlay = "XR_EXTX_overlay\0"u8)
+        fixed (byte* vulkan = "XR_KHR_vulkan_enable2\0"u8)
         fixed (byte* frame = Encoding.UTF8.GetBytes(ControllerInputMapping.SteamFrameExtension + '\0'))
         fixed (byte* tracker = Encoding.UTF8.GetBytes(OpenXrTrackers.ExtensionName + '\0'))
         {
-            byte** names = stackalloc byte*[4] { headless, time, null, null };
+            byte** names = stackalloc byte*[4] { overlay, vulkan, null, null };
             uint extensionCount = 2;
             if (steamFrameSupported) names[extensionCount++] = frame;
             if (trackerSpacesSupported) names[extensionCount++] = tracker;
@@ -238,18 +251,26 @@ public sealed unsafe class OpenXrInput : IDisposable
         Check(xrSuggestInteractionProfileBindings(instance, &info), "Steam Frame の入力設定");
     }
 
-    public InputFrame Read()
+    public bool WaitFrame()
     {
         PollEvents();
-        if (!running || state != XrSessionState.XR_SESSION_STATE_FOCUSED) return default;
+        if (!running) return false;
+        frames!.Begin();
+        return true;
+    }
+
+    public void EndFrame() => frames?.End();
+
+    public InputFrame Read()
+    {
+        if (!running || frames is null || frames.DisplayTime <= 0
+            || state != XrSessionState.XR_SESSION_STATE_FOCUSED) return default;
         var active = new XrActiveActionSet { actionSet = actionSet };
         var sync = new XrActionsSyncInfo { type = XrStructureType.XR_TYPE_ACTIONS_SYNC_INFO, countActiveActionSets = 1, activeActionSets = &active };
         var result = xrSyncActions(session, &sync);
         if (result == XrResult.XR_SESSION_NOT_FOCUSED) return default;
         Check(result, "入力の同期");
-        if (clock_gettime(1, out var now) != 0) throw new InvalidOperationException("単調増加時計を取得できません。");
-        long time;
-        Check(convertTime(instance, &now, &time), "OpenXR 時刻の変換");
+        long time = frames.DisplayTime;
         var (head, tracked) = Locate(view, time);
         var valveIndexSettings = getValveIndexSettings().Normalized();
         return new(
@@ -470,6 +491,8 @@ public sealed unsafe class OpenXrInput : IDisposable
         if (view != XrSpace.Null) { xrDestroySpace(view); view = XrSpace.Null; }
         if (stage != XrSpace.Null) { xrDestroySpace(stage); stage = XrSpace.Null; }
         if (session != XrSession.Null) { xrDestroySession(session); session = XrSession.Null; }
+        graphics?.Dispose();
+        graphics = null;
         if (actionSet != XrActionSet.Null) { xrDestroyActionSet(actionSet); actionSet = XrActionSet.Null; }
         if (instance != XrInstance.Null) { xrDestroyInstance(instance); instance = XrInstance.Null; }
     }
