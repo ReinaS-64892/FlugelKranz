@@ -78,7 +78,7 @@ public sealed unsafe class OpenXrInput : IDisposable
             fixed (XrEnvironmentBlendMode* modes = blendModes)
                 Check(xrEnumerateEnvironmentBlendModes(instance, system,
                     XrViewConfigurationType.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, blendModeCount, &blendModeCount, modes), "表示合成モードの取得");
-            frames = new(new NativeOpenXrFrameApi(session, blendModes[0]));
+            frames = new(new NativeOpenXrFrameApi(session, blendModes[0]), new OpenXrClock(instance));
             stage = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_STAGE);
             view = CreateReference(XrReferenceSpaceType.XR_REFERENCE_SPACE_TYPE_VIEW);
             if (trackerSpacesSupported && XdevSpaceApi.SupportsSystem(instance, system))
@@ -100,17 +100,18 @@ public sealed unsafe class OpenXrInput : IDisposable
             Check(xrEnumerateInstanceExtensionProperties(null, count, &count, p), "OpenXR 拡張の取得");
             for (int i = 0; i < count; i++) extensions.Add(Marshal.PtrToStringUTF8((nint)p[i].extensionName)!);
         }
-        foreach (var required in new[] { "XR_EXTX_overlay", "XR_KHR_vulkan_enable2" })
+        foreach (var required in new[] { "XR_EXTX_overlay", "XR_KHR_vulkan_enable2", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
         steamFrameSupported = extensions.Contains(ControllerInputMapping.SteamFrameExtension);
         trackerSpacesSupported = extensions.Contains(OpenXrTrackers.ExtensionName);
         fixed (byte* overlay = "XR_EXTX_overlay\0"u8)
         fixed (byte* vulkan = "XR_KHR_vulkan_enable2\0"u8)
+        fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
         fixed (byte* frame = Encoding.UTF8.GetBytes(ControllerInputMapping.SteamFrameExtension + '\0'))
         fixed (byte* tracker = Encoding.UTF8.GetBytes(OpenXrTrackers.ExtensionName + '\0'))
         {
-            byte** names = stackalloc byte*[4] { overlay, vulkan, null, null };
-            uint extensionCount = 2;
+            byte** names = stackalloc byte*[5] { overlay, vulkan, time, null, null };
+            uint extensionCount = 3;
             if (steamFrameSupported) names[extensionCount++] = frame;
             if (trackerSpacesSupported) names[extensionCount++] = tracker;
             var info = new XrInstanceCreateInfo
@@ -260,6 +261,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     }
 
     public void EndFrame() => frames?.End();
+    public void WaitForApply(CancellationToken cancellationToken) => frames!.WaitForApply(cancellationToken);
 
     public InputFrame Read()
     {
@@ -270,7 +272,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         var result = xrSyncActions(session, &sync);
         if (result == XrResult.XR_SESSION_NOT_FOCUSED) return default;
         Check(result, "入力の同期");
-        long time = frames.DisplayTime;
+        long time = frames.CaptureInputTime();
         var (head, tracked) = Locate(view, time);
         var valveIndexSettings = getValveIndexSettings().Normalized();
         return new(
@@ -480,6 +482,15 @@ public sealed unsafe class OpenXrInput : IDisposable
     {
         if ((int)result < 0) throw new InvalidOperationException($"{operation}に失敗しました（OpenXR: {result}）。");
         if (result == XrResult.XR_SESSION_LOSS_PENDING) throw new InvalidOperationException("OpenXR セッションの接続が失われます。");
+    }
+
+    internal static nint GetFunction(XrInstance instance, string name)
+    {
+        nint function = 0;
+        fixed (byte* utf8 = Encoding.UTF8.GetBytes(name + '\0'))
+            Check(xrGetInstanceProcAddr(instance, utf8, (nint)(&function)), $"{name} の取得");
+        if (function == 0) throw new NotSupportedException($"{name} が利用できません。");
+        return function;
     }
 
     public void Dispose()

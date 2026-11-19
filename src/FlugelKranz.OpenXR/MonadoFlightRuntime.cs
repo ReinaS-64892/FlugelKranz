@@ -7,8 +7,9 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
 {
     private readonly MonadoFlightConnection monado;
     private readonly OpenXrInput input;
+    private readonly FrameOffsetWriter writes;
     public RigidPose OriginalOffset => monado.OriginalOffset;
-    public RigidPose CurrentOffset => monado.CurrentOffset;
+    public RigidPose CurrentOffset => writes.CurrentOffset;
     public RigidPose ReferenceSpaceOffset => monado.CurrentReferenceSpaceOffset;
     public bool TrackerRotationOffsetsSupported => monado.TrackerRotationOffsetsSupported;
     public bool TrackerSpacesSupported => input.TrackerSpacesSupported;
@@ -23,14 +24,25 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
         try
         {
             input = new(getValveIndexSettings);
+            writes = new(() => monado.CurrentOffset, monado.Apply, input.WaitForApply);
             try { monado.VerifyClient(input.ApplicationName); }
             catch { input.Dispose(); throw; }
         }
         catch { monado.Dispose(); throw; }
     }
 
-    public bool WaitFrame() => input.WaitFrame();
-    public void EndFrame() => input.EndFrame();
+    public bool WaitFrame()
+    {
+        if (!input.WaitFrame()) return false;
+        writes.Begin();
+        return true;
+    }
+    public void CommitFrame(CancellationToken cancellationToken) => writes.Commit(cancellationToken);
+    public void EndFrame()
+    {
+        writes.End();
+        input.EndFrame();
+    }
 
     public InputFrame ReadPhysical()
     {
@@ -39,9 +51,14 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
         monado.RefreshTrackers(input.TrackerRevision);
         return monado.ToPhysical(frame);
     }
-    public void Apply(RigidPose offset) => monado.Apply(offset);
-    public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations) => monado.Apply(offset, rotations);
-    public void Restore() => monado.Restore();
+    public void Apply(RigidPose offset) => writes.Apply(offset, []);
+    public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations) => writes.Apply(offset, rotations);
+    public void Restore()
+    {
+        if (!writes.FrameActive) { monado.Restore(); return; }
+        monado.VerifyUnchanged();
+        writes.Apply(OriginalOffset, []);
+    }
     public void SendHapticPulse(float durationSeconds, float frequencyHz, float amplitude) =>
         input.SendHapticPulse(durationSeconds, frequencyHz, amplitude);
     public void Dispose() { input.Dispose(); monado.Dispose(); }

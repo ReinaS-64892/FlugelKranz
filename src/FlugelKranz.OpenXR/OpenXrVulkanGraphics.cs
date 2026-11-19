@@ -87,15 +87,6 @@ internal sealed unsafe class OpenXrVulkanGraphics : IDisposable
         catch { Dispose(); throw; }
     }
 
-    internal static nint GetFunction(XrInstance instance, string name)
-    {
-        nint function = 0;
-        fixed (byte* utf8 = System.Text.Encoding.UTF8.GetBytes(name + '\0'))
-            Check(xrGetInstanceProcAddr(instance, utf8, (nint)(&function)), $"{name} の取得");
-        if (function == 0) throw new NotSupportedException($"{name} が利用できません。");
-        return function;
-    }
-
     private static void CheckVulkan(int result, string operation)
     {
         if (result != 0) throw new InvalidOperationException($"{operation}に失敗しました（Vulkan: {result}）。");

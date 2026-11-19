@@ -22,6 +22,7 @@ public interface IFramePacedFlightRuntime
 {
     bool WaitFrame();
     float FrameElapsedSeconds { get; }
+    void CommitFrame(CancellationToken cancellationToken);
     void EndFrame();
 }
 
@@ -149,6 +150,9 @@ public sealed class FlightController(
                         session.Update(frame, elapsedSeconds, settings, enabled);
                         reportedMode = session.Mode;
                     }
+                    // Complete all computation first. Publish the staged update
+                    // at the runtime deadline without holding the UI/state lock.
+                    if (frameStarted) pacedRuntime!.CommitFrame(shutdown.Token);
                 }
                 finally
                 {

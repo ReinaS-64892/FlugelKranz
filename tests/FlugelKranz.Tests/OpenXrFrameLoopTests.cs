@@ -10,29 +10,60 @@ public class OpenXrFrameLoopTests
     public void InvisibleFramesStillWaitBeginAndEndAtThePredictedDisplayTime()
     {
         var api = new FakeFrameApi();
-        var loop = new OpenXrFrameLoop(api);
+        var loop = new OpenXrFrameLoop(api, new FakeClock());
         loop.Begin();
         Assert.Equal(["wait", "begin"], api.Calls);
         Assert.Equal(1_000_000_000, loop.DisplayTime);
         Assert.Equal(11_111_111, loop.DisplayPeriod);
-        Assert.Equal(0.011111111f, loop.ElapsedSeconds, 6);
+        Assert.Equal(900_000_000, loop.CaptureInputTime());
+        Assert.Equal(0, loop.ElapsedSeconds);
         loop.End();
         loop.End();
         Assert.Equal(["wait", "begin", "end:1000000000"], api.Calls);
     }
 
     [Fact]
-    public void SimulationUsesDisplayTimeDifferencesAcrossRateChangesAndMissedFrames()
+    public void SimulationUsesActualInputTimesDespitePredictionJumpsAndRateChanges()
     {
         var api = new FakeFrameApi();
-        var loop = new OpenXrFrameLoop(api);
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(api, clock);
         loop.Begin();
+        Assert.Equal(clock.Now, loop.CaptureInputTime());
         loop.End();
         api.DisplayTime += 25_000_000;
         api.Period = 8_333_333;
+        clock.Now += 10_000_000;
         loop.Begin();
-        Assert.Equal(0.025f, loop.ElapsedSeconds, 6);
+        Assert.Equal(clock.Now, loop.CaptureInputTime());
+        Assert.Equal(0.010f, loop.ElapsedSeconds, 6);
         Assert.Equal(8_333_333, loop.DisplayPeriod);
+        loop.End();
+    }
+
+    [Theory]
+    [InlineData(11_111_111, 1_005_555_555)]
+    [InlineData(8_333_333, 1_004_166_666)]
+    public void ApplicationDeadlineIsHalfAPeriodAfterThePredictedDisplay(long period, long expected)
+    {
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(new FakeFrameApi { Period = period }, clock);
+        loop.Begin();
+        loop.CaptureInputTime();
+        loop.WaitForApply(CancellationToken.None);
+        Assert.Equal(expected, Assert.Single(clock.Deadlines));
+        loop.End();
+    }
+
+    [Fact]
+    public void ADeadlineMissDoesNotAddAnotherPeriodOrChangeTheTarget()
+    {
+        var clock = new FakeClock { Now = 2_000_000_000 };
+        var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
+        loop.Begin();
+        loop.WaitForApply(CancellationToken.None);
+        Assert.Equal(1_005_555_555, Assert.Single(clock.Deadlines));
+        Assert.Equal(2_000_000_000, clock.Now);
         loop.End();
     }
 
@@ -40,7 +71,7 @@ public class OpenXrFrameLoopTests
     public void ASecondWaitCannotOverwriteAnUnfinishedFrame()
     {
         var api = new FakeFrameApi();
-        var loop = new OpenXrFrameLoop(api);
+        var loop = new OpenXrFrameLoop(api, new FakeClock());
         loop.Begin();
         Assert.Throws<InvalidOperationException>(loop.Begin);
         loop.End();
@@ -54,7 +85,7 @@ public class OpenXrFrameLoopTests
     public void InvalidRuntimeTimingFailsInsteadOfRunningAnUnpacedLoop(long time, long period)
     {
         var api = new FakeFrameApi { DisplayTime = time, Period = period };
-        var loop = new OpenXrFrameLoop(api);
+        var loop = new OpenXrFrameLoop(api, new FakeClock());
         Assert.Throws<InvalidOperationException>(loop.Begin);
         Assert.Equal(["wait"], api.Calls);
     }
@@ -63,10 +94,22 @@ public class OpenXrFrameLoopTests
     public void NonIncreasingPredictedDisplayTimesAreRejected()
     {
         var api = new FakeFrameApi();
-        var loop = new OpenXrFrameLoop(api);
+        var loop = new OpenXrFrameLoop(api, new FakeClock());
         loop.Begin();
         loop.End();
         Assert.Throws<InvalidOperationException>(loop.Begin);
+    }
+
+    private sealed class FakeClock : IOpenXrClock
+    {
+        public long Now { get; set; } = 900_000_000;
+        public List<long> Deadlines { get; } = [];
+        public void WaitUntil(long time, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Deadlines.Add(time);
+            Now = Math.Max(Now, time);
+        }
     }
 
     private sealed class FakeFrameApi : IOpenXrFrameApi

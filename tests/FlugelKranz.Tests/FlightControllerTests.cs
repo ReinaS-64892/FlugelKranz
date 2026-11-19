@@ -15,7 +15,7 @@ public class FlightControllerTests
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "end", "wait", "end", "wait"], runtime.Calls);
+        Assert.Equal(["wait", "commit", "end", "wait", "commit", "end", "wait"], runtime.Calls);
         Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight && status.Message.Contains("切り替え"));
         Assert.Equal(2, runtime.Reads);
     }
@@ -384,6 +384,11 @@ public class FlightControllerTests
             Calls.Add("wait");
             if (++waits > MaximumFrames) throw new IOException("finished");
             return true;
+        }
+        public void CommitFrame(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Calls.Add("commit");
         }
         public void EndFrame() => Calls.Add("end");
     }

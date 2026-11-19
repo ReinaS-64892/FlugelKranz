@@ -11,10 +11,11 @@ internal interface IOpenXrFrameApi
 }
 
 /// <summary>Pairs every begun frame with an empty submission, including failed input updates.</summary>
-internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api)
+internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
 {
     private bool active;
     private long previousDisplayTime;
+    private long previousInputTime;
     public long DisplayTime { get; private set; }
     public long DisplayPeriod { get; private set; }
     public float ElapsedSeconds { get; private set; }
@@ -30,8 +31,26 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api)
         active = true;
         DisplayTime = frame.predictedDisplayTime;
         DisplayPeriod = frame.predictedDisplayPeriod;
-        ElapsedSeconds = (previousDisplayTime == 0 ? DisplayPeriod : DisplayTime - previousDisplayTime) / 1_000_000_000f;
         previousDisplayTime = DisplayTime;
+    }
+
+    public long CaptureInputTime()
+    {
+        if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
+        long time = clock.Now;
+        if (time <= 0 || (previousInputTime > 0 && time < previousInputTime))
+            throw new InvalidOperationException("OpenXR の入力取得時刻が不正です。");
+        ElapsedSeconds = previousInputTime == 0 ? 0 : (time - previousInputTime) / 1_000_000_000f;
+        previousInputTime = time;
+        return time;
+    }
+
+    public void WaitForApply(CancellationToken cancellationToken)
+    {
+        if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
+        // Intentionally use this input in a later frame. The predicted display
+        // phase schedules writes only; it is never a pose sampling timestamp.
+        clock.WaitUntil(checked(DisplayTime + DisplayPeriod / 2), cancellationToken);
     }
 
     public void End()
