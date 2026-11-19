@@ -28,7 +28,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     public bool TrackerSpacesSupported => trackers is not null;
     public int TrackerRevision => trackers?.Revision ?? 0;
     public float FrameElapsedSeconds => frames?.ElapsedSeconds ?? 0;
-    public long FramePeriodNanoseconds => frames?.DisplayPeriod ?? 0;
+    public long FramePeriodNanoseconds => frames?.UpdatePeriod ?? 0;
 
     private sealed class Hand(bool isLeft)
     {

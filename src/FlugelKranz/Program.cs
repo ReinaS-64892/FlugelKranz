@@ -65,8 +65,8 @@ internal static class Program
                         if (frameStarted && frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
                         {
                             Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
-                            Console.WriteLine($"フレーム待機: xrWaitFrame、予測表示周期: {runtime.FramePeriodNanoseconds / 1_000_000.0:F3} ms ({1_000_000_000.0 / runtime.FramePeriodNanoseconds:F2} Hz)。描画レイヤー: 0。");
-                            Console.WriteLine("入力取得: 現在時刻。反映目標: 予測表示時刻 + 半周期（遅延反映）。");
+                            Console.WriteLine($"フレーム待機: xrWaitFrame、更新周期: {runtime.FramePeriodNanoseconds / 1_000_000.0:F3} ms ({1_000_000_000.0 / runtime.FramePeriodNanoseconds:F2} Hz、初回はランタイム値、以降は復帰間隔の実測)。描画レイヤー: 0。");
+                            Console.WriteLine("入力取得: 現在時刻。反映目標: xrWaitFrame 復帰時刻 + 更新周期の半分。");
                             Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
                             Console.WriteLine($"つま先逆補正 API: {(runtime.TrackerRotationOffsetsSupported ? "対応" : "非対応（つま先逆補正は無効）")}");
                             return 0;

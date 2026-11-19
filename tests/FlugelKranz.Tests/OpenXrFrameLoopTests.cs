@@ -42,9 +42,9 @@ public class OpenXrFrameLoopTests
     }
 
     [Theory]
-    [InlineData(11_111_111, 1_005_555_555)]
-    [InlineData(8_333_333, 1_004_166_666)]
-    public void ApplicationDeadlineIsHalfAPeriodAfterThePredictedDisplay(long period, long expected)
+    [InlineData(11_111_111, 905_555_555)]
+    [InlineData(8_333_333, 904_166_666)]
+    public void ApplicationDeadlineIsHalfAPeriodAfterTheActualWaitReturn(long period, long expected)
     {
         var clock = new FakeClock();
         var loop = new OpenXrFrameLoop(new FakeFrameApi { Period = period }, clock);
@@ -58,13 +58,91 @@ public class OpenXrFrameLoopTests
     [Fact]
     public void ADeadlineMissDoesNotAddAnotherPeriodOrChangeTheTarget()
     {
-        var clock = new FakeClock { Now = 2_000_000_000 };
+        var clock = new FakeClock();
         var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
         loop.Begin();
+        clock.Now = 2_000_000_000; // Computation overran the fixed write deadline.
         loop.WaitForApply(CancellationToken.None);
-        Assert.Equal(1_005_555_555, Assert.Single(clock.Deadlines));
+        Assert.Equal(905_555_555, Assert.Single(clock.Deadlines));
         Assert.Equal(2_000_000_000, clock.Now);
         loop.End();
+    }
+
+    [Theory]
+    [InlineData(33_333_333)]
+    [InlineData(100_000_000)]
+    [InlineData(1_000_000_000)]
+    public void WirelessPredictionLeadDoesNotReduceTheUpdateRate(long predictionLead)
+    {
+        const long period = 11_111_111;
+        var clock = new FakeClock();
+        var api = new FakeFrameApi();
+        var loop = new OpenXrFrameLoop(api, clock);
+        for (int i = 0; i < 20; i++)
+        {
+            long wakeTime = 900_000_000 + i * period;
+            clock.Now = wakeTime;
+            api.DisplayTime = wakeTime + predictionLead;
+            loop.Begin();
+            loop.CaptureInputTime();
+            loop.WaitForApply(CancellationToken.None);
+            Assert.Equal(wakeTime + period / 2, clock.Now);
+            loop.End();
+        }
+        Assert.Equal(20, clock.Deadlines.Count);
+    }
+
+    [Fact]
+    public void BeginProcessingTimeDoesNotShiftTheWriteDeadline()
+    {
+        var clock = new FakeClock();
+        var api = new FakeFrameApi { OnBegin = () => clock.Now += 3_000_000 };
+        var loop = new OpenXrFrameLoop(api, clock);
+        loop.Begin();
+        loop.CaptureInputTime();
+        loop.WaitForApply(CancellationToken.None);
+        Assert.Equal(905_555_555, Assert.Single(clock.Deadlines));
+        loop.End();
+    }
+
+    [Fact]
+    public void TheSecondFrameUsesTheMeasuredCadenceInsteadOfTheReportedPeriod()
+    {
+        var clock = new FakeClock();
+        var api = new FakeFrameApi();
+        var loop = new OpenXrFrameLoop(api, clock);
+        loop.Begin();
+        Assert.Equal(api.Period, loop.UpdatePeriod);
+        loop.End();
+        clock.Now += 8_000_000;
+        api.DisplayTime += 100_000_000; // Prediction lead changed, not the update cadence.
+        loop.Begin();
+        Assert.Equal(8_000_000, loop.UpdatePeriod);
+        loop.WaitForApply(CancellationToken.None);
+        Assert.Equal(912_000_000, Assert.Single(clock.Deadlines));
+        loop.End();
+    }
+
+    [Fact]
+    public void OneLateFrameDoesNotStretchTheWritePhaseAndSustainedRateChangesAreFollowed()
+    {
+        var clock = new FakeClock();
+        var api = new FakeFrameApi();
+        var loop = new OpenXrFrameLoop(api, clock);
+        void Next(long interval)
+        {
+            clock.Now += interval;
+            api.DisplayTime += 100_000_000;
+            loop.Begin();
+            loop.End();
+        }
+        loop.Begin();
+        loop.End();
+        for (int i = 0; i < 5; i++) Next(11_111_111);
+        Next(50_000_000);
+        Assert.Equal(11_111_111, loop.UpdatePeriod);
+        for (int i = 0; i < 3; i++) Next(8_333_333);
+        Assert.Equal(8_333_333, loop.UpdatePeriod);
     }
 
     [Fact]
@@ -115,13 +193,18 @@ public class OpenXrFrameLoopTests
     private sealed class FakeFrameApi : IOpenXrFrameApi
     {
         public long DisplayTime = 1_000_000_000, Period = 11_111_111;
+        public Action? OnBegin;
         public List<string> Calls { get; } = [];
         public XrFrameState Wait()
         {
             Calls.Add("wait");
             return new() { predictedDisplayTime = DisplayTime, predictedDisplayPeriod = Period, shouldRender = false };
         }
-        public void Begin() => Calls.Add("begin");
+        public void Begin()
+        {
+            Calls.Add("begin");
+            OnBegin?.Invoke();
+        }
         public void End(long displayTime) => Calls.Add($"end:{displayTime}");
     }
 }

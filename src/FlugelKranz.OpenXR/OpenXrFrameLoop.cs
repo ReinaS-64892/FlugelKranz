@@ -16,22 +16,51 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
     private bool active;
     private long previousDisplayTime;
     private long previousInputTime;
+    private long applyTime;
+    private long previousWakeTime;
+    private readonly long[] wakeIntervals = new long[5];
+    private int intervalCount, intervalIndex;
     public long DisplayTime { get; private set; }
     public long DisplayPeriod { get; private set; }
+    public long UpdatePeriod { get; private set; }
     public float ElapsedSeconds { get; private set; }
 
     public void Begin()
     {
         if (active) throw new InvalidOperationException("前の OpenXR フレームが終了していません。");
         var frame = api.Wait();
+        long wakeTime = clock.Now;
         if (frame.predictedDisplayTime <= 0 || frame.predictedDisplayPeriod <= 0
             || (previousDisplayTime > 0 && frame.predictedDisplayTime <= previousDisplayTime))
             throw new InvalidOperationException("OpenXR が不正なフレーム時刻・周期を返しました。");
+        // The display timestamp can be several frames ahead on a wireless
+        // runtime. Anchor the write phase to the actual wait return instead.
+        UpdatePeriod = MeasurePeriod(wakeTime, frame.predictedDisplayPeriod);
+        applyTime = checked(wakeTime + UpdatePeriod / 2);
         api.Begin();
         active = true;
         DisplayTime = frame.predictedDisplayTime;
         DisplayPeriod = frame.predictedDisplayPeriod;
         previousDisplayTime = DisplayTime;
+    }
+
+    private long MeasurePeriod(long wakeTime, long initialPeriod)
+    {
+        if (previousWakeTime > 0 && wakeTime > previousWakeTime)
+        {
+            wakeIntervals[intervalIndex] = wakeTime - previousWakeTime;
+            intervalIndex = (intervalIndex + 1) % wakeIntervals.Length;
+            intervalCount = Math.Min(intervalCount + 1, wakeIntervals.Length);
+        }
+        previousWakeTime = wakeTime;
+        if (intervalCount == 0) return initialPeriod;
+        Span<long> samples = stackalloc long[5];
+        wakeIntervals.AsSpan(0, intervalCount).CopyTo(samples);
+        samples = samples[..intervalCount];
+        samples.Sort();
+        // Median rejects isolated late/catch-up frames without moving the
+        // deadline to a predicted presentation timestamp.
+        return samples[intervalCount / 2];
     }
 
     public long CaptureInputTime()
@@ -48,9 +77,7 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
     public void WaitForApply(CancellationToken cancellationToken)
     {
         if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
-        // Intentionally use this input in a later frame. The predicted display
-        // phase schedules writes only; it is never a pose sampling timestamp.
-        clock.WaitUntil(checked(DisplayTime + DisplayPeriod / 2), cancellationToken);
+        clock.WaitUntil(applyTime, cancellationToken);
     }
 
     public void End()
