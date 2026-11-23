@@ -261,6 +261,7 @@ public sealed unsafe class OpenXrInput : IDisposable
     }
 
     public void EndFrame() => frames?.End();
+    public bool WaitForMidFrameUpdate(CancellationToken cancellationToken) => frames!.WaitForMidFrameUpdate(cancellationToken);
     public void WaitForApply(CancellationToken cancellationToken) => frames!.WaitForApply(cancellationToken);
 
     public InputFrame Read()

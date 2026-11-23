@@ -17,6 +17,8 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
     private long previousDisplayTime;
     private long previousInputTime;
     private long applyTime;
+    private long frameDeadline;
+    private bool midFrameVisited;
     private long previousWakeTime;
     private readonly long[] wakeIntervals = new long[5];
     private int intervalCount, intervalIndex;
@@ -37,6 +39,8 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
         // runtime. Anchor the write phase to the actual wait return instead.
         UpdatePeriod = MeasurePeriod(wakeTime, frame.predictedDisplayPeriod);
         applyTime = checked(wakeTime + UpdatePeriod / 2);
+        frameDeadline = checked(wakeTime + UpdatePeriod);
+        midFrameVisited = false;
         api.Begin();
         active = true;
         DisplayTime = frame.predictedDisplayTime;
@@ -78,6 +82,19 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
     {
         previousInputTime = 0;
         ElapsedSeconds = 0;
+    }
+
+    public bool WaitForMidFrameUpdate(CancellationToken cancellationToken)
+    {
+        if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
+        cancellationToken.ThrowIfCancellationRequested();
+        if (midFrameVisited) return false;
+        midFrameVisited = true;
+        // Skip a stale extra pass rather than bunching samples after an overrun.
+        if (clock.Now >= frameDeadline) return false;
+        clock.WaitUntil(applyTime, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return clock.Now < frameDeadline;
     }
 
     public void WaitForApply(CancellationToken cancellationToken)

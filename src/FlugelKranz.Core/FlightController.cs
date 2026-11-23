@@ -22,6 +22,8 @@ public interface IFramePacedFlightRuntime
 {
     bool WaitFrame();
     float FrameElapsedSeconds { get; }
+    /// <summary>Waits for one additional input/computation pass; never publishes offsets.</summary>
+    bool WaitForMidFrameUpdate(CancellationToken cancellationToken);
     void CommitFrame(CancellationToken cancellationToken);
     void EndFrame();
 }
@@ -123,33 +125,40 @@ public sealed class FlightController(
             long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
             var pacedRuntime = runtime as IFramePacedFlightRuntime;
+            void Update(bool frameStarted)
+            {
+                shutdown.Token.ThrowIfCancellationRequested();
+                var frame = runtime.ReadPhysical();
+                long timestamp = Stopwatch.GetTimestamp();
+                float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
+                    : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
+                previousTimestamp = timestamp;
+                var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
+                lock (gate)
+                {
+                    if (observedVersion != releaseVersion)
+                    {
+                        session.Release();
+                        observedVersion = releaseVersion;
+                    }
+                    if (resetRequested)
+                    {
+                        session.Reset();
+                        resetRequested = false;
+                    }
+                    session.Update(frame, elapsedSeconds, settings, enabled);
+                    reportedMode = session.Mode;
+                }
+            }
+
             while (!shutdown.IsCancellationRequested)
             {
                 bool frameStarted = pacedRuntime?.WaitFrame() ?? false;
                 try
                 {
-                    shutdown.Token.ThrowIfCancellationRequested();
-                    var frame = runtime.ReadPhysical();
-                    long timestamp = Stopwatch.GetTimestamp();
-                    float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
-                        : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
-                    previousTimestamp = timestamp;
-                    var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
-                    lock (gate)
-                    {
-                        if (observedVersion != releaseVersion)
-                        {
-                            session.Release();
-                            observedVersion = releaseVersion;
-                        }
-                        if (resetRequested)
-                        {
-                            session.Reset();
-                            resetRequested = false;
-                        }
-                        session.Update(frame, elapsedSeconds, settings, enabled);
-                        reportedMode = session.Mode;
-                    }
+                    Update(frameStarted);
+                    if (frameStarted && pacedRuntime!.WaitForMidFrameUpdate(shutdown.Token))
+                        Update(true);
                     // Complete all computation first. Publish the staged update
                     // at the runtime deadline without holding the UI/state lock.
                     if (frameStarted) pacedRuntime!.CommitFrame(shutdown.Token);

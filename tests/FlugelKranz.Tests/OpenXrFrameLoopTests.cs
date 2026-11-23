@@ -1,5 +1,7 @@
 using Evergine.Bindings.OpenXR;
 using FlugelKranz.OpenXR;
+using FlugelKranz.Core;
+using System.Numerics;
 using Xunit;
 
 namespace FlugelKranz.Tests;
@@ -196,15 +198,96 @@ public class OpenXrFrameLoopTests
         Assert.Throws<InvalidOperationException>(loop.Begin);
     }
 
+    [Theory]
+    [InlineData(13_888_888)]
+    [InlineData(11_111_111)]
+    [InlineData(8_333_333)]
+    public void TwoInputSamplesShareOneFrameAndUseActualHalfPeriodIntervals(long period)
+    {
+        var api = new FakeFrameApi { Period = period };
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(api, clock);
+        loop.Begin();
+        long first = loop.CaptureInputTime();
+        Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        Assert.Equal(first + period / 2, loop.CaptureInputTime());
+        Assert.Equal(period / 2 / 1_000_000_000f, loop.ElapsedSeconds);
+        Assert.False(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        loop.WaitForApply(CancellationToken.None);
+        loop.End();
+        Assert.Equal(["wait", "begin", "end:1000000000"], api.Calls);
+    }
+
+    [Theory]
+    [InlineData(6_000_000, true)]
+    [InlineData(11_111_111, false)]
+    [InlineData(50_000_000, false)]
+    public void LateComputationNeverAddsACatchUpBurst(long delay, bool expected)
+    {
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
+        loop.Begin();
+        clock.Now += delay;
+        Assert.Equal(expected, loop.WaitForMidFrameUpdate(CancellationToken.None));
+        Assert.False(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        Assert.Equal(900_000_000 + delay, clock.Now);
+        loop.End();
+    }
+
+    [Fact]
+    public void OversleepSkipsTheExtraSampleAndCancellationStillAllowsEndingTheFrame()
+    {
+        var clock = new FakeClock { Oversleep = 30_000_000 };
+        var api = new FakeFrameApi();
+        var loop = new OpenXrFrameLoop(api, clock);
+        loop.Begin();
+        Assert.False(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => loop.WaitForMidFrameUpdate(cancellation.Token));
+        loop.End();
+        Assert.Equal("end:1000000000", api.Calls[^1]);
+    }
+
+    [Fact]
+    public void BothComputationPassesAccumulatePendingMovementWithoutPublishingUntilCommit()
+    {
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
+        var applied = RigidPose.Identity;
+        int publications = 0;
+        var writer = new FrameOffsetWriter(() => applied, (offset, _) =>
+        {
+            applied = offset;
+            publications++;
+        }, loop.WaitForApply);
+        loop.Begin();
+        writer.Begin();
+        for (int pass = 0; pass < 2; pass++)
+        {
+            loop.CaptureInputTime();
+            writer.Apply(writer.CurrentOffset with { Position = writer.CurrentOffset.Position + Vector3.UnitX }, []);
+            Assert.Equal(RigidPose.Identity, applied);
+            Assert.Equal(0, publications);
+            if (pass == 0) Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        }
+        writer.Commit(CancellationToken.None);
+        writer.End();
+        loop.End();
+        Assert.Equal(1, publications);
+        Assert.Equal(2 * Vector3.UnitX, applied.Position);
+    }
+
     private sealed class FakeClock : IOpenXrClock
     {
         public long Now { get; set; } = 900_000_000;
+        public long Oversleep { get; init; }
         public List<long> Deadlines { get; } = [];
         public void WaitUntil(long time, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Deadlines.Add(time);
-            Now = Math.Max(Now, time);
+            Now = Math.Max(Now, time) + Oversleep;
         }
     }
 

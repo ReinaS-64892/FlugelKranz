@@ -15,15 +15,46 @@ public class FlightControllerTests
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "commit", "end", "wait", "commit", "end", "wait", "commit", "end", "wait"], runtime.Calls);
+        Assert.Equal(["wait", "midpoint", "commit", "end", "wait", "midpoint", "commit", "end", "wait", "midpoint", "commit", "end", "wait"], runtime.Calls);
         Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight && status.Message.Contains("切り替え"));
-        Assert.Equal(3, runtime.Reads);
+        Assert.Equal(6, runtime.Reads);
+    }
+
+    [Fact]
+    public async Task APressBeginningBetweenFramesIsObservedByTheAdditionalUpdate()
+    {
+        PacedRuntime? runtime = null;
+        runtime = new PacedRuntime
+        {
+            MaximumFrames = 2,
+            OnMidpoint = () => runtime!.Frame = ModeFrame(1)
+        };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        // Midpoint 1 observes the press, start 2 and midpoint 2 accumulate 1.2s.
+        // With one read per frame this press would still be below the hold threshold.
+        Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight);
+        Assert.Equal(4, runtime.Reads);
+        Assert.Equal(2, runtime.Calls.Count(call => call == "commit"));
+    }
+
+    [Fact]
+    public async Task AStaleMidpointIsSkippedButTheFrameIsStillCommittedAndEnded()
+    {
+        var runtime = new PacedRuntime { MaximumFrames = 1, AdditionalUpdate = false };
+        await using var controller = new FlightController(() => runtime, new Recorder());
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.Equal(1, runtime.Reads);
+        Assert.Equal(["wait", "midpoint", "commit", "end", "wait"], runtime.Calls);
     }
 
     [Fact]
     public async Task FirstObservedPressDoesNotCountThePrecedingLongIntervalAsHeld()
     {
-        var runtime = new PacedRuntime { Frame = ModeFrame(1), MaximumFrames = 1, FrameElapsedSeconds = 1.2f };
+        var runtime = new PacedRuntime { Frame = ModeFrame(1), MaximumFrames = 1, FrameElapsedSeconds = 1.2f, AdditionalUpdate = false };
         var progress = new Recorder();
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
@@ -44,14 +75,27 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task SecondInputFailureEndsTheFrameWithoutCommittingPartialComputation()
+    {
+        PacedRuntime? runtime = null;
+        runtime = new PacedRuntime { OnMidpoint = () => runtime!.ThrowOnRead = true };
+        await using var controller = new FlightController(() => runtime, new Recorder());
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.Equal(["wait", "midpoint", "end"], runtime.Calls);
+        Assert.Equal(2, runtime.Reads);
+        Assert.True(runtime.Restores > 0);
+    }
+
+    [Fact]
     public async Task StatusNotificationsFollowElapsedTimeInsteadOfFrameCount()
     {
-        var runtime = new PacedRuntime { MaximumFrames = 26, FrameElapsedSeconds = 0.004f };
+        var runtime = new PacedRuntime { MaximumFrames = 26, FrameElapsedSeconds = 0.002f };
         var progress = new Recorder();
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(26, runtime.Reads);
+        Assert.Equal(52, runtime.Reads);
         Assert.Equal(2, progress.Statuses.Count(status => status.Connected));
     }
 
@@ -389,7 +433,16 @@ public class FlightControllerTests
         public List<string> Calls { get; } = [];
         public float FrameElapsedSeconds { get; init; } = 0.6f;
         public int MaximumFrames { get; init; } = 2;
+        public bool AdditionalUpdate { get; init; } = true;
+        public Action? OnMidpoint { get; init; }
         private int waits;
+        public bool WaitForMidFrameUpdate(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Calls.Add("midpoint");
+            OnMidpoint?.Invoke();
+            return AdditionalUpdate;
+        }
         public bool WaitFrame()
         {
             Calls.Add("wait");

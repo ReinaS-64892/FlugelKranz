@@ -37,6 +37,7 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
         writes.Begin();
         return true;
     }
+    public bool WaitForMidFrameUpdate(CancellationToken cancellationToken) => input.WaitForMidFrameUpdate(cancellationToken);
     public void CommitFrame(CancellationToken cancellationToken) => writes.Commit(cancellationToken);
     public void EndFrame()
     {
