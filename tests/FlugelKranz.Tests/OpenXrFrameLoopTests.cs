@@ -7,6 +7,24 @@ namespace FlugelKranz.Tests;
 public class OpenXrFrameLoopTests
 {
     [Fact]
+    public void FocusRecoveryStartsWithZeroElapsedTimeInsteadOfCountingTheInactiveGap()
+    {
+        var api = new FakeFrameApi();
+        var clock = new FakeClock();
+        var loop = new OpenXrFrameLoop(api, clock);
+        loop.Begin();
+        loop.CaptureInputTime();
+        loop.End();
+        loop.ResetInputTime();
+        clock.Now += 2_000_000_000;
+        api.DisplayTime += 2_000_000_000;
+        loop.Begin();
+        loop.CaptureInputTime();
+        Assert.Equal(0, loop.ElapsedSeconds);
+        loop.End();
+    }
+
+    [Fact]
     public void InvisibleFramesStillWaitBeginAndEndAtThePredictedDisplayTime()
     {
         var api = new FakeFrameApi();

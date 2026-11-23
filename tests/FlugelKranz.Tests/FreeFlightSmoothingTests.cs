@@ -137,10 +137,12 @@ public class FreeFlightSmoothingTests
         for (int step = 1; step <= 40; step++)
         {
             float progress = step * StepSeconds / settings.BrakeRampSeconds;
-            float factor = 1 - progress * progress * (3 - 2 * progress);
+            float previous = (step - 1) * StepSeconds / settings.BrakeRampSeconds;
+            float integral = settings.BrakeRampSeconds * (progress - progress * progress * progress + 0.5f * MathF.Pow(progress, 4)
+                - previous + previous * previous * previous - 0.5f * MathF.Pow(previous, 4));
             Vector3 before = engine.Offset.Transform(Left);
             var after = engine.Update(Frame(drag: true), StepSeconds, settings);
-            Near(new Vector3(-StepSeconds * factor, 0, 0), after.Transform(Left) - before);
+            Near(new Vector3(-integral, 0, 0), after.Transform(Left) - before);
         }
         Assert.False(engine.HasLinearInertia);
     }

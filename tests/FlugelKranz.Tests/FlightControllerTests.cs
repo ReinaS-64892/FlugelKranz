@@ -10,14 +10,25 @@ public class FlightControllerTests
     [Fact]
     public async Task PacedRuntimeUsesFrameTimeForGesturesAndEndsEveryFrameBeforeWaitingAgain()
     {
-        var runtime = new PacedRuntime { Frame = ModeFrame(1) };
+        var runtime = new PacedRuntime { Frame = ModeFrame(1), MaximumFrames = 3 };
         var progress = new Recorder();
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "commit", "end", "wait", "commit", "end", "wait"], runtime.Calls);
+        Assert.Equal(["wait", "commit", "end", "wait", "commit", "end", "wait", "commit", "end", "wait"], runtime.Calls);
         Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight && status.Message.Contains("切り替え"));
-        Assert.Equal(2, runtime.Reads);
+        Assert.Equal(3, runtime.Reads);
+    }
+
+    [Fact]
+    public async Task FirstObservedPressDoesNotCountThePrecedingLongIntervalAsHeld()
+    {
+        var runtime = new PacedRuntime { Frame = ModeFrame(1), MaximumFrames = 1, FrameElapsedSeconds = 1.2f };
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => runtime.Disposed);
+        Assert.DoesNotContain(progress.Statuses, status => status.Mode == FlightMode.FreeFlight);
     }
 
     [Fact]

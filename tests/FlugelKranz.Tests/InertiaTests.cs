@@ -14,6 +14,7 @@ public class InertiaTests
         InertiaCutoffEnabled = false,
         InertiaAccelerationBoostEnabled = false,
         InertiaDecelerationPerSecond = 0,
+        InertiaStopDisplacementMetres = 0.000001f,
         TurnAccelerationMultiplier = 1,
         DragSmoothSeconds = 0,
         TurnSmoothSeconds = 0
@@ -208,15 +209,16 @@ public class InertiaTests
         var released = engine.Update(frame, 0.1f, settings);
         var continued = engine.Update(frame, 0.1f, settings);
         float releaseSpeed = speed;
-        float nextStep = releaseSpeed * 0.1f * (speed < 1 ? MathF.Exp(-0.2f) : 1);
+        float releaseStep = releaseSpeed * (speed < 1 ? (1 - MathF.Exp(-0.2f)) / 2 : 0.1f);
+        float nextStep = releaseStep * (speed < 1 ? MathF.Exp(-0.2f) : 1);
         if (drag)
         {
-            Near(new(-releaseSpeed * 0.1f, 0, 0), released.Position - held.Position);
+            Near(new(-releaseStep, 0, 0), released.Position - held.Position);
             Near(new(-nextStep, 0, 0), continued.Position - released.Position);
         }
         else
         {
-            Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -speed * 0.1f - releaseSpeed * 0.1f - nextStep),
+            Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -speed * 0.1f - releaseStep - nextStep),
                 continued.Orientation);
         }
     }
@@ -326,7 +328,7 @@ public class InertiaTests
 
         var continued = engine.Update(Frame(leftX: 1), 0.1f, settings);
 
-        Near(new(-2 - MathF.Exp(-0.1f), 0, 0), continued.Position);
+        Near(new(-1 - 10 * (1 - MathF.Exp(-0.2f)), 0, 0), continued.Position);
     }
 
     [Fact]
@@ -485,7 +487,7 @@ public class InertiaTests
 
         var regripped = engine.Update(Frame(leftX: 1, leftGrip: 1), 0.1f, settings);
 
-        Near(new(-2.5f, 0, 0), regripped.Position);
+        Near(new(-2 - 10 * BrakeIntegral(0.1f, 0.2f), 0, 0), regripped.Position);
     }
 
     [Fact]
@@ -552,7 +554,7 @@ public class InertiaTests
         var movement = new Vector3(-0.02f, 0.01f, 0);
         var position = Vector3.UnitX + movement;
         var moved = engine.Update(Frame(position, leftGrip: 1), 0.1f, settings);
-        var residualVelocity = (moved.Position - regripped.Position + movement) / 0.1f;
+        var residualVelocity = new Vector3(-20 * (1 - 0.2f * 0.2f * (3 - 2 * 0.2f)), 0, 0);
         var releaseVelocity = -movement / 0.1f;
         float suppression = fullCut || suppressionStrength == 1 ? 0
             : MathF.Pow(releaseVelocity.Length() / settings.DragCutoffMetresPerSecond,
@@ -564,8 +566,9 @@ public class InertiaTests
         var released = engine.Update(Frame(position), 0.1f, releaseSettings);
         var continued = engine.Update(Frame(position), 0.1f, releaseSettings);
 
-        Near(expectedVelocity * 0.1f, released.Position - moved.Position);
-        Near(expectedVelocity * MathF.Exp(-0.2f) * 0.1f, continued.Position - released.Position);
+        float integral = (1 - MathF.Exp(-0.2f)) / 2;
+        Near(expectedVelocity * integral, released.Position - moved.Position);
+        Near(expectedVelocity * MathF.Exp(-0.2f) * integral, continued.Position - released.Position);
     }
 
     [Fact]
@@ -588,11 +591,12 @@ public class InertiaTests
         var released = engine.Update(Frame(leftX: 2), 0.1f, settings);
 
         float brakeFactor = 1 - 0.1f * 0.1f * (3 - 2 * 0.1f);
-        Near(new(-2 - brakeFactor, 0, 0), regripped.Position);
-        Near(new(-2 - 2 * brakeFactor - 1, 0, 0), moved.Position);
+        float brakeStep = 10 * BrakeIntegral(0.1f, 1);
+        Near(new(-2 - brakeStep, 0, 0), regripped.Position);
+        Near(new(-2 - brakeStep - brakeFactor - 1, 0, 0), moved.Position);
         float residualSpeed = 10 * brakeFactor;
         float maximumBoostedSpeed = MathF.Max(residualSpeed, 10) * 1.5f;
-        Near(new(-2 - 2 * brakeFactor - 1 - maximumBoostedSpeed * 0.1f, 0, 0), released.Position);
+        Near(new(-2 - brakeStep - brakeFactor - 1 - maximumBoostedSpeed * 0.1f, 0, 0), released.Position);
     }
 
     [Fact]
@@ -617,9 +621,10 @@ public class InertiaTests
 
         float residualSpeed = 5 * (1 - 0.1f * 0.1f * (3 - 2 * 0.1f));
         float expectedReleaseSpeed = residualSpeed + 10;
-        Near(new(-1.5f - residualSpeed * 0.1f, 0, 0), regripped.Position);
-        Near(new(-1.5f - 2 * residualSpeed * 0.1f - 1, 0, 0), moved.Position);
-        Near(new(-1.5f - 2 * residualSpeed * 0.1f - 1 - expectedReleaseSpeed * 0.1f, 0, 0), released.Position);
+        float brakeStep = 5 * BrakeIntegral(0.1f, 1);
+        Near(new(-1.5f - brakeStep, 0, 0), regripped.Position);
+        Near(new(-1.5f - brakeStep - residualSpeed * 0.1f - 1, 0, 0), moved.Position);
+        Near(new(-1.5f - brakeStep - residualSpeed * 0.1f - 1 - expectedReleaseSpeed * 0.1f, 0, 0), released.Position);
     }
 
     [Fact]
@@ -641,10 +646,11 @@ public class InertiaTests
         var stopped = engine.Update(Frame(leftX: 2, leftGrip: 1), 0.1f, settings);
 
         float firstBrakeFactor = 1 - 0.1f * 0.1f * (3 - 2 * 0.1f);
-        float secondBrakeFactor = 1 - 0.2f * 0.2f * (3 - 2 * 0.2f);
-        Near(new(-2 - firstBrakeFactor, 0, 0), regripped.Position);
-        Near(new(-2 - 2 * firstBrakeFactor - 1, 0, 0), moved.Position);
-        Near(new(-2 - 2 * firstBrakeFactor - 1 - secondBrakeFactor, 0, 0), stopped.Position);
+        float firstBrakeStep = 10 * BrakeIntegral(0.1f, 1);
+        float secondBrakeStep = 10 * (BrakeIntegral(0.2f, 1) - BrakeIntegral(0.1f, 1));
+        Near(new(-2 - firstBrakeStep, 0, 0), regripped.Position);
+        Near(new(-2 - firstBrakeStep - firstBrakeFactor - 1, 0, 0), moved.Position);
+        Near(new(-2 - firstBrakeStep - firstBrakeFactor - 1 - secondBrakeStep, 0, 0), stopped.Position);
     }
 
     [Fact]
@@ -890,7 +896,7 @@ public class InertiaTests
 
         var regripped = engine.Update(Frame(rightGrip: 1, rightRotation: rotation), 0.1f, settings);
 
-        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), regripped.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.4f - 2 * BrakeIntegral(0.1f, 0.2f)), regripped.Orientation);
     }
 
     [Fact]
@@ -911,11 +917,15 @@ public class InertiaTests
         var stopped = engine.Update(bothDrag, 0.1f, settings);
         var released = engine.Update(Frame(), 0.1f, settings);
 
-        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), braking.Orientation);
-        Near(braking.Orientation, stopped.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.4f - 2 * BrakeIntegral(0.1f, 0.2f)), braking.Orientation);
+        Near(Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.6f), stopped.Orientation);
         Near(stopped.Orientation, released.Orientation);
         Assert.False(engine.HasAngularInertia);
     }
+
+    // Integral of 1 - smoothstep(t / ramp), independently of the production quadrature.
+    private static float BrakeIntegral(float time, float ramp) =>
+        time - time * time * time / (ramp * ramp) + time * time * time * time / (2 * ramp * ramp * ramp);
 
     private static FreeFlightManipulator BeginDrag(FlightMotionSettings settings)
     {

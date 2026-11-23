@@ -74,6 +74,12 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
         return time;
     }
 
+    public void ResetInputTime()
+    {
+        previousInputTime = 0;
+        ElapsedSeconds = 0;
+    }
+
     public void WaitForApply(CancellationToken cancellationToken)
     {
         if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");

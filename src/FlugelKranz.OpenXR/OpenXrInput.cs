@@ -266,11 +266,19 @@ public sealed unsafe class OpenXrInput : IDisposable
     public InputFrame Read()
     {
         if (!running || frames is null || frames.DisplayTime <= 0
-            || state != XrSessionState.XR_SESSION_STATE_FOCUSED) return default;
+            || state != XrSessionState.XR_SESSION_STATE_FOCUSED)
+        {
+            frames?.ResetInputTime();
+            return default;
+        }
         var active = new XrActiveActionSet { actionSet = actionSet };
         var sync = new XrActionsSyncInfo { type = XrStructureType.XR_TYPE_ACTIONS_SYNC_INFO, countActiveActionSets = 1, activeActionSets = &active };
         var result = xrSyncActions(session, &sync);
-        if (result == XrResult.XR_SESSION_NOT_FOCUSED) return default;
+        if (result == XrResult.XR_SESSION_NOT_FOCUSED)
+        {
+            frames.ResetInputTime();
+            return default;
+        }
         Check(result, "入力の同期");
         long time = frames.CaptureInputTime();
         var (head, tracked) = Locate(view, time);

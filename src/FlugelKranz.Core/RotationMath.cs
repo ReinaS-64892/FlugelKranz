@@ -15,15 +15,19 @@ internal static class RotationMath
 
     public static Vector3 RotationVelocity(Quaternion from, Quaternion to, float dt)
     {
+        if (dt <= 0) return Vector3.Zero;
         var delta = Quaternion.Normalize(to * Quaternion.Conjugate(from));
         if (delta.W < 0)
             delta = -delta;
 
-        float angle = 2 * MathF.Acos(Math.Clamp(delta.W, -1, 1));
-        float sine = MathF.Sqrt(MathF.Max(0, 1 - delta.W * delta.W));
-        return sine < 0.00001f
+        // At high sampling rates W can round to 1 while the imaginary part still
+        // contains a real rotation. atan2 retains those small-angle velocities.
+        var imaginary = new Vector3(delta.X, delta.Y, delta.Z);
+        float sine = imaginary.Length();
+        float angle = 2 * MathF.Atan2(sine, delta.W);
+        return sine <= 0
             ? Vector3.Zero
-            : new Vector3(delta.X, delta.Y, delta.Z) / sine * (angle / dt);
+            : imaginary / sine * (angle / dt);
     }
 
     public static Quaternion TwistAroundAxis(Quaternion rotation, Vector3 axis)
