@@ -32,7 +32,7 @@ public class OpenXrFrameLoopTests
         var api = new FakeFrameApi();
         var loop = new OpenXrFrameLoop(api, new FakeClock());
         loop.Begin();
-        Assert.Equal(["wait", "begin"], api.Calls);
+        Assert.Equal(["wait", "begin", "end:1000000000"], api.Calls);
         Assert.Equal(1_000_000_000, loop.DisplayTime);
         Assert.Equal(11_111_111, loop.DisplayPeriod);
         Assert.Equal(900_000_000, loop.CaptureInputTime());
@@ -64,13 +64,13 @@ public class OpenXrFrameLoopTests
     [Theory]
     [InlineData(11_111_111, 905_555_555)]
     [InlineData(8_333_333, 904_166_666)]
-    public void ApplicationDeadlineIsHalfAPeriodAfterTheActualWaitReturn(long period, long expected)
+    public void ComputationDeadlineIsHalfAPeriodAfterTheActualWaitReturn(long period, long expected)
     {
         var clock = new FakeClock();
         var loop = new OpenXrFrameLoop(new FakeFrameApi { Period = period }, clock);
         loop.Begin();
         loop.CaptureInputTime();
-        loop.WaitForApply(CancellationToken.None);
+        Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
         Assert.Equal(expected, Assert.Single(clock.Deadlines));
         loop.End();
     }
@@ -82,8 +82,8 @@ public class OpenXrFrameLoopTests
         var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
         loop.Begin();
         clock.Now = 2_000_000_000; // Computation overran the fixed write deadline.
-        loop.WaitForApply(CancellationToken.None);
-        Assert.Equal(905_555_555, Assert.Single(clock.Deadlines));
+        Assert.False(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        Assert.Empty(clock.Deadlines);
         Assert.Equal(2_000_000_000, clock.Now);
         loop.End();
     }
@@ -105,7 +105,7 @@ public class OpenXrFrameLoopTests
             api.DisplayTime = wakeTime + predictionLead;
             loop.Begin();
             loop.CaptureInputTime();
-            loop.WaitForApply(CancellationToken.None);
+            Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
             Assert.Equal(wakeTime + period / 2, clock.Now);
             loop.End();
         }
@@ -113,14 +113,14 @@ public class OpenXrFrameLoopTests
     }
 
     [Fact]
-    public void BeginProcessingTimeDoesNotShiftTheWriteDeadline()
+    public void BeginProcessingTimeDoesNotShiftTheComputationDeadline()
     {
         var clock = new FakeClock();
         var api = new FakeFrameApi { OnBegin = () => clock.Now += 3_000_000 };
         var loop = new OpenXrFrameLoop(api, clock);
         loop.Begin();
         loop.CaptureInputTime();
-        loop.WaitForApply(CancellationToken.None);
+        Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
         Assert.Equal(905_555_555, Assert.Single(clock.Deadlines));
         loop.End();
     }
@@ -138,13 +138,13 @@ public class OpenXrFrameLoopTests
         api.DisplayTime += 100_000_000; // Prediction lead changed, not the update cadence.
         loop.Begin();
         Assert.Equal(8_000_000, loop.UpdatePeriod);
-        loop.WaitForApply(CancellationToken.None);
+        Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
         Assert.Equal(912_000_000, Assert.Single(clock.Deadlines));
         loop.End();
     }
 
     [Fact]
-    public void OneLateFrameDoesNotStretchTheWritePhaseAndSustainedRateChangesAreFollowed()
+    public void OneLateFrameDoesNotStretchTheComputationPhaseAndSustainedRateChangesAreFollowed()
     {
         var clock = new FakeClock();
         var api = new FakeFrameApi();
@@ -213,7 +213,6 @@ public class OpenXrFrameLoopTests
         Assert.Equal(first + period / 2, loop.CaptureInputTime());
         Assert.Equal(period / 2 / 1_000_000_000f, loop.ElapsedSeconds);
         Assert.False(loop.WaitForMidFrameUpdate(CancellationToken.None));
-        loop.WaitForApply(CancellationToken.None);
         loop.End();
         Assert.Equal(["wait", "begin", "end:1000000000"], api.Calls);
     }
@@ -250,32 +249,46 @@ public class OpenXrFrameLoopTests
     }
 
     [Fact]
-    public void BothComputationPassesAccumulatePendingMovementWithoutPublishingUntilCommit()
+    public void FrameEndsBeforeImmediatePublicationAndMidpointMovementWaitsForTheNextFrame()
     {
         var clock = new FakeClock();
-        var loop = new OpenXrFrameLoop(new FakeFrameApi(), clock);
+        var api = new FakeFrameApi();
+        var loop = new OpenXrFrameLoop(api, clock);
         var applied = RigidPose.Identity;
         int publications = 0;
         var writer = new FrameOffsetWriter(() => applied, (offset, _) =>
         {
+            Assert.StartsWith("end:", api.Calls[^1]);
             applied = offset;
             publications++;
-        }, loop.WaitForApply);
+        });
         loop.Begin();
         writer.Begin();
-        for (int pass = 0; pass < 2; pass++)
-        {
-            loop.CaptureInputTime();
-            writer.Apply(writer.CurrentOffset with { Position = writer.CurrentOffset.Position + Vector3.UnitX }, []);
-            Assert.Equal(RigidPose.Identity, applied);
-            Assert.Equal(0, publications);
-            if (pass == 0) Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
-        }
+        Assert.Equal(["wait", "begin", "end:1000000000"], api.Calls);
+        loop.CaptureInputTime();
+        writer.Apply(writer.CurrentOffset with { Position = Vector3.UnitX }, []);
         writer.Commit(CancellationToken.None);
+        Assert.Equal(900_000_000, clock.Now); // Publication has no half-period delay.
+        Assert.Empty(clock.Deadlines);
+        Assert.Equal(1, publications);
+        Assert.True(loop.WaitForMidFrameUpdate(CancellationToken.None));
+        loop.CaptureInputTime();
+        writer.Apply(writer.CurrentOffset with { Position = 2 * Vector3.UnitX }, []);
+        writer.End(preservePending: true);
+        loop.End();
+        Assert.Equal(Vector3.UnitX, applied.Position);
+        Assert.Equal(1, publications);
+        clock.Now = 911_111_111;
+        api.DisplayTime += api.Period;
+        loop.Begin();
+        writer.Begin();
+        Assert.Equal(2 * Vector3.UnitX, writer.CurrentOffset.Position);
+        writer.Apply(writer.CurrentOffset with { Position = writer.CurrentOffset.Position + Vector3.UnitX }, []);
+        writer.Commit(CancellationToken.None);
+        Assert.Equal(2, publications);
+        Assert.Equal(3 * Vector3.UnitX, applied.Position);
         writer.End();
         loop.End();
-        Assert.Equal(1, publications);
-        Assert.Equal(2 * Vector3.UnitX, applied.Position);
     }
 
     private sealed class FakeClock : IOpenXrClock

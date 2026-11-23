@@ -8,16 +8,17 @@ namespace FlugelKranz.Tests;
 public class FlightControllerTests
 {
     [Fact]
-    public async Task PacedRuntimeUsesFrameTimeForGesturesAndEndsEveryFrameBeforeWaitingAgain()
+    public async Task PacedRuntimePublishesImmediatelyAfterFrameReturnAndThenComputesAtMidpoint()
     {
         var runtime = new PacedRuntime { Frame = ModeFrame(1), MaximumFrames = 3 };
         var progress = new Recorder();
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "midpoint", "commit", "end", "wait", "midpoint", "commit", "end", "wait", "midpoint", "commit", "end", "wait"], runtime.Calls);
+        Assert.Equal(["wait", "xr-end", "commit", "midpoint", "end", "wait", "xr-end", "commit", "midpoint", "end", "wait", "xr-end", "commit", "midpoint", "end", "wait"], runtime.Calls);
         Assert.Contains(progress.Statuses, status => status.Mode == FlightMode.FreeFlight && status.Message.Contains("切り替え"));
         Assert.Equal(6, runtime.Reads);
+        Assert.Equal([true, true, true], runtime.RetainedPending);
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class FlightControllerTests
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
         Assert.Equal(1, runtime.Reads);
-        Assert.Equal(["wait", "midpoint", "commit", "end", "wait"], runtime.Calls);
+        Assert.Equal(["wait", "xr-end", "commit", "midpoint", "end", "wait"], runtime.Calls);
     }
 
     [Fact]
@@ -70,20 +71,21 @@ public class FlightControllerTests
         await using var controller = new FlightController(() => runtime, progress);
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "end"], runtime.Calls);
+        Assert.Equal(["wait", "xr-end", "end"], runtime.Calls);
         Assert.True(runtime.Restores > 0);
     }
 
     [Fact]
-    public async Task SecondInputFailureEndsTheFrameWithoutCommittingPartialComputation()
+    public async Task SecondInputFailureDiscardsPendingComputationAfterTheStartWasCommitted()
     {
         PacedRuntime? runtime = null;
         runtime = new PacedRuntime { OnMidpoint = () => runtime!.ThrowOnRead = true };
         await using var controller = new FlightController(() => runtime, new Recorder());
         controller.SetEnabled(true);
         await Wait(() => runtime.Disposed);
-        Assert.Equal(["wait", "midpoint", "end"], runtime.Calls);
+        Assert.Equal(["wait", "xr-end", "commit", "midpoint", "end"], runtime.Calls);
         Assert.Equal(2, runtime.Reads);
+        Assert.Equal([false], runtime.RetainedPending);
         Assert.True(runtime.Restores > 0);
     }
 
@@ -447,6 +449,7 @@ public class FlightControllerTests
         {
             Calls.Add("wait");
             if (++waits > MaximumFrames) throw new IOException("finished");
+            Calls.Add("xr-end");
             return true;
         }
         public void CommitFrame(CancellationToken cancellationToken)
@@ -454,7 +457,12 @@ public class FlightControllerTests
             cancellationToken.ThrowIfCancellationRequested();
             Calls.Add("commit");
         }
-        public void EndFrame() => Calls.Add("end");
+        public List<bool> RetainedPending { get; } = [];
+        public void EndUpdateCycle(bool preservePending = false)
+        {
+            RetainedPending.Add(preservePending);
+            Calls.Add("end");
+        }
     }
 
     private class FakeRuntime : IFlightRuntime, IHapticFeedback

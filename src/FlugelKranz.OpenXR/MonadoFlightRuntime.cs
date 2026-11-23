@@ -24,7 +24,7 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
         try
         {
             input = new(getValveIndexSettings);
-            writes = new(() => monado.CurrentOffset, monado.Apply, input.WaitForApply);
+            writes = new(() => monado.CurrentOffset, monado.Apply);
             try { monado.VerifyClient(input.ApplicationName); }
             catch { input.Dispose(); throw; }
         }
@@ -39,10 +39,10 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
     }
     public bool WaitForMidFrameUpdate(CancellationToken cancellationToken) => input.WaitForMidFrameUpdate(cancellationToken);
     public void CommitFrame(CancellationToken cancellationToken) => writes.Commit(cancellationToken);
-    public void EndFrame()
+    public void EndUpdateCycle(bool preservePending = false)
     {
-        writes.End();
-        input.EndFrame();
+        writes.End(preservePending);
+        input.EndUpdateCycle();
     }
 
     public InputFrame ReadPhysical()
@@ -56,7 +56,7 @@ public sealed class MonadoFlightRuntime : IFlightRuntime, IReferenceSpaceOffsetP
     public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations) => writes.Apply(offset, rotations);
     public void Restore()
     {
-        if (!writes.FrameActive) { monado.Restore(); return; }
+        if (!writes.CycleActive) { writes.End(); monado.Restore(); return; }
         monado.VerifyUnchanged();
         writes.Apply(OriginalOffset, []);
     }
