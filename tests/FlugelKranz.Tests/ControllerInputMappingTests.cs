@@ -15,7 +15,7 @@ public class ControllerInputMappingTests
     public void SteamFrameUsesBumpersUpperTurnAndMatchingViewMenuResetButtons(
         ControllerHand hand, string drag, string turn, string reset)
     {
-        Assert.Equal((drag, turn, reset), ControllerInputMapping.SteamFrameButtonPaths(hand));
+        Assert.Equal((drag, turn, reset), OpenXrControllerBindings.SteamFrameButtonPaths(hand));
     }
 
     [Theory]
@@ -33,9 +33,9 @@ public class ControllerInputMappingTests
     {
         var input = new ControllerInputState(Vector2.Zero, false, 0, false, false, false)
         {
-            FrameBumperClicked = bumper,
-            FrameTurnButtonClicked = turn,
-            FrameResetButtonClicked = reset
+            DragButton = bumper,
+            TurnButton = turn,
+            ResetButton = reset
         };
 
         var result = ControllerInputMapping.Map(hand, input,

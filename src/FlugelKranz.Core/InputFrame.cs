@@ -25,7 +25,7 @@ public readonly record struct InputFrame(
     HandSample Left,
     HandSample Right)
 {
-    // Unmodified STAGE floor in physical Monado root coordinates.
+    // Unmodified reference floor in physical runtime root coordinates.
     public RigidPose FloorPose { get; init; } = RigidPose.Identity;
     public IReadOnlyList<TrackerSample>? Trackers { get; init; }
 }

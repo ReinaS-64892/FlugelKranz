@@ -1,0 +1,76 @@
+{
+  "action_manifest_version": 0,
+  "app_key": "org.flugelkranz.overlay",
+  "controller_type": "knuckles",
+  "name": "FlugelKranz default",
+  "description": "FlugelKranz physical controls; flight gestures are evaluated by the application.",
+  "bindings": {
+    "/actions/flight": {
+      "sources": [
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/flight/in/left_trackpad"
+            },
+            "touch": {
+              "output": "/actions/flight/in/left_trackpad_touch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trackpad",
+          "mode": "force_sensor",
+          "inputs": {
+            "force": {
+              "output": "/actions/flight/in/left_force"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "trackpad",
+          "inputs": {
+            "position": {
+              "output": "/actions/flight/in/right_trackpad"
+            },
+            "touch": {
+              "output": "/actions/flight/in/right_trackpad_touch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/trackpad",
+          "mode": "force_sensor",
+          "inputs": {
+            "force": {
+              "output": "/actions/flight/in/right_force"
+            }
+          }
+        }
+      ],
+      "haptics": [
+        {
+          "path": "/user/hand/left/output/haptic",
+          "output": "/actions/flight/out/left_haptic"
+        },
+        {
+          "path": "/user/hand/right/output/haptic",
+          "output": "/actions/flight/out/right_haptic"
+        }
+      ],
+      "poses": [
+        {
+          "path": "/user/hand/left/pose/grip",
+          "output": "/actions/flight/in/left_pose"
+        },
+        {
+          "path": "/user/hand/right/pose/grip",
+          "output": "/actions/flight/in/right_pose"
+        }
+      ],
+      "chords": []
+    }
+  }
+}

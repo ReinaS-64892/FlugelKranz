@@ -1,0 +1,70 @@
+{
+  "action_manifest_version": 0,
+  "app_key": "org.flugelkranz.overlay",
+  "controller_type": "oculus_touch",
+  "name": "FlugelKranz default",
+  "description": "FlugelKranz physical controls; flight gestures are evaluated by the application.",
+  "bindings": {
+    "/actions/flight": {
+      "sources": [
+        {
+          "path": "/user/hand/left/input/thumbrest",
+          "mode": "button",
+          "inputs": {
+            "touch": {
+              "output": "/actions/flight/in/left_thumbrest"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/trigger",
+          "mode": "button",
+          "inputs": {
+            "touch": {
+              "output": "/actions/flight/in/left_trigger_touch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/thumbrest",
+          "mode": "button",
+          "inputs": {
+            "touch": {
+              "output": "/actions/flight/in/right_thumbrest"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/trigger",
+          "mode": "button",
+          "inputs": {
+            "touch": {
+              "output": "/actions/flight/in/right_trigger_touch"
+            }
+          }
+        }
+      ],
+      "haptics": [
+        {
+          "path": "/user/hand/left/output/haptic",
+          "output": "/actions/flight/out/left_haptic"
+        },
+        {
+          "path": "/user/hand/right/output/haptic",
+          "output": "/actions/flight/out/right_haptic"
+        }
+      ],
+      "poses": [
+        {
+          "path": "/user/hand/left/pose/grip",
+          "output": "/actions/flight/in/left_pose"
+        },
+        {
+          "path": "/user/hand/right/pose/grip",
+          "output": "/actions/flight/in/right_pose"
+        }
+      ],
+      "chords": []
+    }
+  }
+}

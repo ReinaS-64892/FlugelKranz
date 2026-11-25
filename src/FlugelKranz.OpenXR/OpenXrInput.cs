@@ -102,12 +102,12 @@ public sealed unsafe class OpenXrInput : IDisposable
         }
         foreach (var required in new[] { "XR_EXTX_overlay", "XR_KHR_vulkan_enable2", "XR_KHR_convert_timespec_time" })
             if (!extensions.Contains(required)) throw new NotSupportedException($"{required} が必要です。Monado / WiVRn の OpenXR ランタイムを確認してください。");
-        steamFrameSupported = extensions.Contains(ControllerInputMapping.SteamFrameExtension);
+        steamFrameSupported = extensions.Contains(OpenXrControllerBindings.SteamFrameExtension);
         trackerSpacesSupported = extensions.Contains(OpenXrTrackers.ExtensionName);
         fixed (byte* overlay = "XR_EXTX_overlay\0"u8)
         fixed (byte* vulkan = "XR_KHR_vulkan_enable2\0"u8)
         fixed (byte* time = "XR_KHR_convert_timespec_time\0"u8)
-        fixed (byte* frame = Encoding.UTF8.GetBytes(ControllerInputMapping.SteamFrameExtension + '\0'))
+        fixed (byte* frame = Encoding.UTF8.GetBytes(OpenXrControllerBindings.SteamFrameExtension + '\0'))
         fixed (byte* tracker = Encoding.UTF8.GetBytes(OpenXrTrackers.ExtensionName + '\0'))
         {
             byte** names = stackalloc byte*[5] { overlay, vulkan, time, null, null };
@@ -234,7 +234,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         for (int i = 0; i < hands.Length; i++)
         {
             string side = hands[i].IsLeft ? "left" : "right";
-            var buttons = ControllerInputMapping.SteamFrameButtonPaths(
+            var buttons = OpenXrControllerBindings.SteamFrameButtonPaths(
                 hands[i].IsLeft ? ControllerHand.Left : ControllerHand.Right);
             bindings[i * 5] = new() { action = hands[i].Pose, binding = Path($"/user/hand/{side}/input/grip/pose") };
             bindings[i * 5 + 1] = new() { action = hands[i].FrameDrag, binding = Path(buttons.Drag) };
@@ -245,7 +245,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         var info = new XrInteractionProfileSuggestedBinding
         {
             type = XrStructureType.XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
-            interactionProfile = Path(ControllerInputMapping.SteamFrameProfile),
+            interactionProfile = Path(OpenXrControllerBindings.SteamFrameProfile),
             countSuggestedBindings = 10,
             suggestedBindings = bindings
         };
@@ -351,9 +351,9 @@ public sealed unsafe class OpenXrInput : IDisposable
                 triggerTouch.Value,
                 thumbRest.Active && triggerTouch.Active)
             {
-                FrameBumperClicked = steamFrameSupported && ReadBoolean(hand.FrameDrag).Value,
-                FrameTurnButtonClicked = steamFrameSupported && ReadBoolean(hand.FrameTurn).Value,
-                FrameResetButtonClicked = steamFrameSupported && ReadBoolean(hand.FrameReset).Value
+                DragButton = steamFrameSupported && ReadBoolean(hand.FrameDrag).Value,
+                TurnButton = steamFrameSupported && ReadBoolean(hand.FrameTurn).Value,
+                ResetButton = steamFrameSupported && ReadBoolean(hand.FrameReset).Value
             },
             valveIndexSettings);
         return new(

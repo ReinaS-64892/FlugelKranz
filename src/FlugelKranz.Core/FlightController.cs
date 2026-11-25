@@ -17,7 +17,7 @@ public interface ITrackerRotationRuntime
     void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations);
 }
 
-/// <summary>Optional pacing. WaitFrame submits an empty XR frame before returning; updates follow it.</summary>
+/// <summary>Optional backend pacing. WaitFrame begins an update cycle; CommitFrame publishes its offsets.</summary>
 public interface IFramePacedFlightRuntime
 {
     bool WaitFrame();
@@ -113,7 +113,7 @@ public sealed class FlightController(
                     progress.Report(new(
                         true,
                         false,
-                        $"Monado / WiVRn を待っています。再接続時に OpenXR の設定を再探索します。({exception.Message})",
+                        $"XR ランタイムを待っています。({exception.Message})",
                         Mode: reportedMode));
                     await Task.Delay(TimeSpan.FromSeconds(1), shutdown.Token).ConfigureAwait(false);
                 }
@@ -159,8 +159,8 @@ public sealed class FlightController(
                 try
                 {
                     Update(frameStarted);
-                    // WaitFrame has already ended the native XR frame. Publish
-                    // immediately, then keep the midpoint computation pending.
+                    // Publish once after input/computation. Backends may request
+                    // a second computation-only pass for the following frame.
                     if (frameStarted)
                     {
                         pacedRuntime!.CommitFrame(shutdown.Token);
@@ -186,7 +186,8 @@ public sealed class FlightController(
             {
                 try { runtime.Restore(); }
                 catch (Exception exception) { error = $"{error}\n復元に失敗しました: {exception.Message}".Trim(); }
-                finally { runtime.Dispose(); }
+                try { runtime.Dispose(); }
+                catch (Exception exception) { error = $"{error}\n切断に失敗しました: {exception.Message}".Trim(); }
             }
             lock (gate)
             {

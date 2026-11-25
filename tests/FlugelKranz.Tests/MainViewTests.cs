@@ -35,7 +35,7 @@ public class MainViewTests
         string path = TemporarySettingsPath();
         try
         {
-            await using (var first = new MainViewModel("/nonexistent/test.so", path))
+            await using (var first = CreateViewModel(path))
             {
                 Assert.Equal(2.5, first.TurnOriginHeadWeightMultiplier);
                 first.TurnOriginHeadWeightMultiplier = 3.25;
@@ -43,7 +43,7 @@ public class MainViewTests
                 Assert.Equal(3.25, json.RootElement.GetProperty("freeFlight")
                     .GetProperty("turnOriginHeadWeightMultiplier").GetDouble());
             }
-            await using (var second = new MainViewModel("/nonexistent/test.so", path))
+            await using (var second = CreateViewModel(path))
             {
                 Assert.Equal(3.25, second.TurnOriginHeadWeightMultiplier);
                 second.ResetTurnOriginHeadWeightCommand.Execute(null);
@@ -59,14 +59,14 @@ public class MainViewTests
         string path = TemporarySettingsPath();
         try
         {
-            await using (var first = new MainViewModel("/nonexistent/test.so", path))
+            await using (var first = CreateViewModel(path))
             {
                 Assert.True(first.ToeRotationCompensationEnabled);
                 Assert.Equal(0.2, first.ToeRotationReleaseSeconds, 6);
                 first.ToeRotationCompensationEnabled = false;
                 first.ToeRotationReleaseSeconds = 0.7;
             }
-            await using (var second = new MainViewModel("/nonexistent/test.so", path))
+            await using (var second = CreateViewModel(path))
             {
                 Assert.False(second.ToeRotationCompensationEnabled);
                 Assert.Equal(0.7, second.ToeRotationReleaseSeconds, 6);
@@ -82,7 +82,7 @@ public class MainViewTests
                 Assert.Equal(0.2, walking.GetProperty("toeRotationReleaseSeconds").GetDouble(), 6);
             }
             File.WriteAllText(path, """{"schemaVersion":2,"mode":"infiniteWalking","freeFlight":{},"infiniteWalking":{"groundRangeMetres":0.25}}""");
-            await using var older = new MainViewModel("/nonexistent/test.so", path);
+            await using var older = CreateViewModel(path);
             Assert.Equal(25, older.GroundRangeCentimetres);
             Assert.True(older.ToeRotationCompensationEnabled);
             Assert.Equal(0.2, older.ToeRotationReleaseSeconds, 6);
@@ -94,7 +94,7 @@ public class MainViewTests
     public async Task StartsOffAndCompiledBindingsUpdateButtonAndStatus()
     {
         string settingsPath = TemporarySettingsPath();
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
+        await using var vm = CreateViewModel(settingsPath);
         Assert.Equal(40, vm.DragCutoffCentimetresPerSecond);
         Assert.Equal(45, vm.TurnCutoffDegreesPerSecond);
         Assert.Equal(0.3, vm.TurnAccelerationMultiplier);
@@ -286,7 +286,7 @@ public class MainViewTests
     [AvaloniaFact]
     public async Task MissingRuntimeReturnsToggleToOffAndDisplaysError()
     {
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
+        await using var vm = CreateViewModel(TemporarySettingsPath());
         var window = new Window { Width = 540, Height = 600, Content = new MainView(vm) };
         window.Show();
         try
@@ -295,7 +295,7 @@ public class MainViewTests
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             while (vm.IsEnabled) await Task.Delay(10, timeout.Token);
             Assert.False(vm.IsConnected);
-            Assert.Contains("flugelkranz-test.so", vm.Status);
+            Assert.Contains("test runtime unavailable", vm.Status);
             Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => Equals(b.Content, "OFF"));
         }
         finally { window.Close(); }
@@ -307,7 +307,7 @@ public class MainViewTests
         string settingsPath = TemporarySettingsPath();
         try
         {
-            await using (var first = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
+            await using (var first = CreateViewModel(settingsPath))
             {
                 first.Mode = FlugelKranz.Core.FlightMode.FreeFlight;
                 first.UseHeadTurnOrigin = true;
@@ -328,7 +328,7 @@ public class MainViewTests
                 first.ValveIndexForceThreshold = 0.62;
             }
 
-            await using var second = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath);
+            await using var second = CreateViewModel(settingsPath);
             Assert.Equal(FlugelKranz.Core.FlightMode.FreeFlight, second.Mode);
             Assert.True(second.UseHeadTurnOrigin);
             Assert.Equal(12.5, second.DragCutoffCentimetresPerSecond);
@@ -391,7 +391,7 @@ public class MainViewTests
                   "infiniteWalking": { "turnMovementBoostMultiplier": 1.2 }
                 }
                 """);
-            await using (var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", settingsPath))
+            await using (var vm = CreateViewModel(settingsPath))
             {
                 Assert.Equal(1.75, vm.DragAccelerationMultiplier);
                 Assert.False(vm.InertiaFullCutEnabled);
@@ -427,9 +427,7 @@ public class MainViewTests
                 }
                 """);
 
-            await using var vm = new MainViewModel(
-                "/nonexistent/flugelkranz-test.so",
-                settingsPath);
+            await using var vm = CreateViewModel(settingsPath);
 
             Assert.Equal(FlightMode.InfiniteWalking, vm.Mode);
             Assert.Equal(1, vm.DragAccelerationMultiplier);
@@ -454,7 +452,7 @@ public class MainViewTests
     [Fact]
     public async Task IndividualResetCommandRestoresOnlyItsSetting()
     {
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
+        await using var vm = CreateViewModel(TemporarySettingsPath());
         vm.DragCutoffCentimetresPerSecond = 12;
         vm.TurnCutoffDegreesPerSecond = 123;
         vm.TwoHandDragAccelerationMultiplier = 4;
@@ -502,7 +500,7 @@ public class MainViewTests
     [AvaloniaFact]
     public async Task SettingsPanelExpandsAndCollapsesFromSettingsCommand()
     {
-        await using var vm = new MainViewModel("/nonexistent/flugelkranz-test.so", TemporarySettingsPath());
+        await using var vm = CreateViewModel(TemporarySettingsPath());
         Assert.Equal(0, vm.SettingsPanelWidth);
 
         vm.SetSettingsPanelTargetWidth(1000 * 0.8);
@@ -517,6 +515,48 @@ public class MainViewTests
         Assert.False(vm.IsSettingsOpen);
         Assert.Equal(0, vm.SettingsPanelWidth);
     }
+
+    [AvaloniaFact]
+    public async Task InjectedBackendReceivesLiveInputSettingsAndIsDisposed()
+    {
+        string path = TemporarySettingsPath();
+        var runtime = new StubRuntime();
+        var created = new TaskCompletionSource<Func<ValveIndexInputSettings>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            await using (var vm = new MainViewModel(getSettings =>
+            {
+                created.SetResult(getSettings);
+                return runtime;
+            }, path, autoStart: false))
+            {
+                Assert.False(created.Task.IsCompleted);
+                vm.ValveIndexForceThreshold = .81;
+                vm.ToggleCommand.Execute(null);
+                var getSettings = await created.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(.81f, getSettings().ForceThreshold, .0001f);
+                vm.ValveIndexForceThreshold = .62;
+                Assert.Equal(.62f, getSettings().ForceThreshold, .0001f);
+            }
+            Assert.True(runtime.Disposed);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private sealed class StubRuntime : IFlightRuntime
+    {
+        public bool Disposed;
+        public RigidPose OriginalOffset => RigidPose.Identity;
+        public RigidPose CurrentOffset { get; private set; } = RigidPose.Identity;
+        public InputFrame ReadPhysical() => new(RigidPose.Identity, false, default, default);
+        public void Apply(RigidPose offset) => CurrentOffset = offset;
+        public void Restore() => CurrentOffset = OriginalOffset;
+        public void Dispose() => Disposed = true;
+    }
+
+    private static MainViewModel CreateViewModel(string settingsPath) => new(
+        _ => throw new InvalidOperationException("test runtime unavailable"),
+        settingsPath, autoStart: false, retryRuntimeConnection: false);
 
     private static string TemporarySettingsPath() =>
         Path.Combine(Path.GetTempPath(), $"flugelkranz-test-{Guid.NewGuid():N}.json");

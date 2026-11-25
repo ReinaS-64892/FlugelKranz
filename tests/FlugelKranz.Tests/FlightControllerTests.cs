@@ -235,6 +235,20 @@ public class FlightControllerTests
     }
 
     [Fact]
+    public async Task CleanupFailuresAreReportedAndDoNotPreventWorkerShutdown()
+    {
+        var runtime = new FailingCleanupRuntime();
+        var progress = new Recorder();
+        await using var controller = new FlightController(() => runtime, progress);
+        controller.SetEnabled(true);
+        await Wait(() => progress.Statuses.Any(s => s.Connected));
+        runtime.ThrowOnRead = true;
+        await Wait(() => progress.Statuses.Any(s => !s.Connected && s.Message.Contains("disconnect failed")));
+        Assert.True(runtime.Disposed);
+        Assert.Contains(progress.Statuses, s => s.Message.Contains("restore failed"));
+    }
+
+    [Fact]
     public async Task BothModeButtonsHeldForOneSecondToggleOnceUntilReleased()
     {
         var runtime = new FakeRuntime();
@@ -463,6 +477,12 @@ public class FlightControllerTests
             RetainedPending.Add(preservePending);
             Calls.Add("end");
         }
+    }
+
+    private sealed class FailingCleanupRuntime : FakeRuntime, IFlightRuntime
+    {
+        void IFlightRuntime.Restore() => throw new IOException("restore failed");
+        void IDisposable.Dispose() { Disposed = true; throw new IOException("disconnect failed"); }
     }
 
     private class FakeRuntime : IFlightRuntime, IHapticFeedback

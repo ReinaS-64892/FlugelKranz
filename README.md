@@ -1,10 +1,35 @@
 # FlugelKranz
 
-Monado / WiVRn と Linux Wayland 環境向けの、自由飛行 / 無限歩行ツールです。
+Windows の SteamVR、および Linux の Monado / WiVRn 向けの自由飛行 / 無限歩行ツールです。SteamVR 対応は実験段階です。
 
 ## 起動
 
-.NET 10 SDK、Linux の Wayland セッション、Monado / WiVRn のサービスと対応する OpenXR ランタイムが必要です。
+開発には .NET 10 SDK を使用します。`--runtime auto`（既定）は Windows で SteamVR、Linux で Monado / WiVRn を選択します。macOS は対象外です。Linux は Wayland セッションを優先し、Wayland がない場合は Avalonia の X11 バックエンドを使用します。
+
+### Windows / SteamVR（実験対応）
+
+SteamVR を準備し、Windows x64 で起動します。OpenXR の active runtime を切り替える必要はありません。
+
+```powershell
+dotnet run --project src/FlugelKranz -- --runtime steamvr
+dotnet run --project src/FlugelKranz -- --runtime steamvr --diagnose
+```
+
+配布用の framework-dependent ビルドは次のコマンドで作れます。出力ディレクトリ全体を配置し、Windows x64 の .NET 10 Runtime を用意して `FlugelKranz.exe` を起動してください。
+
+```powershell
+dotnet publish src/FlugelKranz -c Release -r win-x64 --self-contained false -o dist/windows-x64
+```
+
+Linux x64 でも `--runtime steamvr` を明示すれば同じ OpenVR バックエンドを使用できます。SteamVR バックエンドは `VRApplication_Overlay` として接続し、入力・フレーム同期・空間制御を行います。VR 内の画像は描画せず、設定 UI はデスクトップに表示します。Vulkan 接続や `XR_EXTX_overlay` は使用しません。
+
+アプリキーは `org.flugelkranz.overlay` です。ユーザーの LocalApplicationData 配下の `FlugelKranz/steamvr/application.vrmanifest` を生成し、SteamVR へ一時登録します。自動起動設定は変更しません。標準 binding は Index (`knuckles`)、Touch (`oculus_touch`)、Steam Frame (`frame_controller`) を同梱します。入力内容は下記の既存割当を共通 Core で処理し、SteamVR の binding UI から直接 Drag / Turn / Reset を割り当てることもできます。手の姿勢は両バックエンドとも grip 基準です。
+
+Windows の設定保存先は `%APPDATA%/FlugelKranz/config.json`、Linux は従来どおり XDG 配下です。`FLUGELKRANZ_CONFIG` による明示指定はどちらでも有効です。
+
+### Linux / Monado・WiVRn
+
+Monado / WiVRn のサービスと対応する OpenXR ランタイムが必要です。
 
 ```sh
 dotnet restore FlugelKranz.slnx
@@ -133,6 +158,18 @@ HMD のトラッキングを失った間は、ON 状態、操作状態、慣性�
 
 ## 更新タイミング
 
+### SteamVR
+
+既定では `IVROverlay::WaitFrameSync` で待機し、入力取得 → 共通 Core の演算 → 空間変換の適用を 1 周期に 1 回行います。SteamVR バックエンドは半周期の追加演算を行いません。同期が失敗・タイムアウトする場合はソフトウェア待機へ切り替え、`--steamvr-rate` のレートを使います。`--steamvr-no-sync` では初めから固定レートを使います。
+
+```powershell
+FlugelKranz.exe --runtime steamvr --steamvr-no-sync --steamvr-rate 120
+```
+
+指定可能範囲は 30〜1000 Hz、既定は 120 Hz です。これは目標レートで、OS の待機精度や処理時間によって実測値は変動します。演算の経過時間には単調時計の実測値を使用し、初回は 0 とします。Windows のソフトウェア待機は高精度 waitable timer を使用し、利用できなければ通常の待機へフォールバックします。待機は専用ワーカー上で行い、UI の描画周期とは独立しています。
+
+### Monado / WiVRn
+
 `XR_EXTX_overlay` と Vulkan の描画用接続を使った空のオーバーレイセッションで、`xrWaitFrame` → `xrBeginFrame` → **即座に `xrEndFrame`** → 入力取得・飛行計算 → **STAGE オフセット反映** → 半周期まで待機 → **入力再同期・飛行計算のみ** → 次の `xrWaitFrame` を繰り返します。毎回レイヤー数 `0` を送り、表示画像・スワップチェーンは作りません。フレームを開始したら、入力取得や計算を挟まずに空フレームを終了し、ランタイムへ制御を返します。通常動作では固定 10ms の待機を加えません。セッション開始前だけ、イベント確認の間に 10ms 待機します。
 
 WiVRn / Monado のペーシングで FlugelKranz のフレーム開始が他クライアントより遅くなる構成を前提に、開始通知後の反映をランタイムの位相に合わせます。反映のための半周期待ちは行いません。`xrEndFrame` から戻った直後に入力取得・演算を行い、最終的な STAGE オフセットとトラッカー補正を **1 フレームに最大 1 回**まとめて書き込みます。これは他クライアントの姿勢取得完了を検出する仕組みではなく、OpenXR 自体がクライアント間の実行順序を保証するわけでもありません。VRChat / WayVR を同時に動かした実機で、前提となる開始順序と表示の安定性を確認してください。
@@ -151,6 +188,18 @@ HMD・左右手・トラッカーの姿勢は、入力同期後の単調増加�
 
 ## 対応条件と制約
 
+### SteamVR（実験対応）
+
+- Windows / Linux x64。Valve OpenVR SDK 2.15.6 の必要部分と公式 loader を同梱します。必要な interface は `IVRSystem_026`、`IVRInput_011`、`IVROverlay_028`、`IVRApplications_008`、`IVRPaths_002` です。取得できなければ理由を表示して接続を開始しません。
+- 空間適用は `/chaperone/standing/transform` と `/chaperone/seated/transform` を使用します。内部の root container handle を含む SteamVR 固有の契約に依存するため、SteamVR 更新によって利用できなくなる可能性があります。読み取りの型・サイズ・Standing の実際の変換との一致を起動時に検証します。
+- Core が求める任意軸の quaternion と並進を直接合成します。Euler 角への分解、Yaw と傾きの別適用、Chaperone working preview、参照版由来の距離上限は使用しません。ランタイム自身が受け付ける範囲は実機で確認してください。
+- 接続時の raw-to-standing を `T`、物理ランタイム root 座標での飛行変換を `D` とすると、書き込みは `T * D`、入力の物理姿勢への復元は `(T * D)^-1 * reportedPose` です。Seated にも接続時の変換を基準として同じ `D` を合成します。VRChat 世界・飛行者ローカルの軸との関係は、VRChat 側の水平線調整や移動との合成で決まります。
+- 原点ごとの書き込みは原子的ではありません。書き込み結果を読み戻し、途中の失敗でも所有している変換を個別に復元します。他ツールや SteamVR の原点リセットによって外部変更を検出した場合は操作を停止し、その外部変更を終了処理で上書きしません。再度 ON にすると新しい基準で接続します。
+- つま先位置を使う回転原点は Generic Tracker の serial と位置から計算します。つま先トラッカーの個別姿勢逆補正は Monado / WiVRn の特別なフォーク固有の機能として扱い、SteamVR では適用しません。
+- ここでの対応はコード・自動テスト・Windows 向けクロス publish の段階です。Windows / SteamVR 実機、対象アプリが OpenVR / OpenXR の場合、立位 / 座位それぞれでの空間反映は未検証です。
+
+### Monado / WiVRn
+
 - libmonado API **1.4 以降の 1.x**。libmonado の公開 API を使用します。
 - OpenXR の `XR_EXTX_overlay`・`XR_KHR_vulkan_enable2`・`XR_KHR_convert_timespec_time`、STAGE / VIEW 空間、および OpenXR が選択する GPU で使用可能な Vulkan ドライバーと `libvulkan.so.1` が必要です。空のオーバーレイセッションを使い、libmonado でプライマリー・フォーカスを要求する操作は行いません。必要な拡張がない場合は理由を表示して接続を開始しません。
 - HMD・左右コントローラーは別々のトラッキング原点でも使用できます。ドライバー側でキャリブレーション済みの OpenXR 姿勢をそのまま使い、飛行の変換は `mnd_root_set_reference_space_offset` で STAGE 参照空間へ一度だけ適用します。トラッキング原点のオフセットは取得も書き換えもせず、スペースキャリブレーターや HMD 再接続によるキャリブレーション結果を入力に保持します。固定 STAGE オフセットを libmonado から読める構成が必要です。ドライバーが動的に提供する STAGE は起動時に理由を表示して操作を開始しません。
@@ -165,9 +214,23 @@ Core の実行中のモードは `MovementMode` の型で表現します。`Free
 
 移行とモード別リセットも `MovementTransition` を継承する一時的な移動モードです。補間と完了時の受け渡しは共通処理にし、移行先の型が `EnterFrom` で移行方法を決めます。`MovementSession` は選択されたモードと実行中のモードを保持し、切替・リセット・解放時に実際に適用済みのオフセットを渡します。掴み、未適用の追従目標、自由飛行の慣性は切替先へ持ち越しません。
 
+`ControllerInputMapping`、`ReferenceSpaceTransform`、`FrameOffsetWriter` は Core で両バックエンドから共有します。バックエンド選択は `RuntimeConfiguration` に閉じ込め、ViewModel はランタイム生成関数を受け取ります。
+
 `FlightSession` は長押し入力、設定からのモード選択、状態通知を担当し、`FlightController` はランタイム接続とワーカーの実行を管理します。`FlightMode` enum は JSON 設定と UI の識別子として残し、`MovementModes` で実装型へ変換します。新しいモードは `ManipulationMode` の派生型と必要な遷移を追加し、設定や UI に公開する際に境界の識別子・設定・表示を追加します。操作器の実行や遷移の進行処理にはモードごとの分岐を追加しません。
 
 ## 検証
+
+SteamVR 実機では最初に `--runtime steamvr --diagnose` で接続と入力を確認してください。この経路は空間変換を書き込みません（SteamVR へのアプリ一時登録は行います）。次に UI で Drag / 任意軸 Turn / 慣性 / モード移行 / 全体リセット / OFF 中の位置姿勢保持 / 終了時の原点復元を確認します。フレーム同期と固定レートの両方、原点リセット・再接続・他ツールとの競合時の停止、OpenVR / OpenXR の対象アプリ、立位 / 座位で確認してください。
+
+ネイティブ ABI の再確認には、同じ Valve SDK の headers を指定して次を実行します。
+
+```sh
+python3 tools/generate-openvr-slots.py /path/to/openvr/headers
+c++ -std=c++17 -I /path/to/openvr/headers tools/check-openvr-abi.cpp -o /tmp/openvr-abi
+/tmp/openvr-abi
+```
+
+Windows の ABI probe は Visual Studio の開発者コマンドプロンプトで `cl /std:c++17 /I C:\path\to\openvr\headers tools\check-openvr-abi.cpp` を使用できます。
 
 ```sh
 dotnet test FlugelKranz.slnx
@@ -197,6 +260,8 @@ Steam Frame はランタイムの専用拡張と各入力の転送を確認し�
 つま先逆補正は専用拡張を含む WiVRn をビルドし、サーバーと OpenXR ランタイム・libmonado を同じビルドに揃えて確認します。接地した足で Turn し、空間だけが回って足の向きが維持されること、そのまま現実で足首を回すとその分は反映されることを確認してください。踏み下ろした直後に上下・左右の小さな揺れがあっても早く逆補正が始まること、横滑りや再び足を上げた場合は固定が続かないこと、足を上げる・大きく動かすと設定時間で補正が解除されること、解除時間 `0.0` と `1.0`、両足接地、支持足切替、Turn 平滑化、OFF・モード移行・追跡喪失・再接続・アプリ終了も確認します。非対応 libmonado では逆補正以外が動作することを確認します。これらの実機確認は自動テストとは別に必要です。
 
 ## 座標変換
+
+Core の剛体変換規約は共通です。以下の STAGE への書き込みの説明は Monado / WiVRn 向けです。SteamVR の raw-to-universe への書き込みは上記「対応条件と制約」を参照してください。
 
 操作器の物理座標系は **Monado ルート座標系**です。ドライバー空間のキャリブレーションを適用した機器姿勢を `Qᵢ`、接続時の STAGE からルートへの変換を `S₀`、本ツールの飛行変換を `D` とします。`D` の初期値と復元先は恒等変換です。トラッキング原点のオフセットや機器ごとの原点 ID は取得せず、外部ツールによるキャリブレーションは `Qᵢ` に反映された状態で使用します。
 

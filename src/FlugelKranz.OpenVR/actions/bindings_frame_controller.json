@@ -1,0 +1,88 @@
+{
+  "action_manifest_version": 0,
+  "app_key": "org.flugelkranz.overlay",
+  "controller_type": "frame_controller",
+  "name": "FlugelKranz default",
+  "description": "FlugelKranz physical controls; flight gestures are evaluated by the application.",
+  "bindings": {
+    "/actions/flight": {
+      "sources": [
+        {
+          "path": "/user/hand/left/input/bumper",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/left_drag"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/dpad_up",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/left_turn"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/view",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/left_reset"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/bumper",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/right_drag"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/y",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/right_turn"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/menu",
+          "mode": "button",
+          "inputs": {
+            "click": {
+              "output": "/actions/flight/in/right_reset"
+            }
+          }
+        }
+      ],
+      "haptics": [
+        {
+          "path": "/user/hand/left/output/haptic",
+          "output": "/actions/flight/out/left_haptic"
+        },
+        {
+          "path": "/user/hand/right/output/haptic",
+          "output": "/actions/flight/out/right_haptic"
+        }
+      ],
+      "poses": [
+        {
+          "path": "/user/hand/left/pose/grip",
+          "output": "/actions/flight/in/left_pose"
+        },
+        {
+          "path": "/user/hand/right/pose/grip",
+          "output": "/actions/flight/in/right_pose"
+        }
+      ],
+      "chords": []
+    }
+  }
+}

@@ -1,8 +1,6 @@
-using FlugelKranz.Core;
+namespace FlugelKranz.Core;
 
-namespace FlugelKranz.OpenXR;
-
-/// <summary>Publishes at frame start and retains computation-only results for the next frame.</summary>
+/// <summary>Publishes once per update cycle and retains computation-only results for the next cycle.</summary>
 internal sealed class FrameOffsetWriter(
     Func<RigidPose> getAppliedOffset,
     Action<RigidPose, IReadOnlyList<TrackerRotationOffset>> apply)

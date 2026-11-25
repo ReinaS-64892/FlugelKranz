@@ -1,0 +1,149 @@
+{
+  "action_manifest_version": 0,
+  "action_sets": [
+    {
+      "name": "/actions/flight",
+      "usage": "leftright"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/flight/in/left_trackpad",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_trackpad_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_force",
+      "type": "vector1",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_thumbrest",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_trigger_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_drag",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_turn",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_reset",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/out/left_haptic",
+      "type": "vibration",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_trackpad",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_trackpad_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_force",
+      "type": "vector1",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_thumbrest",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_trigger_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_drag",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_turn",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_reset",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/out/right_haptic",
+      "type": "vibration",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/left_pose",
+      "type": "pose",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/flight/in/right_pose",
+      "type": "pose",
+      "requirement": "optional"
+    }
+  ],
+  "default_bindings": [
+    {
+      "controller_type": "knuckles",
+      "binding_url": "bindings_knuckles.json"
+    },
+    {
+      "controller_type": "oculus_touch",
+      "binding_url": "bindings_oculus_touch.json"
+    },
+    {
+      "controller_type": "frame_controller",
+      "binding_url": "bindings_frame_controller.json"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_US",
+      "/actions/flight": "FlugelKranz Flight",
+      "/actions/flight/in/left_trackpad": "Left Trackpad",
+      "/actions/flight/in/left_trackpad_touch": "Left Trackpad Touch",
+      "/actions/flight/in/left_force": "Left Force",
+      "/actions/flight/in/left_thumbrest": "Left Thumbrest",
+      "/actions/flight/in/left_trigger_touch": "Left Trigger Touch",
+      "/actions/flight/in/left_drag": "Left Drag",
+      "/actions/flight/in/left_turn": "Left Turn",
+      "/actions/flight/in/left_reset": "Left Reset",
+      "/actions/flight/out/left_haptic": "Left Haptic",
+      "/actions/flight/in/right_trackpad": "Right Trackpad",
+      "/actions/flight/in/right_trackpad_touch": "Right Trackpad Touch",
+      "/actions/flight/in/right_force": "Right Force",
+      "/actions/flight/in/right_thumbrest": "Right Thumbrest",
+      "/actions/flight/in/right_trigger_touch": "Right Trigger Touch",
+      "/actions/flight/in/right_drag": "Right Drag",
+      "/actions/flight/in/right_turn": "Right Turn",
+      "/actions/flight/in/right_reset": "Right Reset",
+      "/actions/flight/out/right_haptic": "Right Haptic"
+    }
+  ]
+}

@@ -84,6 +84,9 @@ internal sealed class SettingsStore
         if (!string.IsNullOrWhiteSpace(explicitPath))
             return System.IO.Path.GetFullPath(explicitPath);
 
+        if (OperatingSystem.IsWindows())
+            return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlugelKranz", "config.json");
+
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string? xdgConfigHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
         string configHome = string.IsNullOrWhiteSpace(xdgConfigHome)

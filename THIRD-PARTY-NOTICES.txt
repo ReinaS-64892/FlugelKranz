@@ -148,3 +148,14 @@ Runtime dependency
 libmonado is supplied by the user's Monado / WiVRn installation and is not
 bundled in this application artifact. Its license and notices are provided by
 that installation (the source checkout contains src/MonadoXrApi/monado/LICENSE).
+
+Valve OpenVR SDK 2.15.6
+-----------------------
+Copyright (c) Valve Corporation. All rights reserved.
+Source: https://github.com/ValveSoftware/openvr
+The x64 openvr_api loaders and minimal ABI subset are sourced from the SDK
+vendored in OpenVR-AdvancedSettings commit 58c88cc4186ce59644bf82509fba9fb95ccb064b.
+The generated function-table slots record the SHA-256 of their source header.
+Valve's redistribution license is included at runtimes/LICENSE-VALVE.txt.
+The SteamVR-specific chaperone path contract is experimental. No OVR-AS
+motion logic or UI is included in the SteamVR backend.

@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../FlugelKranz.OpenVR/FlugelKranz.OpenVR.csproj" />
     <ProjectReference Include="..\FlugelKranz.OpenXR\FlugelKranz.OpenXR.csproj" />
   </ItemGroup>
 

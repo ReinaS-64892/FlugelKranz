@@ -12,10 +12,11 @@ FlugelKranz は、Reina_Sakiria が実現した VRChat 上の「自由飛行」�
 
 ## プロジェクト構成
 
-- `FlugelKranz.slnx` は、`src/` 配下の4つの C# プロジェクトと `tests/` 配下のテストをまとめます。
-- `src/FlugelKranz/` は Avalonia のネイティブ Wayland アプリです。`Views/` の UI は Avalonia.Markup.Declarative で C# に記述し、`ViewModels/` には CommunityToolkit.Mvvm を使用します。
+- `FlugelKranz.slnx` は、`src/` 配下の5つの C# プロジェクトと `tests/` 配下のテストをまとめます。
+- `src/FlugelKranz/` は Avalonia の Windows / Linux デスクトップアプリです。`Views/` の UI は Avalonia.Markup.Declarative で C# に記述し、`ViewModels/` には CommunityToolkit.Mvvm を使用します。
 - `src/MonadoXrApi/` は libmonado の汎用相互運用ライブラリです。`LibMonadoLibrary` がネイティブライブラリのロードと ABI バージョン確認を担い、`MonadoRoot` が公開 libmonado API を型付きでラップします。このプロジェクトは `FlugelKranz.Core` を参照せず、FlugelKranz 固有の座標・入力・操作方針、および OpenXR 実装を含めません。
 - `src/FlugelKranz.OpenXR/` は Evergine.Bindings.OpenXR による入力取得と、OpenXR 姿勢を FlugelKranz の物理座標系へ変換する実装を担当します。`FlugelKranz.Core` と `MonadoXrApi` を参照し、両者を結び付ける FlugelKranz 固有のランタイム実装を置きます。
+- `src/FlugelKranz.OpenVR/` は実験的な Windows / Linux x64 SteamVR バックエンドです。OpenVR overlay の入力・同期と SteamVR 固有の空間適用を担当し、Core を共有します。つま先トラッカーの個別姿勢逆補正は対象外です。
 - `src/MonadoXrApi/monado/` は、ネイティブコードとテストを含む上流の Git サブモジュールです。以下の読み取り専用規則に従ってください。
 - `src/FlugelKranz.Core/` は座標変換・論理 Drag / Turn 操作・モード移行・実行制御を担当し、UI やネイティブ API に依存しません。
 - `tests/FlugelKranz.Tests/` には xUnit v3 と Avalonia.Headless.XUnit によるテストがあります。
@@ -26,7 +27,7 @@ FlugelKranz は、Reina_Sakiria が実現した VRChat 上の「自由飛行」�
 
 Monado 本体を本当に改造しなければ実現できない要件が判明した場合は、必要な機能、既存 API では実現できない根拠、検討した代替手段、必要な変更範囲を Reina_Sakiria に説明して判断を仰いでください。改造が必要と判断しただけでは書き込みは許可されません。明示的な承認を得るまで読み取り専用を維持してください。
 
-飛行による空間移動は `mnd_root_set_reference_space_offset`（現在の OpenXR 入力が使う STAGE）で行ってください。`mnd_root_set_tracking_origin_offset` はスペースキャリブレーターなどが扱う原点設定であり、本プロジェクトから呼び出してはいけません。トラッキング原点のオフセットは読み取り専用で扱い、HMD 再接続や原点更新を理由に処理を停止しないでください。
+Monado バックエンドの飛行による空間移動は `mnd_root_set_reference_space_offset`（現在の OpenXR 入力が使う STAGE）で行ってください。`mnd_root_set_tracking_origin_offset` はスペースキャリブレーターなどが扱う原点設定であり、本プロジェクトから呼び出してはいけません。トラッキング原点のオフセットは読み取り専用で扱い、HMD 再接続や原点更新を理由に処理を停止しないでください。
 
 Monado 本体のビルド、ダミードライバーを使った実験、統合テストは実行して構いません。ただしビルドディレクトリと生成物はサブモジュールの外に置き、サブモジュール内へキャッシュやテスト結果も書き込まないでください。
 
@@ -38,11 +39,11 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 
 ## 設定保存
 
-設定値は変更時に JSON へ保存し、次回起動時に復元します。既定の保存先は `~/.config/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。設定は `schemaVersion`、`mode`、`freeFlight`、`infiniteWalking`、`valveIndex` の階層を持ち、モード別の値と機器固有の入力値を混在させません。今回のモード導入以前の平坦な設定は互換読み込みせず、現在の既定値で初期化して上書きします。保存形式や `SettingsStore` を変更した場合は、現行形式の読み書きと旧形式の移行をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
+設定値は変更時に JSON へ保存し、次回起動時に復元します。Linux の既定の保存先は `~/.config/FlugelKranz/config.json`、Windows は `%APPDATA%/FlugelKranz/config.json` です。`XDG_CONFIG_HOME` は設定ディレクトリ、`FLUGELKRANZ_CONFIG` は保存先ファイルを上書きします。設定は `schemaVersion`、`mode`、`freeFlight`、`infiniteWalking`、`valveIndex` の階層を持ち、モード別の値と機器固有の入力値を混在させません。今回のモード導入以前の平坦な設定は互換読み込みせず、現在の既定値で初期化して上書きします。保存形式や `SettingsStore` を変更した場合は、現行形式の読み書きと旧形式の移行をテストしてください。各 UI 設定には既定値へ戻す操作を用意します。
 
 ## UI 方針
 
-[Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) は `UseWayland()` を明示的に選択し、XWayland へ自動フォールバックしません。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm を使い、View とバインディングは基本的に C# で記述します。FluentTheme の Light / Dark テーマ辞書を使い、既定は白い Light テーマにします。状態色はテーマリソースから取得し、個別の固定色を場当たり的に追加しません。
+[Avalonia](https://docs.avaloniaui.net/docs/platform-specific-guides/linux) は Linux の Wayland セッションでは `UseWayland()` を明示し、それ以外では `UsePlatformDetect()` で Windows / Linux X11 のホストプラットフォームを選択します。macOS は対象外です。[Avalonia.Markup.Declarative](https://github.com/AvaloniaCommunity/Avalonia.Markup.Declarative) と CommunityToolkit.Mvvm を使い、View とバインディングは基本的に C# で記述します。FluentTheme の Light / Dark テーマ辞書を使い、既定は白い Light テーマにします。状態色はテーマリソースから取得し、個別の固定色を場当たり的に追加しません。
 
 メイン画面は大きな ON/OFF ボタン、その左の現在モードを示す円形 `I` / `F` 切替ボタン、その右の円形の設定 `⚙`・位置姿勢リセット `↻` ボタンを配置します。設定と位置姿勢リセットは中央線の上下に縦配置します。初期ウィンドウは横長（1100×650）とし、設定パネルはメイン領域を左へ押し出して幅の約80%を占め、幅720px以下では全幅にします。設定項目はモードごとの区切りとグループを明示し、ラベル・操作部・小さな正方形の初期値リセットを同じ行で揃えます。Valve Index が有効な間は操作状態に左右の trackpad force を表示し、専用グループで位置デッドゾーンと感圧閾値を調整可能にします。設定スクロールバーは常時表示（`AllowAutoHide = false`）とし、操作部と重ならない右マージンを確保します。
 
@@ -65,11 +66,13 @@ Monado 本体のビルド、ダミードライバーを使った実験、統合�
 
 `MonadoXrApi` に OpenXR・Avalonia・`FlugelKranz.Core` への依存を追加してはいけません。libmonado のロードは `LibMonadoLibrary` に閉じ込め、API 呼び出しは `MonadoRoot` などのラッパーを経由します。FlugelKranz 固有の座標変換・飛行制御・libmonado と OpenXR の協調処理は `FlugelKranz.Core` または `FlugelKranz.OpenXR` に実装してください。使用されない生成済み ABI バインディングは保持しません。
 
-物理ボタンを操作器へ直結せず、`FlugelKranz.OpenXR` で手ごとの論理 Drag / Turn / モード切替へ変換してから Core へ渡してください。入力割当は `ControllerInputMapping` に集約し、将来 Drag と Turn が同じ物理ボタンへ割り当てられても操作器を変更せずに済む構成を保ちます。
+物理ボタンを操作器へ直結せず、各バックエンドの物理入力を Core の `ControllerInputMapping` で手ごとの論理 Drag / Turn / モード切替へ変換してください。入力割当を共通化し、将来 Drag と Turn が同じ物理ボタンへ割り当てられても操作器を変更せずに済む構成を保ちます。
 
 コードの読みやすさと編集のしやすさを設計・実装・レビューで考慮してください。状態は責務を持つ型にまとめ、長いメソッドに多数のフラグやループをまたぐローカル変数を集めないでください。ローカル変数は用途が分かる名前を付け、必要な範囲に限定します。共通のライフサイクルや遷移処理は共通化し、モード固有の処理は型に閉じ込めて、新しいモードの追加で既存の分岐を広範囲に変更しない構成を優先してください。ただし、読みやすさに寄与しない抽象化や過度な細分化は避けます。
 
 C# 用のフォーマッターやリンターの設定は登録されていません。
+
+SteamVR の空間適用は `SteamVrSpaceApi` に隔離し、参照版 OVR-AS は適用経路だけの参考にしてください。Yaw 分離・working preview・距離制限などの手法や制約を引き継ぐ必要はありません。Core の剛体変換を直接合成します。`IVRPaths` の内部パス利用を標準保証のある API と説明しないでください。
 
 ## テスト方針
 

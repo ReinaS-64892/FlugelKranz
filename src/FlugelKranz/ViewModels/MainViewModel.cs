@@ -2,7 +2,6 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FlugelKranz.Core;
-using FlugelKranz.OpenXR;
 using System.Numerics;
 
 namespace FlugelKranz.ViewModels;
@@ -11,7 +10,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly FlightController controller;
     private readonly SettingsStore settingsStore;
-    private readonly Func<string> libraryPathResolver;
     private CancellationTokenSource? settingsAnimation;
     private double settingsPanelTargetWidth = 430;
     private bool closing;
@@ -24,7 +22,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private string status = "オフ — オンにするとランタイムへ接続します。";
     [ObservableProperty] private string leftStatus = "左右の操作入力から Drag";
     [ObservableProperty] private string rightStatus = "左右の操作入力から Turn";
-    [ObservableProperty] private string referenceSpaceOffsetStatus = "送信中の STAGE オフセット: 未接続";
+    [ObservableProperty] private string referenceSpaceOffsetStatus = "送信中の基準空間オフセット: 未接続";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModeLabel))]
     [NotifyPropertyChangedFor(nameof(ModeDescription))]
@@ -157,20 +155,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         $"Valve Index force — 左: {LeftValveIndexForce:0.00} / 右: {RightValveIndexForce:0.00}";
 
     public MainViewModel(
-        string libraryPath,
+        Func<Func<ValveIndexInputSettings>, IFlightRuntime> createRuntime,
         string? settingsPath = null,
-        Func<string>? libraryPathResolver = null)
+        bool autoStart = true,
+        bool retryRuntimeConnection = true)
     {
-        this.libraryPathResolver = libraryPathResolver ?? (() => libraryPath);
         settingsStore = new(settingsPath);
         ApplySettings(settingsStore.Load());
         PropertyChanged += SettingsChanged;
         controller = new(
-            () => new MonadoFlightRuntime(this.libraryPathResolver(), CreateValveIndexSettings),
+            () => createRuntime(CreateValveIndexSettings),
             new UiProgress(Update),
             CreateSettings,
-            retryRuntimeConnection: libraryPathResolver is not null);
-        if (libraryPathResolver is not null || File.Exists(libraryPath))
+            retryRuntimeConnection);
+        if (autoStart)
         {
             Mode = FlightMode.InfiniteWalking;
             IsEnabled = true;
@@ -357,7 +355,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (state.ReferenceSpaceOffset is { } referenceSpaceOffset)
             ReferenceSpaceOffsetStatus = FormatReferenceSpaceOffset(referenceSpaceOffset, state.RecentReferenceSpaceMovement);
         else if (!state.Connected)
-            ReferenceSpaceOffsetStatus = "送信中の STAGE オフセット: 未接続";
+            ReferenceSpaceOffsetStatus = "送信中の基準空間オフセット: 未接続";
         IsValveIndexDetected = state.LeftTrackpadForce.HasValue || state.RightTrackpadForce.HasValue;
         LeftValveIndexForce = state.LeftTrackpadForce ?? 0;
         RightValveIndexForce = state.RightTrackpadForce ?? 0;
@@ -415,7 +413,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private static string FormatReferenceSpaceOffset(RigidPose offset, Vector3? recentMovement)
     {
         var movement = recentMovement ?? Vector3.Zero;
-        return FormattableString.Invariant($"送信中の STAGE オフセット: 位置 ({offset.Position.X:G9}, {offset.Position.Y:G9}, {offset.Position.Z:G9}) 直近移動 ({movement.X:G9}, {movement.Y:G9}, {movement.Z:G9}) / {movement.Length():G9} m 回転 ({offset.Orientation.X:G9}, {offset.Orientation.Y:G9}, {offset.Orientation.Z:G9}, {offset.Orientation.W:G9})");
+        return FormattableString.Invariant($"送信中の基準空間オフセット: 位置 ({offset.Position.X:G9}, {offset.Position.Y:G9}, {offset.Position.Z:G9}) 直近移動 ({movement.X:G9}, {movement.Y:G9}, {movement.Z:G9}) / {movement.Length():G9} m 回転 ({offset.Orientation.X:G9}, {offset.Orientation.Y:G9}, {offset.Orientation.Z:G9}, {offset.Orientation.W:G9})");
     }
 
     public async ValueTask DisposeAsync()

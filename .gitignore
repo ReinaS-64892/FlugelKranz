@@ -2,3 +2,4 @@
 **/obj
 dist/
 cspell.json
+**/__pycache__/

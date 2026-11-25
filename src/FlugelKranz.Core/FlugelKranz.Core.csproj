@@ -4,4 +4,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlugelKranz.OpenXR" />
+    <InternalsVisibleTo Include="FlugelKranz.OpenVR" />
+    <InternalsVisibleTo Include="FlugelKranz.Tests" />
+  </ItemGroup>
 </Project>

@@ -8,7 +8,7 @@ namespace FlugelKranz.OpenXR;
 internal sealed class MonadoFlightConnection : IDisposable
 {
     private readonly MonadoRoot root;
-    private FlightSpaceTransform space;
+    private ReferenceSpaceTransform space;
     private Dictionary<string, uint> deviceIndices = new(StringComparer.Ordinal);
     private MonadoDeviceRotation[] appliedRotations = [];
     private int trackerRevision = -1;
@@ -17,7 +17,7 @@ internal sealed class MonadoFlightConnection : IDisposable
 
     public RigidPose OriginalOffset => RigidPose.Identity;
     public RigidPose CurrentOffset => space.Offset;
-    public RigidPose CurrentReferenceSpaceOffset => space.StageOffset;
+    public RigidPose CurrentReferenceSpaceOffset => space.ReferenceOffset;
 
     public MonadoFlightConnection(string libraryPath)
     {
@@ -37,7 +37,7 @@ internal sealed class MonadoFlightConnection : IDisposable
 
     public void VerifyUnchanged()
     {
-        if (!ToRigidPose(root.GetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage)).NearlyEquals(space.StageOffset))
+        if (!ToRigidPose(root.GetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage)).NearlyEquals(space.ReferenceOffset))
             throw new InvalidOperationException("基準空間が変更されたため停止しました。再度オンにして接続し直してください。");
     }
 
@@ -63,11 +63,11 @@ internal sealed class MonadoFlightConnection : IDisposable
             var updates = rotations.Where(r => deviceIndices.ContainsKey(r.Serial)).Select(r =>
                 new MonadoDeviceRotation(deviceIndices[r.Serial], r.Orientation.X, r.Orientation.Y, r.Orientation.Z, r.Orientation.W)).ToArray();
             if (offset == space.Offset && updates.SequenceEqual(appliedRotations)) return;
-            root.ApplyStageAndDeviceRotations(ToMonadoPose(next.StageOffset), updates);
+            root.ApplyStageAndDeviceRotations(ToMonadoPose(next.ReferenceOffset), updates);
             appliedRotations = updates;
         }
         else if (offset != space.Offset)
-            root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(next.StageOffset));
+            root.SetReferenceSpaceOffset(MonadoReferenceSpaceType.Stage, ToMonadoPose(next.ReferenceOffset));
         space = next;
     }
 
