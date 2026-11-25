@@ -14,12 +14,14 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
     private Vector3 previousTurnHeadPosition;
     private bool hasPreviousTurnHeadPosition;
     private bool turnFollowerUsesHeadSmoothing;
+    private bool trackingRebaseRequired;
 
     public InfiniteWalkingManipulator(RigidPose offset) => SetOffset(offset);
 
 
     protected override void ReleaseMotion()
     {
+        trackingRebaseRequired = false;
         toeOrigin.Clear();
         toeCompensation.Clear();
         turnToePivot = null;
@@ -48,6 +50,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         float dt = float.IsFinite(elapsedSeconds) ? MathF.Max(0, elapsedSeconds) : 0;
         if (!frame.HeadTracked || !frame.Head.IsValid)
         {
+            trackingRebaseRequired = true;
             hasPreviousTurnHeadPosition = false;
             toeOrigin.Clear();
             toeCompensation.Clear();
@@ -58,7 +61,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
         Vector3? toePivot = toeOrigin.Update(frame, dt, settings);
         turnToePivot = null;
         var hands = ReadHands(frame);
-        if (hands.NeedsRebase)
+        if (hands.NeedsRebase || trackingRebaseRequired)
         {
             targetOffset = Offset;
             if (IsDragging)
@@ -66,6 +69,7 @@ public sealed class InfiniteWalkingManipulator : ManipulationMode
             if (IsTurning)
                 RebaseTurn(frame);
         }
+        trackingRebaseRequired = false;
 
         if (IsTurning)
             ApplyTurn(frame, settings, toePivot);

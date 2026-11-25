@@ -32,6 +32,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
     private Quaternion previousTwoHandOrientation;
     private bool useTwoHandTurnPivotForInertia;
     private Vector3 angularInertia, turnVelocity;
+    private bool trackingRebaseRequired;
     private RigidPose previousTurnTarget;
     private float linearExemptionSeconds, angularExemptionSeconds;
     public bool HasLinearInertia => linearInertia.LengthSquared() > 0;
@@ -41,6 +42,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
 
     protected override void ReleaseMotion()
     {
+        trackingRebaseRequired = false;
         linearInertia = dragVelocity = angularInertia = turnVelocity = Vector3.Zero;
         dragReferenceOrientation = turnStartOrientation = turnStartOffsetOrientation = Quaternion.Identity;
         dragAnchorInRoot = previousDragPosition = twoHandTurnAxis = twoHandTurnPivot = Vector3.Zero;
@@ -68,7 +70,12 @@ public sealed class FreeFlightManipulator : ManipulationMode
         float sampleSeconds = float.IsFinite(elapsedSeconds) ? MathF.Max(0, elapsedSeconds) : 0;
         float dt = Math.Min(sampleSeconds, MaximumStepSeconds);
         if (!frame.HeadTracked || !frame.Head.IsValid)
+        {
+            trackingRebaseRequired = true;
+            // These samples predate the pause and must never become release inertia.
+            dragVelocity = turnVelocity = Vector3.Zero;
             return Offset;
+        }
 
         var hands = ReadHands(frame, endTwoHandOnRelease: true);
         HandleGripChanges(frame, hands, settings);
@@ -135,7 +142,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
             targetOffset = Offset;
         }
 
-        if (hands.NeedsRebase)
+        if (hands.NeedsRebase || trackingRebaseRequired)
         {
             // A new grip starts from the pose currently presented to the runtime,
             // discarding any unapplied smoothing remainder without a jump.
@@ -145,6 +152,7 @@ public sealed class FreeFlightManipulator : ManipulationMode
             if (IsTurning)
                 RebaseTurn(frame);
         }
+        trackingRebaseRequired = false;
     }
 
     private Vector3 AdvanceMotion(InputFrame frame, float dt, float sampleSeconds, FlightMotionSettings settings)

@@ -273,7 +273,7 @@ public sealed unsafe class OpenXrInput : IDisposable
         if (result == XrResult.XR_SESSION_NOT_FOCUSED) return default;
         Check(result, "入力の同期");
         long time = frames.CaptureInputTime();
-        var (head, tracked) = Locate(view, time);
+        var (head, tracked) = Locate(view, time, requireTracking: false);
         var valveIndexSettings = getValveIndexSettings().Normalized();
         return new(
             head,
@@ -407,15 +407,20 @@ public sealed unsafe class OpenXrInput : IDisposable
         return (state.isActive, state.isActive && state.currentState);
     }
 
-    private (RigidPose, bool) Locate(XrSpace space, long time)
+    internal static bool IsPoseUsable(ulong flags, bool requireTracking)
+    {
+        // POSITION/ORIENTATION_VALID = 4/1; TRACKED = 8/2.
+        ulong required = requireTracking ? 15UL : 5UL;
+        return (flags & required) == required;
+    }
+
+    private (RigidPose, bool) Locate(XrSpace space, long time, bool requireTracking = true)
     {
         var location = new XrSpaceLocation { type = XrStructureType.XR_TYPE_SPACE_LOCATION };
         Check(xrLocateSpace(space, stage, time, &location), "位置・姿勢の取得");
-        // OpenXR distinguishes a valid pose from an actively tracked pose. A runtime can
-        // provide a valid last-known position without POSITION_TRACKED (as Monado's
-        // simulated HMD does); keep using that pose while it remains valid.
-        const ulong requiredValidFlags = 5UL;
-        if ((location.locationFlags & requiredValidFlags) != requiredValidFlags)
+        // Controllers need active tracking: a valid retained pose must not bridge
+        // a tracking loss. Keep valid-only support for simulated/static HMDs.
+        if (!IsPoseUsable(location.locationFlags, requireTracking))
             return (RigidPose.Identity, false);
         var p = location.pose;
         var pose = new RigidPose(new Quaternion(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w),

@@ -561,9 +561,11 @@ public class FreeFlightManipulatorTests
 
         var movedLeft = Left with { Position = Left.Position + Vector3.UnitX };
         var resumed = engine.Update(Frame(1, 1) with { Left = new(movedLeft, 1, 0, 0, true) });
-        Assert.NotEqual(offset, resumed);
+        Assert.Equal(offset, resumed);
         Assert.True(engine.IsDragging);
         Assert.True(engine.IsTurning);
+        movedLeft = movedLeft with { Position = movedLeft.Position + Vector3.UnitX };
+        Assert.NotEqual(resumed, engine.Update(Frame(1, 1) with { Left = new(movedLeft, 1, 0, 0, true) }));
     }
 
     [Fact]
