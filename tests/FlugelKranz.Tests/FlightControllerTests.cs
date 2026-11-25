@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Numerics;
+using System.Text.Json;
 using FlugelKranz.Core;
 using Xunit;
 
@@ -7,6 +8,36 @@ namespace FlugelKranz.Tests;
 
 public class FlightControllerTests
 {
+    [Fact]
+    public async Task RecordingCapturesPhysicalActionsSettingsAndCompletedFramesAcrossDisconnect()
+    {
+        var output = new StringWriter();
+        using (var recording = new FlightSessionRecorder(output))
+        {
+            var runtime = new PacedRuntime { Frame = ModeFrame(1) };
+            await using var controller = new FlightController(() => runtime, new Recorder(), recorder: recording);
+            controller.SetEnabled(true);
+            await Wait(() => runtime.Disposed);
+        }
+        var records = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => { using var doc = JsonDocument.Parse(line); return doc.RootElement.Clone(); }).ToArray();
+        Assert.Equal(1, records.Count(r => r.GetProperty("type").GetString() == "settings"));
+        var frames = records.Where(r => r.GetProperty("type").GetString() == "frame")
+            .Select(r => r.GetProperty("data")).ToArray();
+        Assert.Equal(2, frames.Length);
+        Assert.All(frames, frame =>
+        {
+            Assert.Equal(.6f, frame.GetProperty("elapsedSeconds").GetSingle());
+            Assert.Equal(1, frame.GetProperty("input").GetProperty("left").GetProperty("dpadDown").GetSingle());
+            Assert.True(frame.GetProperty("framePaced").GetBoolean());
+            Assert.True(frame.GetProperty("enabled").GetBoolean());
+            Assert.True(frame.GetProperty("appliedTimestampTicks").GetInt64() >= frame.GetProperty("readCompletedTimestampTicks").GetInt64());
+        });
+        Assert.Equal((int)FlightMode.FreeFlight, frames[^1].GetProperty("mode").GetInt32());
+        Assert.Contains(records, r => r.GetProperty("type").GetString() == "error");
+        Assert.Contains(records, r => r.GetProperty("type").GetString() == "disconnect");
+    }
+
     [Fact]
     public async Task PacedRuntimeUsesFrameTimeForGesturesAndEndsEveryFrameBeforeWaitingAgain()
     {

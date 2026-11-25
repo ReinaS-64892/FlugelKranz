@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Avalonia;
+using FlugelKranz.Core;
 using FlugelKranz.OpenXR;
 
 namespace FlugelKranz;
@@ -8,6 +9,7 @@ internal static class Program
 {
     public static string MonadoLibraryPath { get; private set; } = MonadoRuntimeLocator.Resolve();
     public static Func<string> MonadoLibraryPathResolver { get; private set; } = static () => MonadoRuntimeLocator.Resolve();
+    public static FlightSessionRecorder? SessionRecorder { get; private set; }
 
     [STAThread]
     public static int Main(string[] args)
@@ -29,9 +31,22 @@ internal static class Program
         {
             Description = "UI を開かず接続・入力を確認（空間の書き込みなし）"
         };
+        var recordOption = new Option<string?>("--record-session")
+        {
+            Description = "姿勢・論理操作・設定・空間更新を JSON Lines に記録（既存ファイルは上書きしません）",
+            HelpName = "PATH",
+            Arity = ArgumentArity.ExactlyOne
+        };
+        recordOption.Validators.Add(result =>
+        {
+            var path = result.GetValueOrDefault<string>();
+            if (string.IsNullOrWhiteSpace(path) || path.StartsWith('-'))
+                result.AddError("--record-session には出力ファイルのパスを指定してください。");
+        });
         var root = new RootCommand("FlugelKranz — 自由飛行 / 無限歩行の Space Drag・Space Turn。Linux Wayland セッションで起動してください。");
         root.Options.Add(libraryOption);
         root.Options.Add(diagnoseOption);
+        root.Options.Add(recordOption);
         root.SetAction(result =>
         {
             MonadoLibraryPath = result.GetValue(libraryOption)!;
@@ -41,17 +56,21 @@ internal static class Program
             MonadoLibraryPathResolver = explicitLibraryPath
                 ? static () => MonadoLibraryPath
                 : static () => MonadoRuntimeLocator.Resolve();
-            return Run(result.GetValue(diagnoseOption));
+            return Run(result.GetValue(diagnoseOption), result.GetValue(recordOption));
         });
 
         // Keep Avalonia startup on the entry thread by invoking the action synchronously.
         return root.Parse(args).Invoke();
     }
 
-    private static int Run(bool diagnose)
+    private static int Run(bool diagnose, string? recordPath)
     {
         try
         {
+            using var recorder = recordPath is null ? null : new FlightSessionRecorder(recordPath);
+            SessionRecorder = recorder;
+            if (recordPath is not null)
+                Console.Error.WriteLine($"セッション記録: {Path.GetFullPath(recordPath)}");
             if (diagnose)
             {
                 using var runtime = new MonadoFlightRuntime(MonadoLibraryPath);
@@ -62,6 +81,11 @@ internal static class Program
                     {
                         var frame = runtime.ReadPhysical();
                         if (frameStarted) runtime.CommitFrame(CancellationToken.None);
+                        recorder?.Record("diagnosticFrame", new
+                        {
+                            input = frame, runtime.FrameElapsedSeconds,
+                            runtime.CurrentOffset, runtime.ReferenceSpaceOffset
+                        });
                         if (frameStarted && frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
                         {
                             Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
@@ -90,6 +114,7 @@ internal static class Program
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
+        finally { SessionRecorder = null; }
     }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseWayland().LogToTrace();

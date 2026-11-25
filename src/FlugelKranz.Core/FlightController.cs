@@ -53,7 +53,8 @@ public sealed class FlightController(
     Func<IFlightRuntime> createRuntime,
     IProgress<FlightStatus> progress,
     Func<FlugelKranzSettings>? getSettings = null,
-    bool retryRuntimeConnection = false) : IAsyncDisposable
+    bool retryRuntimeConnection = false,
+    FlightSessionRecorder? recorder = null) : IAsyncDisposable
 {
     private readonly object gate = new();
     private readonly CancellationTokenSource shutdown = new();
@@ -101,6 +102,7 @@ public sealed class FlightController(
                 }
                 catch (Exception exception) when (retryRuntimeConnection)
                 {
+                    recorder?.Record("connectionRetry", new { message = exception.Message });
                     lock (gate)
                     {
                         if (!enabled)
@@ -120,6 +122,12 @@ public sealed class FlightController(
                 return;
             var session = new FlightSession(runtime, progress,
                 (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized());
+            recorder?.Record("connection", new
+            {
+                runtime.OriginalOffset, runtime.CurrentOffset,
+                referenceSpaceOffset = (runtime as IReferenceSpaceOffsetProvider)?.ReferenceSpaceOffset
+            });
+            FlugelKranzSettings? recordedSettings = null;
             long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
             var pacedRuntime = runtime as IFramePacedFlightRuntime;
@@ -129,14 +137,24 @@ public sealed class FlightController(
                 try
                 {
                     shutdown.Token.ThrowIfCancellationRequested();
+                    long readStarted = recorder is null ? 0 : Stopwatch.GetTimestamp();
                     var frame = runtime.ReadPhysical();
                     long timestamp = Stopwatch.GetTimestamp();
                     float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
                         : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
                     previousTimestamp = timestamp;
                     var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
+                    if (recorder is not null && settings != recordedSettings)
+                    {
+                        recorder.Record("settings", settings);
+                        recordedSettings = settings;
+                    }
+                    RecordedFlightFrame? recording = null;
                     lock (gate)
                     {
+                        var offsetBefore = runtime.CurrentOffset;
+                        bool released = observedVersion != releaseVersion;
+                        bool reset = resetRequested;
                         if (observedVersion != releaseVersion)
                         {
                             session.Release();
@@ -149,10 +167,19 @@ public sealed class FlightController(
                         }
                         session.Update(frame, elapsedSeconds, settings, enabled);
                         reportedMode = session.Mode;
+                        if (recorder is not null)
+                            recording = session.Capture(frame, elapsedSeconds, readStarted, timestamp, enabled, released, reset, offsetBefore);
                     }
                     // Complete all computation first. Publish the staged update
                     // at the runtime deadline without holding the UI/state lock.
                     if (frameStarted) pacedRuntime!.CommitFrame(shutdown.Token);
+                    if (recording is not null)
+                        recorder!.Record("frame", recording with
+                        {
+                            FramePaced = frameStarted,
+                            AppliedOffset = runtime.CurrentOffset,
+                            AppliedTimestampTicks = Stopwatch.GetTimestamp()
+                        });
                 }
                 finally
                 {
@@ -164,14 +191,22 @@ public sealed class FlightController(
             }
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
-        catch (Exception exception) { error = exception.Message; }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            recorder?.Record("error", new { message = exception.ToString() });
+        }
         finally
         {
             if (runtime is not null)
             {
                 try { runtime.Restore(); }
                 catch (Exception exception) { error = $"{error}\n復元に失敗しました: {exception.Message}".Trim(); }
-                finally { runtime.Dispose(); }
+                finally
+                {
+                    recorder?.Record("disconnect", new { error, runtime.CurrentOffset });
+                    runtime.Dispose();
+                }
             }
             lock (gate)
             {

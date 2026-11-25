@@ -21,6 +21,11 @@ internal sealed class FlightSession
     }
 
     public FlightMode Mode => MovementModes.Selection(movement.SelectedMode);
+    public RecordedFlightFrame Capture(InputFrame frame, float elapsedSeconds, long readStarted, long readCompleted,
+        bool enabled, bool released, bool reset, RigidPose offsetBefore) => new(
+        readStarted, readCompleted, elapsedSeconds, frame with { Trackers = frame.Trackers?.ToArray() }, enabled, Mode,
+        movement.ActiveMode.GetType().Name, movement.ActiveMode.IsDragging, movement.ActiveMode.IsTurning,
+        released, reset, offsetBefore, runtime.CurrentOffset, movement.ActiveMode.TrackerRotations.ToArray());
     public void Release()
     {
         movement.Release(runtime.CurrentOffset);

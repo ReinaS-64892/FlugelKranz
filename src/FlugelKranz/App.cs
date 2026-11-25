@@ -82,7 +82,8 @@ public class App : Application
         {
             var vm = new MainViewModel(
                 Program.MonadoLibraryPath,
-                libraryPathResolver: Program.MonadoLibraryPathResolver);
+                libraryPathResolver: Program.MonadoLibraryPathResolver,
+                sessionRecorder: Program.SessionRecorder);
             var window = new Window
             {
                 Title = "FlugelKranz", Width = 1100, Height = 650, MinWidth = 420, MinHeight = 520,

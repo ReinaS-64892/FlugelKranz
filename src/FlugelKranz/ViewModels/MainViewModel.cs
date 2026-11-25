@@ -159,7 +159,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public MainViewModel(
         string libraryPath,
         string? settingsPath = null,
-        Func<string>? libraryPathResolver = null)
+        Func<string>? libraryPathResolver = null,
+        FlightSessionRecorder? sessionRecorder = null)
     {
         this.libraryPathResolver = libraryPathResolver ?? (() => libraryPath);
         settingsStore = new(settingsPath);
@@ -169,7 +170,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             () => new MonadoFlightRuntime(this.libraryPathResolver(), CreateValveIndexSettings),
             new UiProgress(Update),
             CreateSettings,
-            retryRuntimeConnection: libraryPathResolver is not null);
+            retryRuntimeConnection: libraryPathResolver is not null,
+            recorder: sessionRecorder);
         if (libraryPathResolver is not null || File.Exists(libraryPath))
         {
             Mode = FlightMode.InfiniteWalking;
