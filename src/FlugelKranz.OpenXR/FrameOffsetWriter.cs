@@ -2,27 +2,26 @@ using FlugelKranz.Core;
 
 namespace FlugelKranz.OpenXR;
 
-/// <summary>Computes against a staged offset, then publishes the final update at one deadline.</summary>
+/// <summary>Publishes at frame start and retains computation-only results for the next frame.</summary>
 internal sealed class FrameOffsetWriter(
     Func<RigidPose> getAppliedOffset,
-    Action<RigidPose, IReadOnlyList<TrackerRotationOffset>> apply,
-    Action<CancellationToken> waitForApply)
+    Action<RigidPose, IReadOnlyList<TrackerRotationOffset>> apply)
 {
     private sealed record Update(RigidPose Offset, IReadOnlyList<TrackerRotationOffset> Rotations);
     private Update? pending;
-    public bool FrameActive { get; private set; }
+    public bool CycleActive { get; private set; }
     public RigidPose CurrentOffset => pending?.Offset ?? getAppliedOffset();
 
     public void Begin()
     {
-        if (FrameActive) throw new InvalidOperationException("前のオフセット更新が終了していません。");
-        FrameActive = true;
+        if (CycleActive) throw new InvalidOperationException("前のオフセット更新が終了していません。");
+        CycleActive = true;
     }
 
     public void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations)
     {
         if (!offset.IsValid) throw new ArgumentException("空間変換が不正です。", nameof(offset));
-        if (FrameActive)
+        if (CycleActive)
             pending = new(offset, rotations.ToArray());
         else
             apply(offset, rotations);
@@ -30,8 +29,7 @@ internal sealed class FrameOffsetWriter(
 
     public void Commit(CancellationToken cancellationToken)
     {
-        if (!FrameActive) throw new InvalidOperationException("オフセット更新が開始していません。");
-        waitForApply(cancellationToken);
+        if (!CycleActive) throw new InvalidOperationException("オフセット更新が開始していません。");
         cancellationToken.ThrowIfCancellationRequested();
         if (pending is { } update)
         {
@@ -40,9 +38,9 @@ internal sealed class FrameOffsetWriter(
         }
     }
 
-    public void End()
+    public void End(bool preservePending = false)
     {
-        pending = null;
-        FrameActive = false;
+        if (!preservePending) pending = null;
+        CycleActive = false;
     }
 }

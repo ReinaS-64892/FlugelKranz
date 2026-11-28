@@ -9,7 +9,7 @@ internal interface IOpenXrClock
     void WaitUntil(long time, CancellationToken cancellationToken);
 }
 
-/// <summary>Uses one monotonic time domain for input sampling and absolute write deadlines.</summary>
+/// <summary>Uses one monotonic time domain for input sampling and absolute computation deadlines.</summary>
 internal sealed unsafe class OpenXrClock : IOpenXrClock
 {
     private const int ClockMonotonic = 1, TimerAbsolute = 1, Interrupted = 4;
@@ -51,7 +51,7 @@ internal sealed unsafe class OpenXrClock : IOpenXrClock
         cancellationToken.ThrowIfCancellationRequested();
         if (time <= Now) return;
         Timespec deadline;
-        OpenXrInput.Check(toTimespec(instance, time, &deadline), "オフセット反映時刻の変換");
+        OpenXrInput.Check(toTimespec(instance, time, &deadline), "追加演算時刻の変換");
         int result;
         do
         {
@@ -61,7 +61,7 @@ internal sealed unsafe class OpenXrClock : IOpenXrClock
             result = clock_nanosleep(ClockMonotonic, TimerAbsolute, in deadline, 0);
         } while (result == Interrupted);
         if (result != 0)
-            throw new InvalidOperationException($"オフセット反映の待機に失敗しました（errno: {result}）。");
+            throw new InvalidOperationException($"追加演算の待機に失敗しました（errno: {result}）。");
         cancellationToken.ThrowIfCancellationRequested();
     }
 }

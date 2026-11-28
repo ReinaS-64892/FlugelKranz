@@ -61,12 +61,17 @@ internal static class Program
                     try
                     {
                         var frame = runtime.ReadPhysical();
-                        if (frameStarted) runtime.CommitFrame(CancellationToken.None);
+                        if (frameStarted)
+                        {
+                            runtime.CommitFrame(CancellationToken.None);
+                            if (runtime.WaitForMidFrameUpdate(CancellationToken.None))
+                                frame = runtime.ReadPhysical();
+                        }
                         if (frameStarted && frame.HeadTracked && frame.Left.IsTracked && frame.Right.IsTracked)
                         {
                             Console.WriteLine("Monado / OpenXR 接続、固定 STAGE、HMD・両手の入力を確認しました。空間は変更していません。");
                             Console.WriteLine($"フレーム待機: xrWaitFrame、更新周期: {runtime.FramePeriodNanoseconds / 1_000_000.0:F3} ms ({1_000_000_000.0 / runtime.FramePeriodNanoseconds:F2} Hz、初回はランタイム値、以降は復帰間隔の実測)。描画レイヤー: 0。");
-                            Console.WriteLine("入力取得: 現在時刻。反映目標: xrWaitFrame 復帰時刻 + 更新周期の半分。");
+                            Console.WriteLine("空フレームは開始直後に終了。Monado 反映: 終了直後の入力・演算後、1フレームに1回。半周期後は入力・内部演算のみ（2倍レート目標）。");
                             Console.WriteLine($"トラッカー空間: {(runtime.TrackerSpacesSupported ? "対応" : "非対応")}、有効なトラッカー: {frame.Trackers?.Count ?? 0} 台。");
                             Console.WriteLine($"つま先逆補正 API: {(runtime.TrackerRotationOffsetsSupported ? "対応" : "非対応（つま先逆補正は無効）")}");
                             return 0;
@@ -74,7 +79,7 @@ internal static class Program
                     }
                     finally
                     {
-                        if (frameStarted) runtime.EndFrame();
+                        if (frameStarted) runtime.EndUpdateCycle();
                     }
                     if (!frameStarted) Thread.Sleep(10);
                 }

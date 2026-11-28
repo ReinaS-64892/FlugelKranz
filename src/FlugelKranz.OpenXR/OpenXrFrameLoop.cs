@@ -10,13 +10,15 @@ internal interface IOpenXrFrameApi
     void End(long displayTime);
 }
 
-/// <summary>Pairs every begun frame with an empty submission, including failed input updates.</summary>
+/// <summary>Immediately submits each empty XR frame, then paces two input/computation passes.</summary>
 internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
 {
-    private bool active;
+    private bool cycleActive;
     private long previousDisplayTime;
     private long previousInputTime;
-    private long applyTime;
+    private long midpointTime;
+    private long frameDeadline;
+    private bool midFrameVisited;
     private long previousWakeTime;
     private readonly long[] wakeIntervals = new long[5];
     private int intervalCount, intervalIndex;
@@ -27,18 +29,22 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
 
     public void Begin()
     {
-        if (active) throw new InvalidOperationException("前の OpenXR フレームが終了していません。");
+        if (cycleActive) throw new InvalidOperationException("前の入力・演算サイクルが終了していません。");
         var frame = api.Wait();
         long wakeTime = clock.Now;
         if (frame.predictedDisplayTime <= 0 || frame.predictedDisplayPeriod <= 0
             || (previousDisplayTime > 0 && frame.predictedDisplayTime <= previousDisplayTime))
             throw new InvalidOperationException("OpenXR が不正なフレーム時刻・周期を返しました。");
-        // The display timestamp can be several frames ahead on a wireless
-        // runtime. Anchor the write phase to the actual wait return instead.
+        // Prediction can lead by several frames. Anchor only the extra
+        // computation pass to the actual wait return, never offset publication.
         UpdatePeriod = MeasurePeriod(wakeTime, frame.predictedDisplayPeriod);
-        applyTime = checked(wakeTime + UpdatePeriod / 2);
+        midpointTime = checked(wakeTime + UpdatePeriod / 2);
+        frameDeadline = checked(wakeTime + UpdatePeriod);
+        midFrameVisited = false;
         api.Begin();
-        active = true;
+        // Return control to the runtime before any input, computation or writes.
+        api.End(frame.predictedDisplayTime);
+        cycleActive = true;
         DisplayTime = frame.predictedDisplayTime;
         DisplayPeriod = frame.predictedDisplayPeriod;
         previousDisplayTime = DisplayTime;
@@ -65,7 +71,7 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
 
     public long CaptureInputTime()
     {
-        if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
+        if (!cycleActive) throw new InvalidOperationException("入力・演算サイクルが開始していません。");
         long time = clock.Now;
         if (time <= 0 || (previousInputTime > 0 && time < previousInputTime))
             throw new InvalidOperationException("OpenXR の入力取得時刻が不正です。");
@@ -74,18 +80,27 @@ internal sealed class OpenXrFrameLoop(IOpenXrFrameApi api, IOpenXrClock clock)
         return time;
     }
 
-    public void WaitForApply(CancellationToken cancellationToken)
+    public void ResetInputTime()
     {
-        if (!active) throw new InvalidOperationException("OpenXR フレームが開始していません。");
-        clock.WaitUntil(applyTime, cancellationToken);
+        previousInputTime = 0;
+        ElapsedSeconds = 0;
     }
 
-    public void End()
+    public bool WaitForMidFrameUpdate(CancellationToken cancellationToken)
     {
-        if (!active) return;
-        active = false;
-        api.End(DisplayTime);
+        if (!cycleActive) throw new InvalidOperationException("入力・演算サイクルが開始していません。");
+        cancellationToken.ThrowIfCancellationRequested();
+        if (midFrameVisited) return false;
+        midFrameVisited = true;
+        // Skip a stale extra pass rather than bunching samples after an overrun.
+        if (clock.Now >= frameDeadline) return false;
+        clock.WaitUntil(midpointTime, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return clock.Now < frameDeadline;
     }
+
+    // The native frame was already ended in Begin; this only closes the update cycle.
+    public void End() => cycleActive = false;
 }
 
 internal sealed unsafe class NativeOpenXrFrameApi(XrSession session, XrEnvironmentBlendMode blendMode) : IOpenXrFrameApi

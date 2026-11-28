@@ -14,15 +14,17 @@ internal sealed class FlightInputGestures
         bool left = Held(frame.Left);
         bool right = Held(frame.Right);
         bool both = left && right;
-        leftSeconds = left ? leftSeconds + elapsedSeconds : 0;
-        rightSeconds = right ? rightSeconds + elapsedSeconds : 0;
+        float dt = float.IsFinite(elapsedSeconds) ? MathF.Max(0, elapsedSeconds) : 0;
+        // Only count intervals whose beginning and end were both observed held.
+        leftSeconds = left && previousLeft ? leftSeconds + dt : 0;
+        rightSeconds = right && previousRight ? rightSeconds + dt : 0;
         if (both || left != previousLeft || right != previousRight || !(left || right))
         {
             singleSeconds = 0;
             singleTriggered = false;
         }
         else
-            singleSeconds += elapsedSeconds;
+            singleSeconds += dt;
 
         if (!both || !(previousLeft && previousRight))
             modeTriggered = false;

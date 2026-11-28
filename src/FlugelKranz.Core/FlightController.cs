@@ -17,13 +17,16 @@ public interface ITrackerRotationRuntime
     void Apply(RigidPose offset, IReadOnlyList<TrackerRotationOffset> rotations);
 }
 
-/// <summary>Optional runtime pacing. A successful wait begins a frame that the caller must end.</summary>
+/// <summary>Optional pacing. WaitFrame submits an empty XR frame before returning; updates follow it.</summary>
 public interface IFramePacedFlightRuntime
 {
     bool WaitFrame();
     float FrameElapsedSeconds { get; }
+    /// <summary>Waits for one additional input/computation pass; never publishes offsets.</summary>
+    bool WaitForMidFrameUpdate(CancellationToken cancellationToken);
     void CommitFrame(CancellationToken cancellationToken);
-    void EndFrame();
+    /// <summary>Ends the update cycle, retaining computation-only results only on success.</summary>
+    void EndUpdateCycle(bool preservePending = false);
 }
 
 public interface IReferenceSpaceOffsetProvider
@@ -123,40 +126,52 @@ public sealed class FlightController(
             long previousTimestamp = Stopwatch.GetTimestamp();
             long observedVersion = -1;
             var pacedRuntime = runtime as IFramePacedFlightRuntime;
+            void Update(bool frameStarted)
+            {
+                shutdown.Token.ThrowIfCancellationRequested();
+                var frame = runtime.ReadPhysical();
+                long timestamp = Stopwatch.GetTimestamp();
+                float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
+                    : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
+                previousTimestamp = timestamp;
+                var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
+                lock (gate)
+                {
+                    if (observedVersion != releaseVersion)
+                    {
+                        session.Release();
+                        observedVersion = releaseVersion;
+                    }
+                    if (resetRequested)
+                    {
+                        session.Reset();
+                        resetRequested = false;
+                    }
+                    session.Update(frame, elapsedSeconds, settings, enabled);
+                    reportedMode = session.Mode;
+                }
+            }
+
             while (!shutdown.IsCancellationRequested)
             {
                 bool frameStarted = pacedRuntime?.WaitFrame() ?? false;
+                bool completed = false;
                 try
                 {
-                    shutdown.Token.ThrowIfCancellationRequested();
-                    var frame = runtime.ReadPhysical();
-                    long timestamp = Stopwatch.GetTimestamp();
-                    float elapsedSeconds = frameStarted ? pacedRuntime!.FrameElapsedSeconds
-                        : (float)Stopwatch.GetElapsedTime(previousTimestamp, timestamp).TotalSeconds;
-                    previousTimestamp = timestamp;
-                    var settings = (getSettings?.Invoke() ?? FlugelKranzSettings.Default).Normalized();
-                    lock (gate)
+                    Update(frameStarted);
+                    // WaitFrame has already ended the native XR frame. Publish
+                    // immediately, then keep the midpoint computation pending.
+                    if (frameStarted)
                     {
-                        if (observedVersion != releaseVersion)
-                        {
-                            session.Release();
-                            observedVersion = releaseVersion;
-                        }
-                        if (resetRequested)
-                        {
-                            session.Reset();
-                            resetRequested = false;
-                        }
-                        session.Update(frame, elapsedSeconds, settings, enabled);
-                        reportedMode = session.Mode;
+                        pacedRuntime!.CommitFrame(shutdown.Token);
+                        if (pacedRuntime.WaitForMidFrameUpdate(shutdown.Token))
+                            Update(true);
                     }
-                    // Complete all computation first. Publish the staged update
-                    // at the runtime deadline without holding the UI/state lock.
-                    if (frameStarted) pacedRuntime!.CommitFrame(shutdown.Token);
+                    completed = true;
                 }
                 finally
                 {
-                    if (frameStarted) pacedRuntime!.EndFrame();
+                    if (frameStarted) pacedRuntime!.EndUpdateCycle(preservePending: completed);
                 }
                 // Only idle/unpaced runtimes need a software delay. A running
                 // OpenXR session is paced exclusively by xrWaitFrame.
